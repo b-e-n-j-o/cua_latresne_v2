@@ -10,6 +10,7 @@
 !api.py
 !intersections.py
 !catalogue_couches_avec_reglementation.json
+!requirements.txt
 
 # Garder le dossier .git et ses fichiers internes
 !.gitignore
