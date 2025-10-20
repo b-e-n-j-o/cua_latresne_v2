@@ -1,0 +1,177 @@
+{
+    "servitudes": {
+      "ac1": {
+        "nom": "Monuments historiques et abords (AC1)",
+        "geom": "geom_2154",
+        "keep": ["idass", "idgen", "typeass", "nomsuplitt", "source"]
+      },
+      "as1": {
+        "nom": "Captages d'eau potable (AS1)",
+        "geom": "geom_2154",
+        "keep": ["gid", "code_pp", "source", "precision", "qualite", "reglementation"]
+      },
+      "i1_hydrocarbure_chimique_gaz": {
+        "nom": "Canalisations d’hydrocarbures, gaz et produits chimiques (I1)",
+        "geom": "geom_2154",
+        "keep": ["gml_id", "transporteur", "cat_fluide", "desc_ouv", "type", "source"]
+      },
+      "i4_carte": {
+        "nom": "Câbles électriques haute tension (I4)",
+        "geom": "geometry",
+        "keep": ["nom_sup", "type", "code_insee", "source", "reglementation", "id"]
+      },
+      "i6": {
+        "nom": "Gazoducs et oléoducs (I6)",
+        "geom": "geometry",
+        "keep": ["nom_sup", "type", "code_insee", "source", "reglementation", "id"]
+      },
+      "el3_garonne": {
+        "nom": "Servitudes liées au domaine public fluvial (EL3)",
+        "geom": "geom_2154",
+        "keep": ["id", "gid", "numero", "section", "code_dep", "nom_com", "source"]
+      },
+      "pm1": {
+        "nom": "Plan de prévention des risques (PM1)",
+        "geom": "geom_2154",
+        "keep": ["idass", "idgen", "typeass", "nomsuplitt", "servitude", "source"]
+      },
+      "pm1_detaillee_gironde": {
+        "nom": "Plan de prévention des risques détaillé (PM1 - Gironde)",
+        "geom": "geom_2154",
+        "keep": ["gid", "source", "id_map", "id_zone", "id_gaspar", "nom", "typereg", "soumisalea"]
+      },
+      "pprmvt_latresne": {
+        "nom": "Plan de prévention des mouvements de terrain (PM1 - Latresne)",
+        "geom": "geom_2154",
+        "keep": ["Etiquette", "Niveau_max", "Zone_Regl_", "Zone_Reg_1", "Texte_CU", "source"]
+      },
+      "servitude_generateur_et_assiette_surfacique": {
+        "nom": "Servitudes d’utilité publique (assiettes et générateurs)",
+        "geom": "geom_2154",
+        "keep": ["id", "gid", "idgen", "nomass", "typeass", "nomreg", "urlreg"]
+      },
+      "sup_lin_latresne": {
+        "nom": "Servitudes linéaires (I4, I6, PT3)",
+        "geom": "geom_2154",
+        "keep": ["nom_sup", "type", "code_insee", "source", "reglementation", "id"]
+      }
+    },
+  
+    "informatives": {
+      "aoc_viticoles": {
+        "nom": "AOC viticoles",
+        "geom": "geom_2154",
+        "keep": ["uid", "source", "denom", "crinao"]
+      },
+      "aoc_viticoles_latresne": {
+        "nom": "AOC viticoles (Latresne)",
+        "geom": "geom_2154",
+        "keep": ["uid", "source", "denom", "crinao", "reglementation"]
+      },
+      "inf_surf_et_zone_preemption": {
+        "nom": "Zones de préemption",
+        "geom": "geom_2154",
+        "keep": ["gml_id", "libelle", "typeinf", "txt", "source", "reglementation"]
+      },
+      "zaenr_zones": {
+        "nom": "Zones d’accélération des énergies renouvelables (ZAEnR)",
+        "geom": "geom_2154",
+        "keep": ["uid", "detail_fil", "commune", "source", "reglementation"]
+      },
+      "secteurs_carrieres_comblees": {
+        "nom": "Carrières comblées ou souterraines",
+        "geom": "geom_2154",
+        "keep": ["type_comblement", "nom_cavite", "commentaires_cd33", "source"]
+      },
+      "reseaux_hta": {
+        "nom": "Réseaux électriques moyenne tension (HTA)",
+        "geom": "geometry",
+        "keep": ["nom_commune", "code_region", "nom_region", "type", "source"]
+      },
+      "patrimoine_naturel_latresne": {
+        "nom": "Patrimoine naturel (ZNIEFF, Natura 2000, prairies…)",
+        "geom": "geom_2154",
+        "keep": ["uid", "type_patrimoine", "nom", "reglementation"],
+        "sous_couches": {
+          "ZNIEFF type I": "informatives",
+          "ZNIEFF type II": "informatives"
+        }
+      }
+    },
+  
+    "prescriptives": {
+      "plu_latresne": {
+        "nom": "Zonage du PLU",
+        "geom": "geom_2154",
+        "keep": ["id", "libelle", "typezone", "insee", "source", "reglementation", "zonage_reglement"]
+      },
+      "troncons_et_fosses_latresne": {
+        "nom": "Tronçons et fossés",
+        "geom": "geometry",
+        "keep": ["fid", "TYPE", "COMMUNE", "CLASSE", "source", "reglementation"]
+      },
+      "haies_bocages_latresne": {
+        "nom": "Haies et bocages",
+        "geom": "geom_2154",
+        "keep": ["id", "source", "reglementation"]
+      },
+      "debroussaillement": {
+        "nom": "Zones de débroussaillement obligatoire",
+        "geom": "geom_2154",
+        "keep": ["gid", "id", "dept", "source", "zonage", "url", "reglementation"]
+      },
+      "radon": {
+        "nom": "Zones à potentiel radon",
+        "geom": "geom_2154",
+        "keep": ["NOM_COMM", "INSEE_COM", "CLASSE_POT", "reglementation"]
+      },
+      "retrait_gonflement_argiles_gironde": {
+        "nom": "Retrait et gonflement des argiles",
+        "geom": "geom_2154",
+        "keep": ["dpt", "niveau", "alea", "reglementation"]
+      },
+      "risque_mouvement_de_terrain": {
+        "nom": "Risques de mouvement de terrain",
+        "geom": "geom_2154",
+        "keep": ["gml_id", "libelle", "txt", "typepsc", "insee", "source", "reglementation"]
+      },
+      "nuisances_sonores_gironde": {
+        "nom": "Zones de nuisances sonores",
+        "geom": "geom_2154",
+        "keep": ["gid", "numero", "nom_tronc", "cat_bruit", "larg_secte", "gestion", "reglementation"]
+      },
+      "l_class_sonore_route_20230208_d33": {
+        "nom": "Classements sonores routiers",
+        "geom": "geometry",
+        "keep": ["numero", "nom_tronc", "cat_bruit", "larg_secte", "gestion"]
+      },
+      "patrimoine_naturel_latresne": {
+        "nom": "Patrimoine naturel (Prairies, Natura 2000)",
+        "geom": "geom_2154",
+        "keep": ["uid", "type_patrimoine", "nom", "reglementation"],
+        "sous_couches": {
+          "Prairies et pâturages sensibles": "prescriptives",
+          "Sites Natura 2000 (Habitats)": "prescriptives"
+        }
+      }
+    },
+  
+    "carte": {
+      "reseaux_aep_eu_lin": {
+        "nom": "Réseaux d’eau potable et d’eaux usées (linéaires)",
+        "geom": "geometry",
+        "keep": ["id", "materiau", "type", "nom_commun", "diametre", "source"]
+      },
+      "reseaux_aep_eu_pct": {
+        "nom": "Réseaux d’eau potable et d’eaux usées (points)",
+        "geom": "geometry",
+        "keep": ["id", "type", "type_noeud", "nom_commun", "source"]
+      },
+      "galerie_cheminement_et_pilier": {
+        "nom": "Galeries souterraines et piliers",
+        "geom": "geom_2154",
+        "keep": ["gml_id", "Niveau_Carrière", "Date__Dernier_levé_Terrain", "globalid"]
+      }
+    }
+  }
+  

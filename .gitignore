@@ -1,0 +1,36 @@
+# Garder seulement :
+# - api.py
+# - intersections.py
+# - catalogue_couches_avec_reglementation.json
+
+# Ignorer tout le reste par défaut
+*
+
+# Puis inclure uniquement les fichiers utiles :
+!api.py
+!intersections.py
+!catalogue_couches_avec_reglementation.json
+
+# Garder le dossier .git et ses fichiers internes
+!.gitignore
+!.gitattributes
+!.gitkeep
+
+# Ignorer les environnements, caches, et fichiers sensibles
+.venv/
+venv/
+__pycache__/
+.env
+*.log
+*.sqlite
+*.db
+*.csv
+*.pyc
+*.pyo
+*.zip
+*.geojson
+*.gpkg
+*.tif
+*.shp
+*.bak
+.DS_Store
