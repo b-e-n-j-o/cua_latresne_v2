@@ -31,11 +31,21 @@ def get_engine() -> Engine:
     pwd = os.getenv("SUPABASE_PASSWORD")
     db = os.getenv("SUPABASE_DB")
     port = os.getenv("SUPABASE_PORT", "5432")
-    dsn = f"postgresql+psycopg2://{user}:{quote_plus(pwd)}@{host}:{port}/{db}?sslmode=verify-full"
-    eng = create_engine(dsn, pool_pre_ping=True, pool_recycle=300, connect_args={"connect_timeout": 20})
+
+    dsn = f"postgresql+psycopg2://{user}:{quote_plus(pwd)}@{host}:{port}/{db}?sslmode=require"
+
+    # Force la résolution IPv4 uniquement
+    eng = create_engine(
+        dsn,
+        pool_pre_ping=True,
+        pool_recycle=300,
+        connect_args={"connect_timeout": 20, "options": "-4"}
+    )
+
     with eng.begin() as con:
         con.execute(text("select 1"))
     return eng
+
 
 # ======================= CATALOGUE =======================
 
