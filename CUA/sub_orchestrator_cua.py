@@ -36,11 +36,8 @@ SUPABASE_KEY = os.getenv("SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY"
 SUPABASE_BUCKET = "visualisation"
 KERELIA_BASE_URL = "https://kerelia.fr/maps"
 
-# ✅ Client pour le schéma latresne (pipelines, tables métier)
-supabase_latresne = create_client(SUPABASE_URL, SUPABASE_KEY, options={"schema": "latresne"})
-
-# ✅ Client pour le schéma public (shortlinks, tables globales)
-supabase_public = create_client(SUPABASE_URL, SUPABASE_KEY)
+# ✅ Un seul client global
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -48,6 +45,9 @@ logging.basicConfig(
     datefmt="%H:%M:%S"
 )
 logger = logging.getLogger("sub_orchestrator_cua")
+
+logger.info("🔗 Client Supabase initialisé avec succès.")
+logger.info(f"🌍 URL Supabase : {SUPABASE_URL}")
 
 # ============================================================
 # 🔗 UTILITAIRES
@@ -62,7 +62,7 @@ def generate_short_slug(length=26):
 def upload_to_supabase(local_path, remote_path):
     """Upload d'un fichier vers Supabase Storage et renvoie l'URL publique."""
     with open(local_path, "rb") as f:
-        supabase_public.storage.from_(SUPABASE_BUCKET).upload(
+        supabase.storage.from_(SUPABASE_BUCKET).upload(
             remote_path,
             f.read(),
             {
@@ -151,12 +151,16 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     maps_page_url = f"{KERELIA_BASE_URL}?t={token}"
 
     # ✅ Utiliser le slug déjà généré (shortlinks dans public)
+    logger.info(f"🧩 Insertion du shortlink dans public.shortlinks (slug={slug})...")
     try:
-        supabase_public.table("shortlinks").upsert({"slug": slug, "target_url": maps_page_url}).execute()
+        response = supabase.schema("public").table("shortlinks").upsert({
+            "slug": slug,
+            "target_url": maps_page_url
+        }).execute()
+        logger.info(f"✅ Shortlink créé (status={getattr(response, 'status_code', '?')}) : https://kerelia.fr/m/{slug}")
         qr_url = f"https://kerelia.fr/m/{slug}"
-        logger.info(f"✅ Lien court créé : {qr_url}")
     except Exception as e:
-        logger.warning(f"⚠️ Erreur création shortlink : {e}")
+        logger.warning(f"⚠️ Erreur lors de la création du shortlink : {e}")
         qr_url = maps_page_url
 
     # ============================================================
@@ -251,8 +255,9 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     user_id = os.getenv("USER_ID") or None
     user_email = os.getenv("USER_EMAIL") or None
     
+    logger.info(f"🧩 Insertion pipeline dans latresne.pipelines (slug={slug})...")
     try:
-        supabase_latresne.table("pipelines").upsert({
+        response = supabase.schema("latresne").table("pipelines").upsert({
             "slug": slug,
             "code_insee": code_insee,
             "commune": commune,
@@ -267,7 +272,7 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
             "user_email": user_email,
             "metadata": result,
         }).execute()
-        logger.info("✅ Métadonnées pipeline enregistrées dans latresne.pipelines.")
+        logger.info(f"✅ Pipeline enregistré dans latresne.pipelines (status={getattr(response, 'status_code', '?')})")
         if user_id:
             logger.info(f"👤 Pipeline associé à l'utilisateur : {user_email or user_id}")
     except Exception as e:
