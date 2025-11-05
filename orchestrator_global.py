@@ -13,6 +13,7 @@ orchestrator_global.py — Pipeline global KERELIA (phase 2)
 """
 
 import subprocess
+subprocess.run(["pip", "list"], check=True)  # Liste les packages installés
 import json
 import logging
 import sys
