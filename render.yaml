@@ -2,9 +2,13 @@ services:
   - type: web
     name: kerelia-cua-api
     env: python
-    region: frankfurt  # 🇪🇺 proche de toi (ou 'oregon' si tu veux NA)
+    region: frankfurt  # 🇪🇺 proche de toi
     plan: starter
-    buildCommand: pip install -r requirements.txt
+
+    buildCommand: |
+      apt-get update && apt-get install -y gdal-bin libgdal-dev
+      pip install -r requirements.txt
+
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     autoDeploy: true
 
