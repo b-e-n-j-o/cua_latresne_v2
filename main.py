@@ -17,7 +17,12 @@ load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+
+# ✅ Client pour le schéma latresne (pipelines, tables métier)
+supabase_latresne = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, options={"schema": "latresne"})
+
+# ✅ Client pour le schéma public (shortlinks, tables globales)
+supabase_public = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 app = FastAPI(title="Kerelia CUA API", version="2.1")
 
@@ -221,8 +226,8 @@ def get_latest_pipelines(limit: int = 10):
     """
     try:
         response = (
-            supabase
-            .table("latresne.pipelines")
+            supabase_latresne
+            .table("pipelines")
             .select("*")
             .order("created_at", desc=True)
             .limit(limit)
@@ -255,8 +260,8 @@ def get_pipeline_by_slug(slug: str):
     """
     try:
         response = (
-            supabase
-            .table("latresne.pipelines")
+            supabase_latresne
+            .table("pipelines")
             .select("*")
             .eq("slug", slug)
             .limit(1)
@@ -294,8 +299,8 @@ def get_pipelines_by_user(user_id: str, limit: int = 15):
     """
     try:
         response = (
-            supabase
-            .table("latresne.pipelines")
+            supabase_latresne
+            .table("pipelines")
             .select("*")
             .eq("user_id", user_id)
             .order("created_at", desc=True)

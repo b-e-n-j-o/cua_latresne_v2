@@ -36,7 +36,11 @@ SUPABASE_KEY = os.getenv("SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY"
 SUPABASE_BUCKET = "visualisation"
 KERELIA_BASE_URL = "https://kerelia.fr/maps"
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+# ✅ Client pour le schéma latresne (pipelines, tables métier)
+supabase_latresne = create_client(SUPABASE_URL, SUPABASE_KEY, options={"schema": "latresne"})
+
+# ✅ Client pour le schéma public (shortlinks, tables globales)
+supabase_public = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -56,9 +60,9 @@ def generate_short_slug(length=26):
 
 
 def upload_to_supabase(local_path, remote_path):
-    """Upload d’un fichier vers Supabase Storage et renvoie l’URL publique."""
+    """Upload d'un fichier vers Supabase Storage et renvoie l'URL publique."""
     with open(local_path, "rb") as f:
-        supabase.storage.from_(SUPABASE_BUCKET).upload(
+        supabase_public.storage.from_(SUPABASE_BUCKET).upload(
             remote_path,
             f.read(),
             {
@@ -146,9 +150,9 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     token = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
     maps_page_url = f"{KERELIA_BASE_URL}?t={token}"
 
-    # ✅ Utiliser le slug déjà généré
+    # ✅ Utiliser le slug déjà généré (shortlinks dans public)
     try:
-        supabase.table("shortlinks").upsert({"slug": slug, "target_url": maps_page_url}).execute()
+        supabase_public.table("shortlinks").upsert({"slug": slug, "target_url": maps_page_url}).execute()
         qr_url = f"https://kerelia.fr/m/{slug}"
         logger.info(f"✅ Lien court créé : {qr_url}")
     except Exception as e:
@@ -248,7 +252,7 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     user_email = os.getenv("USER_EMAIL") or None
     
     try:
-        supabase.table("latresne.pipelines").upsert({
+        supabase_latresne.table("pipelines").upsert({
             "slug": slug,
             "code_insee": code_insee,
             "commune": commune,
