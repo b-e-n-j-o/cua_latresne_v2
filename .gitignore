@@ -1,0 +1,25 @@
+# Environnements virtuels
+venv/
+.env
+*.env
+
+# Fichiers temporaires
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.sqlite3
+.DS_Store
+
+# Fichiers générés
+out_pipeline/
+CUA/out_pipeline/
+CUA/out_test/
+*.docx
+*.html
+*.json
+
+# IDE / éditeurs
+.vscode/
+.idea/
