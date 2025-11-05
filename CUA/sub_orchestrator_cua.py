@@ -188,6 +188,7 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
         "python3", builder_path,
         "--cerfa-json", cerfa_path,
         "--intersections-json", intersections_path,
+        "--wkt-path", str(wkt_path),  # ✅ Passage du WKT
         "--catalogue-json", catalogue_path,
         "--output", output_docx_path,
         "--logo-first-page", logo_latresne_path,

@@ -40,6 +40,7 @@ def build_cua_docx(
     catalogue_json: Dict[str, Any],
     output_docx: str,
     *,
+    wkt_path: Optional[str] = None,  # ✅ Paramètre WKT
     logo_first_page: Optional[str] = None,
     signature_logo: Optional[str] = None,
     qr_url: str = "https://www.kerelia.com/carte",
@@ -200,15 +201,14 @@ def build_cua_docx(
         
         print(f"🌊 Vérification du PPRI (PM1) pour l'unité foncière (INSEE: {code_insee})…")
 
-        # 🔄 Nouvelle approche PPRI avec WKT direct
-        geom_wkt_path = os.path.join(os.path.dirname(__file__), "..", "out_pipeline", "geom_unite_fonciere.wkt")
-        geom_wkt_path = os.path.abspath(geom_wkt_path)
-        if os.path.exists(geom_wkt_path):
-            with open(geom_wkt_path, "r", encoding="utf-8") as f:
+        # ✅ Utilisation du WKT passé en paramètre
+        if wkt_path and os.path.exists(wkt_path):
+            with open(wkt_path, "r", encoding="utf-8") as f:
                 geom_wkt = f.read().strip()
             resultats_ppri = analyser_ppri_corrige(geom_wkt=geom_wkt, code_insee=code_insee)
+            print(f"✅ WKT chargé depuis : {wkt_path}")
         else:
-            # Fallback : mode cadastral classique
+            # Fallback cadastral (ne devrait jamais arriver)
             refs = meta.get("references_cadastrales", [])
             if refs:
                 ref = refs[0]
@@ -216,7 +216,7 @@ def build_cua_docx(
                 numero = ref.get("numero") or "0242"
             else:
                 section, numero = "AC", "0242"
-            print("⚠️ WKT non trouvé, mode cadastral utilisé en fallback.")
+            print("⚠️ WKT non fourni, fallback cadastral.")
             resultats_ppri = analyser_ppri_corrige(section=section, numero=numero, code_insee=code_insee)
 
         # Si aucune zone PM1 n'intersecte la parcelle → on n'ajoute rien
@@ -373,6 +373,7 @@ def main():
     ap = argparse.ArgumentParser(description="CUA Builder v5 (avec header + QR code)")
     ap.add_argument("--cerfa-json", required=True)
     ap.add_argument("--intersections-json", required=True)
+    ap.add_argument("--wkt-path", help="Chemin WKT unité foncière")
     ap.add_argument("--catalogue-json", required=True)
     ap.add_argument("--output", default="CUA_final.docx")
     ap.add_argument("--logo-first-page", default="")
@@ -388,6 +389,7 @@ def main():
 
     build_cua_docx(
         cerfa, inters, catalogue, args.output,
+        wkt_path=args.wkt_path,  # ✅ Passage du WKT
         logo_first_page=args.logo_first_page or None,
         signature_logo=args.signature_logo or None,
         qr_url=args.qr_url,

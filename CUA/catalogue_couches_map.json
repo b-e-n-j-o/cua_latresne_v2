@@ -301,7 +301,7 @@
     "nom_attribut_map": "Type"
   },
   "zaenr_zones": {
-    "nom": "Zones d'Activités Economiques Non Rendues (ZAENR)",
+    "nom": "Zones d'Acceleration des Energies Renouvelables (ZAEnR)",
     "type": "Informations",
     "keep": [
       "uid",
