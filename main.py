@@ -8,6 +8,11 @@ import os
 
 from fastapi.middleware.cors import CORSMiddleware
 
+
+app = FastAPI(title="Kerelia CUA API", version="2.1")
+
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://kerelia.fr"],
@@ -15,8 +20,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-app = FastAPI(title="Kerelia CUA API", version="2.1")
 
 # Dictionnaire global pour le suivi des jobs
 JOBS = {}
