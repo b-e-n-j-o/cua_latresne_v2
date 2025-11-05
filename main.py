@@ -43,7 +43,7 @@ JOBS = {}
 # 🔧 Fonction d’exécution du pipeline (tâche asynchrone)
 # ============================================================
 
-def run_pipeline(job_id: str, pdf_path: Path, code_insee: str | None):
+def run_pipeline(job_id: str, pdf_path: Path, code_insee: str | None, env: dict | None = None):
     """Exécute le pipeline complet en tâche de fond, avec logs live + sauvegarde."""
     BASE_DIR = Path(__file__).resolve().parent
     ORCHESTRATOR = BASE_DIR / "orchestrator_global.py"
@@ -67,13 +67,14 @@ def run_pipeline(job_id: str, pdf_path: Path, code_insee: str | None):
         print(f"🚀 [JOB {job_id}] Lancement du pipeline : {' '.join(cmd)}")
 
         # ============================================================
-        # 🧑‍💼 Passage des infos utilisateur au sous-processus
+        # 🧑‍💼 Gestion de l'environnement utilisateur
         # ============================================================
-        user_id = os.getenv("USER_ID")
-        user_email = os.getenv("USER_EMAIL")
-        env = os.environ.copy()
-        env["USER_ID"] = user_id or ""
-        env["USER_EMAIL"] = user_email or ""
+        # Si l'environnement utilisateur est passé depuis /analyze-cerfa, on l'utilise
+        if env is None:
+            env = os.environ.copy()
+
+        # Pour vérification
+        print(f"👤 [JOB {job_id}] USER_ID={env.get('USER_ID')} USER_EMAIL={env.get('USER_EMAIL')}")
 
         # Exécution avec affichage progressif
         process = subprocess.Popen(
@@ -142,6 +143,8 @@ async def analyze_cerfa(
     background_tasks: BackgroundTasks,
     pdf: UploadFile = File(...),
     code_insee: str = Form(None),
+    user_id: str = Form(None),
+    user_email: str = Form(None),
 ):
     """Lance le pipeline complet (CERFA → UF → Intersections → CUA)."""
     job_id = str(uuid.uuid4())
@@ -154,9 +157,18 @@ async def analyze_cerfa(
         "status": "queued",
         "created_at": datetime.now().isoformat(),
         "filename": pdf.filename,
+        "user_id": user_id,
+        "user_email": user_email,
     }
 
-    background_tasks.add_task(run_pipeline, job_id, temp_pdf, code_insee)
+    # 🧠 Transmission au sous-processus (via variables d'environnement)
+    env = os.environ.copy()
+    if user_id:
+        env["USER_ID"] = user_id
+    if user_email:
+        env["USER_EMAIL"] = user_email
+
+    background_tasks.add_task(run_pipeline, job_id, temp_pdf, code_insee, env)
 
     return {"success": True, "job_id": job_id}
 
