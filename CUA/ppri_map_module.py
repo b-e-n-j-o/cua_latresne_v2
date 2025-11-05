@@ -71,6 +71,13 @@ def ajouter_ppri_a_carte(
     print("\n🌊 Intégration du PPRI (avec sous-couches)…")
 
     # ============================================================
+    # 🛡️ FALLBACK AUTOMATIQUE SI ppri_table MANQUANT
+    # ============================================================
+    if not ppri_table:
+        ppri_table = "latresne.pm1_detaillee_gironde"
+        print("⚠️ Aucun ppri_table fourni — utilisation du PPRI Latresne par défaut.")
+
+    # ============================================================
     # 1️⃣ Lancer l'analyse PPRI complète
     # ============================================================
     resultats = analyser_ppri_tolerance(

@@ -79,9 +79,20 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     OUT_DIR = out_dir
     os.makedirs(OUT_DIR, exist_ok=True)
     
-    logger.info(f"🚀 Lancement du pipeline global pour le WKT : {wkt_path}")
-    if not os.path.exists(wkt_path):
+    # ============================================================
+    # 🔑 GÉNÉRATION DU SLUG EN AMONT (source de vérité)
+    # ============================================================
+    slug = generate_short_slug()
+    logger.info(f"🔑 Slug généré : {slug}")
+    
+    # ============================================================
+    # 🩹 VÉRIFICATION ROBUSTE DU FICHIER WKT
+    # ============================================================
+    wkt_path = Path(wkt_path)
+    if not wkt_path.exists():
         raise FileNotFoundError(f"❌ Fichier WKT introuvable : {wkt_path}")
+    
+    logger.info(f"🚀 Lancement du pipeline global pour le WKT : {wkt_path}")
 
     # --------------------------------------------------------
     # ÉTAPE 1 : CARTE 2D
@@ -116,7 +127,8 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     # ÉTAPE 3 : UPLOAD SUPABASE (cartes)
     # --------------------------------------------------------
     logger.info("\n📦 ÉTAPE 3/5 : Upload des cartes sur Supabase...")
-    remote_dir = os.path.basename(wkt_path).replace(".wkt", "")
+    # ✅ Utiliser le slug comme répertoire distant unique
+    remote_dir = slug
     remote_2d = f"{remote_dir}/carte_2d.html"
     remote_3d = f"{remote_dir}/carte_3d.html"
 
@@ -134,7 +146,7 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     token = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
     maps_page_url = f"{KERELIA_BASE_URL}?t={token}"
 
-    slug = generate_short_slug()
+    # ✅ Utiliser le slug déjà généré
     try:
         supabase.table("shortlinks").upsert({"slug": slug, "target_url": maps_page_url}).execute()
         qr_url = f"https://kerelia.fr/m/{slug}"
@@ -194,25 +206,47 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     logger.info(f"📎 CUA uploadé : {cua_url}")
 
     pipeline_result_path = os.path.join(OUT_DIR, "pipeline_result.json")
+    result_url = None
     if os.path.exists(pipeline_result_path):
         remote_result = f"{remote_dir}/pipeline_result.json"
         result_url = upload_to_supabase(pipeline_result_path, remote_result)
         logger.info(f"🧾 Résumé pipeline uploadé : {result_url}")
     else:
-        result_url = None
         logger.warning("⚠️ Aucun pipeline_result.json trouvé à uploader.")
 
+    # ============================================================
+    # 📋 RÉSULTAT UNIFIÉ (pour l'API et le front)
+    # ============================================================
     result = {
-        "maps_page": maps_page_url,
-        "shortlink": qr_url,
         "slug": slug,
-        "2d_url": url_2d,
-        "3d_url": url_3d,
+        "commune": commune,
+        "code_insee": code_insee,
+        "maps_page": maps_page_url,
+        "qr_url": qr_url,
+        "carte_2d_url": url_2d,
+        "carte_3d_url": url_3d,
         "output_cua": cua_url,
+        "bucket_path": remote_dir,
+        "pipeline_result_url": result_url,
         "metadata_2d": metadata_2d,
         "metadata_3d": res3d["metadata"],
+        "status": "success",
     }
 
+    # ============================================================
+    # 💾 ÉCRITURE DU FICHIER RÉSULTAT (lisible par l'API)
+    # ============================================================
+    sub_result_path = Path(OUT_DIR) / "sub_orchestrator_result.json"
+    sub_result_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+    logger.info(f"💾 Résultat écrit dans : {sub_result_path}")
+
+    # ============================================================
+    # 🗄️ ENREGISTREMENT EN BASE (facultatif mais recommandé)
+    # ============================================================
+    # 🧑‍💼 Récupération des infos utilisateur depuis l'environnement
+    user_id = os.getenv("USER_ID") or None
+    user_email = os.getenv("USER_EMAIL") or None
+    
     try:
         supabase.table("latresne.pipelines").upsert({
             "slug": slug,
@@ -225,9 +259,13 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
             "carte_3d_url": url_3d,
             "qr_url": qr_url,
             "pipeline_result_url": result_url,
+            "user_id": user_id,
+            "user_email": user_email,
             "metadata": result,
         }).execute()
         logger.info("✅ Métadonnées pipeline enregistrées dans latresne.pipelines.")
+        if user_id:
+            logger.info(f"👤 Pipeline associé à l'utilisateur : {user_email or user_id}")
     except Exception as e:
         logger.error(f"💥 Erreur d'insertion dans latresne.pipelines : {e}")
 
@@ -235,6 +273,8 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     # FIN DU PIPELINE
     # --------------------------------------------------------
     logger.info("\n🎉 PIPELINE CUA TERMINÉ AVEC SUCCÈS 🎉")
+    logger.info(f"📦 Slug unique : {slug}")
+    logger.info(f"🔗 Lien court : {qr_url}")
     return result
 
 
