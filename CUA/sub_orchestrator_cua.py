@@ -205,22 +205,16 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
         logger.error(f"💥 Échec génération CUA DOCX : {e}")
 
     # ============================================================
-    # 📤 UPLOAD FINAL DES ARTIFACTS + ENREGISTREMENT PIPELINE
+    # 📤 UPLOAD FINAL DES ARTIFACTS (CUA uniquement)
     # ============================================================
-    logger.info("\n📤 Upload final du CUA et du pipeline_result.json vers Supabase...")
+    logger.info("\n📤 Upload final du CUA vers Supabase...")
 
     remote_cua = f"{remote_dir}/CUA_unite_fonciere.docx"
     cua_url = upload_to_supabase(output_docx_path, remote_cua)
     logger.info(f"📎 CUA uploadé : {cua_url}")
 
-    pipeline_result_path = os.path.join(OUT_DIR, "pipeline_result.json")
+    # 🧠 L'upload du pipeline_result.json est désormais géré par orchestrator_global.py
     result_url = None
-    if os.path.exists(pipeline_result_path):
-        remote_result = f"{remote_dir}/pipeline_result.json"
-        result_url = upload_to_supabase(pipeline_result_path, remote_result)
-        logger.info(f"🧾 Résumé pipeline uploadé : {result_url}")
-    else:
-        logger.warning("⚠️ Aucun pipeline_result.json trouvé à uploader.")
 
     # ============================================================
     # 📋 RÉSULTAT UNIFIÉ (pour l'API et le front)

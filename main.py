@@ -323,3 +323,59 @@ def get_pipelines_by_user(user_id: str, limit: int = 15):
 
 
 # ============================================================
+
+# ============================================================
+# 🧠 ENDPOINT DEBUG — TEST SUPABASE (latresne + public)
+# ============================================================
+
+@app.get("/debug/supabase")
+def debug_supabase():
+    """
+    Vérifie la connectivité à Supabase et l'accès aux schémas latresne + public.
+    Retourne un petit résumé des lignes accessibles dans les tables clés.
+    """
+    try:
+        print("🧩 [DEBUG] Vérification connexion Supabase...")
+        
+        # Test 1 : latresne.pipelines
+        res_latresne = (
+            supabase
+            .schema("latresne")
+            .table("pipelines")
+            .select("id, slug, created_at")
+            .limit(3)
+            .execute()
+        )
+        nb_latresne = len(res_latresne.data or [])
+        print(f"✅ [DEBUG] latresne.pipelines OK — {nb_latresne} ligne(s) visibles")
+
+        # Test 2 : public.shortlinks
+        res_public = (
+            supabase
+            .schema("public")
+            .table("shortlinks")
+            .select("slug, target_url, created_at")
+            .limit(3)
+            .execute()
+        )
+        nb_public = len(res_public.data or [])
+        print(f"✅ [DEBUG] public.shortlinks OK — {nb_public} ligne(s) visibles")
+
+        return {
+            "status": "ok",
+            "latresne": {
+                "rows": nb_latresne,
+                "examples": res_latresne.data
+            },
+            "public": {
+                "rows": nb_public,
+                "examples": res_public.data
+            }
+        }
+
+    except Exception as e:
+        print(f"💥 [DEBUG] Erreur connexion Supabase : {e}")
+        return {
+            "status": "error",
+            "details": str(e)
+        }

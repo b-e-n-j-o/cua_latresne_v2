@@ -17,18 +17,28 @@ subprocess.run(["pip", "list"], check=True)  # Liste les packages installés
 import json
 import logging
 import sys
+import os
 from datetime import datetime
 from pathlib import Path
+from dotenv import load_dotenv
+from supabase import create_client
 
 # ============================================================
 # CONFIG
 # ============================================================
+load_dotenv()
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)-8s | %(message)s",
     datefmt="%H:%M:%S"
 )
 logger = logging.getLogger("orchestrator_global")
+
+# Configuration Supabase pour upload final
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+SUPABASE_BUCKET = "visualisation"
 
 CERFA_ANALYSE_SCRIPT = "./CERFA_ANALYSE/analyse_gemini.py"
 VERIF_UF_SCRIPT = "./CERFA_ANALYSE/verification_unite_fonciere.py"
@@ -171,6 +181,69 @@ def orchestrer_pipeline(pdf_path: str, code_insee: str):
 
     logger.info(f"\n🎉 PIPELINE TERMINÉ AVEC SUCCÈS 🎉")
     logger.info(f"📦 Résumé enregistré dans : {result_path}")
+
+    # ============================================================
+    # 📤 UPLOAD FINAL : pipeline_result.json vers Supabase
+    # ============================================================
+    logger.info("\n📤 Upload final des résultats JSON vers Supabase...")
+    
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        
+        # Récupérer le slug depuis sub_orchestrator_result.json
+        sub_result_file = OUT_DIR / "sub_orchestrator_result.json"
+        slug = None
+        if sub_result_file.exists():
+            sub_result = json.loads(sub_result_file.read_text(encoding="utf-8"))
+            slug = sub_result.get("slug")
+        
+        if not slug:
+            logger.warning("⚠️ Slug introuvable — impossible d'uploader les résultats JSON.")
+        else:
+            # Fichiers potentiels à uploader
+            result_files = [
+                OUT_DIR / "pipeline_result.json",
+                OUT_DIR / "sub_orchestrator_result.json"
+            ]
+            
+            for file_path in result_files:
+                if file_path.exists():
+                    remote_path = f"{slug}/{file_path.name}"
+                    try:
+                        with open(file_path, "rb") as f:
+                            supabase.storage.from_(SUPABASE_BUCKET).upload(
+                                remote_path, f.read(), {"upsert": "true"}
+                            )
+                        remote_url = (
+                            f"{SUPABASE_URL}/storage/v1/object/public/"
+                            f"{SUPABASE_BUCKET}/{remote_path}"
+                        )
+                        logger.info(f"✅ {file_path.name} uploadé vers Supabase : {remote_url}")
+                    except Exception as e:
+                        logger.error(f"💥 Erreur upload {file_path.name} : {e}")
+                else:
+                    logger.warning(f"⚠️ Fichier {file_path.name} non trouvé pour upload.")
+            
+            # ============================================================
+            # 🧠 MISE À JOUR : pipeline_result_url dans la table pipelines
+            # ============================================================
+            try:
+                if (OUT_DIR / "pipeline_result.json").exists():
+                    result_url = (
+                        f"{SUPABASE_URL}/storage/v1/object/public/"
+                        f"{SUPABASE_BUCKET}/{slug}/pipeline_result.json"
+                    )
+
+                    logger.info("🧩 Mise à jour du champ pipeline_result_url dans la base...")
+                    supabase.schema("latresne").table("pipelines").update({
+                        "pipeline_result_url": result_url
+                    }).eq("slug", slug).execute()
+                    logger.info(f"✅ pipeline_result_url mis à jour : {result_url}")
+            except Exception as e:
+                logger.error(f"💥 Erreur lors de la mise à jour du pipeline_result_url : {e}")
+    
+    except Exception as e:
+        logger.error(f"💥 Erreur lors de l'upload final : {e}")
 
 # ============================================================
 # CLI
