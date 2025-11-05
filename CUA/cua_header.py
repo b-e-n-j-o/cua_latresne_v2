@@ -216,12 +216,13 @@ def render_first_page_header(
     recap.columns[0].width = Cm(5.5)
     recap.columns[1].width = Cm(max(2.0, left_w - 5.7))
     
+# cua_header.py ligne ~330
     rows_data = [
         ("Demande déposée le", date_dep),
         ("Par :", who),
         ("Demeurant à :", domicile),
         ("Sur un terrain sis à :", terrain),
-        ("Lien vers la carte interactive :", "www.kerelia/labestcarte.com"),
+        ("Lien vers la carte interactive :", qr_url),
     ]
     
     for i, (label, value) in enumerate(rows_data):
