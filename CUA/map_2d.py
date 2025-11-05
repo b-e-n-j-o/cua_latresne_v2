@@ -11,6 +11,7 @@ import json
 import logging
 import folium
 import geopandas as gpd
+from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from folium import Element
@@ -140,11 +141,18 @@ def generate_map_from_wkt(wkt_path, inclure_ppri=True, code_insee="33234", ppri_
     metadata_ppri = None
 
     # ============================================================
-    # 📄 Lecture du fichier WKT
+    # 📄 Lecture du fichier WKT - VERSION ROBUSTE
     # ============================================================
+    # 🩹 Correction : gestion robuste du chemin WKT
+    wkt_path = Path(wkt_path).resolve()
+    if not wkt_path.exists():
+        logger.error(f"❌ Fichier WKT introuvable : {wkt_path}")
+        raise FileNotFoundError(f"Fichier WKT introuvable : {wkt_path}")
+
     logger.info(f"📄 Étape 1/5 : Lecture du fichier WKT : {wkt_path}")
-    with open(wkt_path, "r", encoding="utf-8") as f:
-        wkt_geom = f.read().strip()
+    wkt_geom = wkt_path.read_text(encoding="utf-8").strip()
+    logger.info(f"📏 Longueur du WKT : {len(wkt_geom)} caractères")
+    logger.debug(wkt_geom[:200] + "..." if len(wkt_geom) > 200 else wkt_geom)
 
     # Construction du GeoDataFrame
     gdf_parcelle = gpd.GeoDataFrame(
