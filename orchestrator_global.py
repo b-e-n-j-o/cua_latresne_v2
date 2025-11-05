@@ -225,6 +225,28 @@ def orchestrer_pipeline(pdf_path: str, code_insee: str):
                     logger.warning(f"⚠️ Fichier {file_path.name} non trouvé pour upload.")
             
             # ============================================================
+            # 👤 MISE À JOUR : user_id / user_email dans la table pipelines
+            # ============================================================
+            try:
+                user_id = os.getenv("USER_ID")
+                user_email = os.getenv("USER_EMAIL")
+
+                if slug and (user_id or user_email):
+                    logger.info(f"👤 Mise à jour des infos utilisateur pour le pipeline {slug}...")
+                    update_data = {}
+                    if user_id:
+                        update_data["user_id"] = user_id
+                    if user_email:
+                        update_data["user_email"] = user_email
+
+                    supabase.schema("latresne").table("pipelines").update(update_data).eq("slug", slug).execute()
+                    logger.info(f"✅ user_id / user_email mis à jour : {user_id or 'None'} / {user_email or 'None'}")
+                else:
+                    logger.info("⚠️ Aucun USER_ID ou USER_EMAIL trouvé dans l'environnement — pas de mise à jour utilisateur.")
+            except Exception as e:
+                logger.error(f"💥 Erreur lors de la mise à jour des infos utilisateur : {e}")
+            
+            # ============================================================
             # 🧠 MISE À JOUR : pipeline_result_url dans la table pipelines
             # ============================================================
             try:
