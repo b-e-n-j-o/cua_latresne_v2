@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-analyse_gemini.py — Analyse d’un CERFA CU (13410*11)
+analyse_gemini.py — Analyse d'un CERFA CU (13410*11)
 Gemini 2.5 Flash → JSON structuré conforme au CUA Builder
 avec validation + relance intelligente en cas de champs manquants.
 """
@@ -23,6 +23,117 @@ logger = logging.getLogger("cerfa_analyse")
 MODEL_PRIMARY = "gemini-2.5-pro"
 MODEL_FALLBACK = "gemini-2.5-flash"
 INSEE_CSV = os.path.join(os.path.dirname(__file__), "..", "CONFIG", "v_commune_2025.csv")
+
+# ============================================================
+# INDICES VISUELS DE LOCALISATION
+# ============================================================
+VISUAL_LOCATION_HINTS = """
+═══════════════════════════════════════════════════════════════════════════════
+📍 GUIDE DE LOCALISATION VISUELLE - CERFA 13410*12
+═══════════════════════════════════════════════════════════════════════════════
+
+📌 EN-TÊTE DU CERTIFICAT (PAGE 1, coin supérieur droit)
+┌─────────────────────────────────────────────────────────┐
+│ Cadre réservé à la mairie du lieu du projet            │
+│                                                         │
+│ C U  [Dpt] [Commune] [Année] [N° de dossier]          │
+│     033    234       25      00078                     │
+│                                                         │
+│ La présente déclaration a été reçue à la mairie       │
+│ le [JJ]/[MM]/[AAAA]                                   │
+└─────────────────────────────────────────────────────────┘
+
+Structure header_cu :
+• Département : 3 chiffres (ex: 033 = Gironde)
+• Commune : 3 chiffres (ex: 234 = code commune)
+• Année : 2 chiffres (ex: 25 = 2025)
+• N° dossier : 5 chiffres (ex: 00078)
+
+📌 TYPE DE CERTIFICAT (PAGE 1, section 1)
+┌─────────────────────────────────────────────────────────┐
+│ 1 Objet de la demande de certificat d'urbanisme       │
+│                                                         │
+│ ☑ a) Certificat d'urbanisme d'information             │
+│ ☐ b) Certificat d'urbanisme opérationnel              │
+└─────────────────────────────────────────────────────────┘
+
+Règle : Si case "a)" cochée → type_cu = "CUa"
+        Si case "b)" cochée → type_cu = "CUb"
+
+📌 IDENTITÉ DU DEMANDEUR (PAGE 1, section 2)
+
+Pour un PARTICULIER (section 2.1) :
+┌─────────────────────────────────────────────────────────┐
+│ 2.1 Vous êtes un particulier                          │
+│ Nom : [NOM]          Prénom : [PRENOM]                │
+└─────────────────────────────────────────────────────────┘
+
+Pour une PERSONNE MORALE (section 2.2) :
+┌─────────────────────────────────────────────────────────┐
+│ 2.2 Vous êtes une personne morale                     │
+│ Dénomination : [RAISON SOCIALE]                        │
+│ Raison sociale : [TYPE]                                │
+│ N° SIRET : [14 CHIFFRES]  Type : [SARL/SA/SCI...]    │
+│ Représentant : Nom [NOM]  Prénom [PRENOM]             │
+└─────────────────────────────────────────────────────────┘
+
+📌 ADRESSE DU TERRAIN (PAGE 2, section 4.1)
+┌─────────────────────────────────────────────────────────┐
+│ 4.1 Adresse du (ou des) terrain(s)                    │
+│ Numéro : [N°]     Voie : [NOM DE RUE]                 │
+│ Lieu-dit : [LIEU-DIT si présent]                      │
+│ Localité : [NOM COMMUNE]     ← NOM DE LA COMMUNE ICI  │
+│ Code postal : [5 CHIFFRES]   ← Dept = 2 premiers      │
+└─────────────────────────────────────────────────────────┘
+
+⚠️ ATTENTION : L'adresse du terrain (section 4) est DIFFÉRENTE de
+              l'adresse du demandeur (section 3, page 2)
+
+📌 RÉFÉRENCES CADASTRALES (PAGE 2, section 4.2)
+┌─────────────────────────────────────────────────────────┐
+│ 4.2 Références cadastrales :                           │
+│                                                         │
+│ Section : [AI]  Numéro : [0310]  Superficie : 5755 m² │
+│ Section : [AI]  Numéro : [0058]  Superficie : 256 m²  │
+│ Section : [AI]  Numéro : [0311]  Superficie : 1368 m² │
+│                                                         │
+│ Superficie totale du terrain (en m²) : 12310          │
+└─────────────────────────────────────────────────────────┘
+
+Format parcelles :
+• Section : 1-2 LETTRES MAJUSCULES (ex: AI, AC, ZA)
+• Numéro : 4 CHIFFRES avec zéros initiaux (ex: 0310, 0058)
+• Superficie : nombre entier en m²
+
+⚠️ Si > 3 parcelles → CONTINUER SUR PAGE ANNEXE 8
+┌─────────────────────────────────────────────────────────┐
+│ ANNEXE - Références cadastrales complémentaires        │
+│ (dernière page du PDF)                                 │
+│                                                         │
+│ Section : [AI]  Numéro : [0313]  Superficie : 4931 m² │
+│ Section : [__]  Numéro : [____]  Superficie : ____ m² │
+└─────────────────────────────────────────────────────────┘
+
+📌 NUMÉRO CU COMPLET (à reconstruire)
+Format final attendu : [Dept]-[Commune]-20[Année]-X[Dossier]
+Exemple : 033-234-2025-X00078
+
+Construction depuis header_cu :
+• Dept = 033 → "033"
+• Commune = 234 → "234"  
+• Année = 25 → "2025"
+• Dossier = 00078 → "X00078"
+
+═══════════════════════════════════════════════════════════════════════════════
+⚠️ RÈGLES CRITIQUES
+═══════════════════════════════════════════════════════════════════════════════
+1. Le header_cu se trouve TOUJOURS page 1, cadre supérieur droit
+2. La commune_nom vient de section 4.1 "Localité" (PAS section 3)
+3. TOUJOURS vérifier la page annexe pour parcelles supplémentaires
+4. La superficie totale DOIT être >= somme des surfaces individuelles
+5. Ne JAMAIS inventer de valeurs absentes du document
+═══════════════════════════════════════════════════════════════════════════════
+"""
 
 # ============================================================
 # OUTILS
@@ -60,31 +171,38 @@ def extract_json(text):
 # ============================================================
 # PROMPTS
 # ============================================================
-BASE_PROMPT = """Tu es un expert en lecture de formulaires CERFA.
+BASE_PROMPT = f"""Tu es un expert en lecture de formulaires CERFA.
+
+{VISUAL_LOCATION_HINTS}
+
 Analyse le PDF fourni et renvoie UNIQUEMENT un JSON strict selon ce schéma :
 
-{
-  "cerfa_reference": null,
+{{
+  "cerfa_reference": "13410*12",
   "commune_nom": null,
   "commune_insee": null,
   "departement_code": null,
   "numero_cu": null,
   "type_cu": null,
   "date_depot": null,
-  "demandeur": {"type": null, "nom": null, "prenom": null},
-  "coord_demandeur": {},
-  "mandataire": {},
-  "adresse_terrain": {},
-  "references_cadastrales": [{"section": null, "numero": null}],
+  "demandeur": {{"type": null, "nom": null, "prenom": null}},
+  "coord_demandeur": {{}},
+  "mandataire": {{}},
+  "adresse_terrain": {{}},
+  "references_cadastrales": [{{"section": null, "numero": null}}],
   "superficie_totale_m2": null,
-  "header_cu": {"dept": null, "commune_code": null, "annee": null, "numero_dossier": null}
-}
+  "header_cu": {{"dept": null, "commune_code": null, "annee": null, "numero_dossier": null}}
+}}
 
-Contraintes :
-- Ne renvoie que du JSON, sans texte ou explication.
-- Toutes les clés doivent être présentes, même si certaines sont nulles.
-- `commune_insee` reste null (il sera ajouté ensuite).
-- Ne pas inventer de valeurs absentes du document.
+CONTRAINTES CRITIQUES :
+- Ne renvoie que du JSON, sans texte ou explication
+- Toutes les clés doivent être présentes, même si certaines sont nulles
+- `commune_insee` reste null (il sera ajouté ensuite)
+- header_cu DOIT être extrait du cadre en-tête page 1
+- references_cadastrales DOIT inclure TOUTES les parcelles (y compris page annexe si présente)
+- commune_nom DOIT venir de section 4.1 "Localité" (pas section 3)
+- Ne pas inventer de valeurs absentes du document
+- Respecter les formats indiqués dans le guide de localisation
 """
 
 # ============================================================
@@ -101,12 +219,12 @@ FIELD_TRANSLATIONS = {
     "cerfa_reference": "la référence CERFA",
     "commune_nom": "le nom de la commune",
     "departement_code": "le code du département",
-    "numero_cu": "le numéro du certificat d’urbanisme",
+    "numero_cu": "le numéro du certificat d'urbanisme",
     "type_cu": "le type de certificat (CUa ou CUb)",
     "date_depot": "la date de dépôt",
     "demandeur": "les informations du demandeur",
     "references_cadastrales": "les parcelles cadastrales",
-    "header_cu": "l’en-tête du numéro CU"
+    "header_cu": "l'en-tête du numéro CU"
 }
 
 def validate_cerfa_json(data):
@@ -119,7 +237,8 @@ def validate_cerfa_json(data):
 def missing_fields_message(missing):
     parts = [FIELD_TRANSLATIONS.get(f, f) for f in missing]
     return "Certains champs essentiels sont absents : " + ", ".join(parts) + ". " \
-           "Relis attentivement le document et complète uniquement ces champs manquants dans le JSON final."
+           "Relis attentivement le document en suivant le GUIDE DE LOCALISATION VISUELLE " \
+           "et complète uniquement ces champs manquants dans le JSON final."
 
 # ============================================================
 # MAIN PIPELINE
