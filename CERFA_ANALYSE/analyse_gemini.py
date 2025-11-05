@@ -9,8 +9,7 @@ avec validation + relance intelligente en cas de champs manquants.
 import os, json, re, time, random, logging
 from pathlib import Path
 from pypdf import PdfReader
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 import pandas as pd
 from dotenv import load_dotenv
 
@@ -126,7 +125,7 @@ def missing_fields_message(missing):
 # MAIN PIPELINE
 # ============================================================
 def analyse_cerfa(pdf_path, out_json="cerfa_result.json", retry_if_incomplete=True):
-    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
     pdf = Path(pdf_path)
     logger.info(f"Analyse du fichier {pdf.name}")
     
@@ -134,10 +133,10 @@ def analyse_cerfa(pdf_path, out_json="cerfa_result.json", retry_if_incomplete=Tr
 
     def _run_gemini(prompt, model):
         try:
-            response = client.models.generate_content(
-                model=model,
-                contents=[
-                    types.Part.from_bytes(data=pdf.read_bytes(), mime_type="application/pdf"),
+            model_instance = genai.GenerativeModel(model)
+            response = model_instance.generate_content(
+                [
+                    {"mime_type": "application/pdf", "data": pdf.read_bytes()},
                     prompt
                 ]
             )
