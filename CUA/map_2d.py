@@ -1102,8 +1102,136 @@ window.addEventListener('load', function() {{
 </script>
   """
 
+    # ============================================================
+    # 🧭 BOUTON DE TOGGLE POUR LA LÉGENDE
+    # ============================================================
+    legend_toggle_html = """
+<!-- 🧭 Bouton pour afficher/masquer la légende -->
+<style>
+  #legend-toggle-btn {
+    position: absolute;
+    right: 10px;
+    top: 10px;
+    z-index: 600;
+    background: #2c3e50;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    transition: all 0.3s ease;
+  }
+  #legend-toggle-btn:hover {
+    background: #34495e;
+  }
+  #legend-panel.hidden {
+    transform: translateX(380px);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.4s ease;
+  }
+</style>
+
+<button id="legend-toggle-btn" title="Afficher/Masquer la légende">☰</button>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    const btn = document.getElementById("legend-toggle-btn");
+    const legend = document.getElementById("legend-panel");
+
+    if (btn && legend) {
+      btn.addEventListener("click", () => {
+        legend.classList.toggle("hidden");
+        // Changement de symbole
+        btn.textContent = legend.classList.contains("hidden") ? "📋" : "☰";
+      });
+    }
+  });
+</script>
+"""
+
     m.get_root().html.add_child(Element(legend_html))
-    logger.info("   ✅ Légende ajoutée")
+    m.get_root().html.add_child(Element(legend_toggle_html))
+    
+    # ============================================================
+    # 📱 CSS RESPONSIVE POUR MOBILE/TABLETTE
+    # ============================================================
+    responsive_css = """
+<!-- 📱 Adaptation responsive pour mobile et tablette -->
+<style>
+/* ✅ Adapter la légende sur petits écrans */
+@media (max-width: 768px) {
+  #legend-panel {
+    width: 85vw !important;
+    right: 0 !important;
+    left: 0 !important;
+    margin: auto;
+    top: auto;
+    bottom: 10px;
+    max-height: 40vh !important;
+    font-size: 13px !important;
+  }
+
+  #legend-toggle-btn {
+    right: 10px !important;
+    top: 10px !important;
+    width: 38px !important;
+    height: 38px !important;
+    font-size: 18px !important;
+  }
+
+  .leaflet-draw {
+    top: 140px !important;
+    left: 10px !important;
+    transform: scale(0.9);
+  }
+
+  .leaflet-control-scale {
+    transform: scale(0.9);
+  }
+
+  .legend-group-title {
+    font-size: 13px !important;
+  }
+
+  .layer-title {
+    font-size: 12px !important;
+  }
+
+  .leaflet-popup-content {
+    max-width: 90vw !important;
+  }
+
+  /* ✅ Lorsqu'on masque la légende sur mobile, elle descend discrètement */
+  #legend-panel.hidden {
+    transform: translateY(80vh) !important;
+    opacity: 0 !important;
+  }
+}
+
+/* ✅ Tablette (768px - 1024px) */
+@media (min-width: 769px) and (max-width: 1024px) {
+  #legend-panel {
+    width: 320px !important;
+  }
+}
+</style>
+"""
+    m.get_root().html.add_child(Element(responsive_css))
+    
+    # ============================================================
+    # 📱 META VIEWPORT POUR RENDU OPTIMAL SUR MOBILE
+    # ============================================================
+    viewport_meta = """
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+"""
+    m.get_root().header.add_child(Element(viewport_meta))
+    
+    logger.info("   ✅ Légende ajoutée avec bouton de toggle")
+    logger.info("   📱 CSS responsive et meta viewport ajoutés")
 
     # Recalculer les totaux finaux (après ajout du PPRI)
     total_groups_final = sum(len(l['entities']) for l in registry['layers'])
