@@ -221,43 +221,83 @@ def add_reglementation_block(doc: Document, texte: str):
     p.paragraph_format.space_after = Pt(6)
 
 def add_objects_table(doc: Document, objets: List[Dict[str, Any]]):
+    """
+    Ajoute un tableau d'objets au document avec labels améliorés.
+    Si tous les objets ont une surface nulle, ajoute une note explicative.
+    """
     if not objets:
-        p = doc.add_paragraph(); p.add_run("Aucune intersection détectée.").italic = True
         return
-    # colonnes = toutes clés rencontrées sauf 'reglementation' et 'id'
-    excluded_keys = {"reglementation", "id", "Id", "ID"}
-    keys = []
-    for o in objets:
-        for k in o.keys():
-            if k not in excluded_keys and k not in keys:
-                keys.append(k)
-    table = doc.add_table(rows=1, cols=len(keys))
+    
+    # Vérifie si tous les objets sont à surface nulle
+    all_zero_surface = all(
+        float(o.get("surface_inter_m2") or 0) == 0 for o in objets
+    )
+
+    # ✅ Cas 1 : uniquement des entités linéaires / ponctuelles (surface = 0)
+    if all_zero_surface:
+        add_paragraph(
+            doc,
+            "Étant donné qu'il s'agit d'entités linéaires ou ponctuelles, "
+            "cet élément n'a pas de surface d'intersection mesurable, "
+            "mais il est présent sur l'unité foncière.",
+            italic=True,
+        )
+        # S'il existe des réglementations associées, on les affiche ensuite
+        for o in objets:
+            if o.get("reglementation"):
+                add_reglementation_block(doc, o["reglementation"])
+        doc.add_paragraph("")
+        return
+
+    # ✅ Cas 2 : entités surfaciques classiques (au moins une surface > 0)
+    COLUMN_LABELS = {
+        "surface_inter_m2": "Surface (m²)",
+        "pourcentage_inter": "Pourcentage (%)",
+        "zonage_reglement": "Zonage",
+        "libelle": "Libellé",
+        "categorie": "Catégorie",
+        "type": "Type",
+        "nom": "Nom"
+    }
+    
+    all_keys = set()
+    for obj in objets:
+        all_keys.update(obj.keys())
+    
+    ignore_patterns = ["id", "uuid", "gid", "fid", "globalid", "geom", "reglementation"]
+    keys = [k for k in sorted(all_keys) 
+            if not any(pat in k.lower() for pat in ignore_patterns)]
+    
+    if not keys:
+        return
+    
+    table = doc.add_table(rows=1 + len(objets), cols=len(keys))
     table.style = "Table Grid"
-    for i,k in enumerate(keys):
-        table.rows[0].cells[i].paragraphs[0].add_run(k.replace("_"," ").capitalize()).bold=True
-    for o in objets:
-        row = table.add_row().cells
-        for i,k in enumerate(keys):
-            val = o.get(k, "")
-            # Formater les surfaces et pourcentages
+    
+    for i, key in enumerate(keys):
+        label = COLUMN_LABELS.get(key, key.replace("_", " ").title())
+        cell = table.cell(0, i)
+        cell.paragraphs[0].add_run(label).bold = True
+    
+    for row_idx, obj in enumerate(objets, start=1):
+        for col_idx, key in enumerate(keys):
+            val = obj.get(key, "")
             if val is None or val == "":
-                display_val = ""
-            elif "surface" in k.lower() and "m2" in k.lower():
-                display_val = str(int(round(float(val), 0)))  # m² entier
-            elif "pourcentage" in k.lower() or "pct" in k.lower():
-                # Si >= 99%, afficher 100%
+                display_val = "—"
+            elif "surface" in key.lower() and "m2" in key.lower():
+                display_val = str(int(round(float(val), 0)))
+            elif "pourcentage" in key.lower():
                 pct_val = round(float(val), 2)
-                if pct_val >= 99.0:
-                    display_val = "100.00 %"
-                else:
-                    display_val = f"{pct_val:.2f} %"
+                display_val = "100.00 %" if pct_val >= 99.0 else f"{pct_val:.2f} %"
             else:
                 display_val = str(val)
-            row[i].paragraphs[0].add_run(display_val)
-    # Encadrés réglementation sous la table
+            table.cell(row_idx, col_idx).text = display_val
+    
+    # Bloc(s) de réglementation en dessous du tableau
     for o in objets:
         if o.get("reglementation"):
             add_reglementation_block(doc, o["reglementation"])
+    
     doc.add_paragraph("")
 
 
@@ -269,53 +309,102 @@ def filter_intersections(
     min_pct: float = 0.5
 ) -> Dict[str, Any]:
     """
-    Filtre UNIQUEMENT au niveau des entités :
-      - supprime les objets (entités) dont surface_inter_m2 < min_pct de la surface parcelle
-      - garde la couche si au moins UNE entité >= min_pct (sinon, couche supprimée)
-    Met à jour pour chaque couche :
-      - objets (filtrés)
-      - surface_m2 = somme des objets conservés
-      - pourcentage = surface_m2 / surface_parcelle * 100
+    Filtrage et normalisation des intersections.
+
+    ⚙️ Règles :
+      - Garde TOUTES les couches ayant au moins un objet, même si surface_m2 = 0.
+      - Garde aussi les couches avec surface > 0 (classique).
+      - Supprime seulement les couches vides (aucun objet et aucune surface).
+      - Arrondit surfaces et pourcentages.
     """
     if not intersections:
         return {}
 
     total = float(parcelle_surface or 0.0)
-    if total <= 0:
-        # pas de surface : on retourne tel quel
-        return intersections
+    normalized: Dict[str, Any] = {}
 
-    filtered: Dict[str, Any] = {}
     for key, layer in intersections.items():
         objets = list(layer.get("objets") or [])
-        kept: List[Dict[str, Any]] = []
+        normalized_objs: List[Dict[str, Any]] = []
         surf_cumul = 0.0
 
         for o in objets:
             s = float(o.get("surface_inter_m2") or 0.0)
-            pct_obj = (s / total) * 100.0 if total > 0 else 0.0
-            if pct_obj >= min_pct:
-                # Arrondir surface et pourcentage des objets
-                o["surface_inter_m2"] = int(round(s))  # m² entier (int, pas float)
-                o["pourcentage_inter"] = round(pct_obj, 2)  # 0.01 %
-                kept.append(o)
-                surf_cumul += round(s, 0)  # Cumul avec valeur arrondie
+            pct_obj = (s / total * 100.0) if total > 0 else 0.0
+            o["surface_inter_m2"] = int(round(s))
+            o["pourcentage_inter"] = round(pct_obj, 2)
+            normalized_objs.append(o)
+            surf_cumul += s
 
-        # Si aucune entité conservée → on supprime la couche
-        if not kept:
-            continue
-
-        # On garde la couche, mais on la MET À JOUR avec le cumul des entités conservées
+        # Mise à jour des valeurs normalisées
         new_layer = dict(layer)
-        new_layer["objets"] = kept
-        # Arrondir surface et pourcentage de la couche
-        new_layer["surface_m2"] = int(round(surf_cumul))  # m² entier (int, pas float)
-        pct_layer = (surf_cumul / total) * 100.0 if total > 0 else 0.0
-        new_layer["pourcentage"] = round(pct_layer, 2)  # 0.01 %
+        new_layer["objets"] = normalized_objs
+        new_layer["surface_m2"] = int(round(surf_cumul))
+        pct_layer = (surf_cumul / total * 100.0) if total > 0 else 0.0
+        new_layer["pourcentage"] = round(pct_layer, 2)
 
-        filtered[key] = new_layer
+        # ✅ Nouvelle logique de conservation :
+        # Garder la couche si :
+        # - elle contient au moins 1 objet (même surface = 0)
+        # - OU elle a une surface cumulée > 0
+        if normalized_objs or surf_cumul > 0:
+            normalized[key] = new_layer
 
-    return filtered
+    return normalized
+
+# ====================== FILTRAGE SPÉCIFIQUE ZONAGE PLU ======================
+
+def filter_zonage_plu(layer: Dict[str, Any], parcelle_surface: float, min_pct: float = 1.0) -> Dict[str, Any]:
+    """
+    Filtre spécifique pour le zonage PLU :
+      - Supprime les objets (zones) < min_pct (par défaut 1%)
+      - Rééquilibre les pourcentages des zones conservées pour totaliser 100%
+      - Recalcule la surface totale de la couche
+    
+    Args:
+        layer: Couche de zonage PLU avec objets
+        parcelle_surface: Surface totale de la parcelle
+        min_pct: Seuil minimum en % (défaut 1.0%)
+    
+    Returns:
+        Couche filtrée et rééquilibrée
+    """
+    objets = list(layer.get("objets") or [])
+    if not objets or parcelle_surface <= 0:
+        return layer
+    
+    kept_objs = []
+    surf_cumul = 0.0
+    
+    # Filtrer les zones < 1%
+    for obj in objets:
+        s = float(obj.get("surface_inter_m2") or 0.0)
+        pct_obj = (s / parcelle_surface) * 100.0
+        
+        if pct_obj >= min_pct:
+            kept_objs.append(obj)
+            surf_cumul += s
+    
+    # Si aucune zone conservée, retourner la couche vide
+    if not kept_objs:
+        return None
+    
+    # Rééquilibrer les pourcentages pour totaliser 100%
+    # On considère que les zones conservées représentent 100% du zonage
+    for obj in kept_objs:
+        s = float(obj.get("surface_inter_m2") or 0.0)
+        # Nouveau pourcentage = (surface zone / surface totale des zones conservées) * 100
+        obj["pourcentage_inter"] = round((s / surf_cumul) * 100.0, 2) if surf_cumul > 0 else 0.0
+        obj["surface_inter_m2"] = int(round(s))
+    
+    # Mettre à jour la couche
+    new_layer = dict(layer)
+    new_layer["objets"] = kept_objs
+    new_layer["surface_m2"] = int(round(surf_cumul))
+    new_layer["pourcentage"] = 100.0  # Les zones conservées = 100% du zonage
+    
+    return new_layer
+
 
 # ====================== ÉQUILIBRAGE DES POURCENTAGES ======================
 

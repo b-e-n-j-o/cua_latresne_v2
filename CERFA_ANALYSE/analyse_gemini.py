@@ -171,12 +171,15 @@ def extract_json(text):
 # ============================================================
 # PROMPTS
 # ============================================================
-BASE_PROMPT = f"""Tu es un expert en lecture de formulaires CERFA.
+BASE_PROMPT = f"""Tu es un expert en lecture de formulaires CERFA et en extraction d'informations structurées.
 
-{VISUAL_LOCATION_HINTS}
+Analyse le document PDF fourni (CERFA 13410*12) et renvoie **UNIQUEMENT** un JSON strict conforme au schéma ci-dessous.
 
-Analyse le PDF fourni et renvoie UNIQUEMENT un JSON strict selon ce schéma :
+⚠️ NE FOURNIS AUCUN TEXTE HORS DU JSON. NE COMMENTE RIEN. N'EXPLIQUE RIEN.
 
+───────────────────────────────────────────────
+SCHÉMA JSON STRICT À RESPECTER :
+───────────────────────────────────────────────
 {{
   "cerfa_reference": "13410*12",
   "commune_nom": null,
@@ -185,24 +188,71 @@ Analyse le PDF fourni et renvoie UNIQUEMENT un JSON strict selon ce schéma :
   "numero_cu": null,
   "type_cu": null,
   "date_depot": null,
-  "demandeur": {{"type": null, "nom": null, "prenom": null}},
-  "coord_demandeur": {{}},
-  "mandataire": {{}},
-  "adresse_terrain": {{}},
-  "references_cadastrales": [{{"section": null, "numero": null}}],
+  "demandeur": {{
+    "type": "particulier" ou "personne_morale",
+    "nom": null,
+    "prenom": null,
+    "denomination": null,
+    "representant_nom": null,
+    "representant_prenom": null,
+    "siret": null,
+    "adresse": {{
+      "numero": null,
+      "voie": null,
+      "lieu_dit": null,
+      "code_postal": null,
+      "ville": null,
+      "email": null,
+      "telephone": null
+    }}
+  }},
+  "adresse_terrain": {{
+    "numero": null,
+    "voie": null,
+    "lieu_dit": null,
+    "code_postal": null,
+    "ville": null
+  }},
+  "references_cadastrales": [{{"section": null, "numero": null, "surface_m2": null}}],
   "superficie_totale_m2": null,
-  "header_cu": {{"dept": null, "commune_code": null, "annee": null, "numero_dossier": null}}
+  "header_cu": {{
+    "dept": null,
+    "commune_code": null,
+    "annee": null,
+    "numero_dossier": null
+  }}
 }}
 
-CONTRAINTES CRITIQUES :
-- Ne renvoie que du JSON, sans texte ou explication
-- Toutes les clés doivent être présentes, même si certaines sont nulles
-- `commune_insee` reste null (il sera ajouté ensuite)
-- header_cu DOIT être extrait du cadre en-tête page 1
-- references_cadastrales DOIT inclure TOUTES les parcelles (y compris page annexe si présente)
-- commune_nom DOIT venir de section 4.1 "Localité" (pas section 3)
-- Ne pas inventer de valeurs absentes du document
-- Respecter les formats indiqués dans le guide de localisation
+───────────────────────────────────────────────
+RÈGLES D'EXTRACTION :
+───────────────────────────────────────────────
+1. Si le cadre « Vous êtes un particulier » (2.1) est coché → type = "particulier"
+   - Extraire : nom, prénom, adresse complète, email, téléphone.
+
+2. Si le cadre « Vous êtes une personne morale » (2.2) est coché → type = "personne_morale"
+   - Extraire : dénomination, SIRET, type (SARL/SCI...), nom et prénom du représentant légal.
+   - Extraire également l'adresse, email, téléphone si présents.
+
+3. L'adresse du demandeur vient de la section 3 du CERFA.
+   L'adresse du terrain vient de la section 4.1 (page 2).
+
+4. Extraire toutes les références cadastrales (section 4.2 et annexes).
+   - Chaque objet doit avoir `section`, `numero`, `surface_m2`.
+   - Calculer la `superficie_totale_m2` si possible.
+
+5. Construire le numéro complet du certificat :
+   [dept]-[commune_code]-20[annee]-X[numero_dossier]
+
+6. Toujours inclure toutes les clés, même vides (null).
+
+{VISUAL_LOCATION_HINTS}
+
+───────────────────────────────────────────────
+NE PAS :
+- inventer de données
+- traduire les valeurs (garde les noms et adresses français)
+- omettre des clés
+───────────────────────────────────────────────
 """
 
 # ============================================================
@@ -211,27 +261,90 @@ CONTRAINTES CRITIQUES :
 EXPECTED_FIELDS = {
     "cerfa_reference", "commune_nom", "departement_code",
     "numero_cu", "type_cu", "date_depot",
-    "demandeur", "references_cadastrales",
-    "header_cu"
+    "demandeur", "adresse_terrain", "references_cadastrales",
+    "superficie_totale_m2", "header_cu"
 }
 
 FIELD_TRANSLATIONS = {
     "cerfa_reference": "la référence CERFA",
-    "commune_nom": "le nom de la commune",
+    "commune_nom": "le nom de la commune (section 4.1 Localité)",
     "departement_code": "le code du département",
     "numero_cu": "le numéro du certificat d'urbanisme",
     "type_cu": "le type de certificat (CUa ou CUb)",
     "date_depot": "la date de dépôt",
-    "demandeur": "les informations du demandeur",
-    "references_cadastrales": "les parcelles cadastrales",
-    "header_cu": "l'en-tête du numéro CU"
+    "demandeur": "les informations complètes du demandeur",
+    "demandeur.type": "le type de demandeur (particulier ou personne_morale, section 2.1 ou 2.2)",
+    "demandeur.nom": "le nom du demandeur ou du représentant (section 2)",
+    "demandeur.adresse": "l'adresse complète du demandeur (section 3)",
+    "demandeur.adresse.code_postal": "le code postal du demandeur (section 3)",
+    "demandeur.adresse.ville": "la ville du demandeur (section 3)",
+    "adresse_terrain": "l'adresse du terrain (section 4.1)",
+    "references_cadastrales": "les parcelles cadastrales avec section, numéro et surface (section 4.2 + annexes)",
+    "references_cadastrales[].section": "la section cadastrale",
+    "references_cadastrales[].numero": "le numéro de parcelle",
+    "superficie_totale_m2": "la superficie totale du terrain (section 4.2)",
+    "header_cu": "l'en-tête du numéro CU (page 1, cadre supérieur droit)",
+    "header_cu.dept": "le code département (3 chiffres, ex: 033)",
+    "header_cu.commune_code": "le code commune (3 chiffres, ex: 234)",
+    "header_cu.annee": "l'année (2 chiffres, ex: 25)",
+    "header_cu.numero_dossier": "le numéro de dossier (5 chiffres, ex: 00078)"
 }
 
 def validate_cerfa_json(data):
-    missing = [f for f in EXPECTED_FIELDS if f not in data or data[f] in (None, "", [])]
+    """
+    Valide que le JSON contient tous les champs essentiels.
+    Vérifie aussi les sous-structures (demandeur, adresse_terrain, références cadastrales).
+    """
+    missing = []
+    
+    # Validation des champs de premier niveau
+    for f in EXPECTED_FIELDS:
+        if f not in data or data[f] in (None, "", []):
+            missing.append(f)
+    
+    # Validation spécifique du demandeur
+    if "demandeur" in data and isinstance(data["demandeur"], dict):
+        demandeur = data["demandeur"]
+        # Type obligatoire
+        if not demandeur.get("type"):
+            missing.append("demandeur.type")
+        # Nom obligatoire (particulier ou représentant)
+        if not demandeur.get("nom"):
+            missing.append("demandeur.nom")
+        # Adresse obligatoire
+        if not demandeur.get("adresse") or not isinstance(demandeur["adresse"], dict):
+            missing.append("demandeur.adresse")
+        elif demandeur.get("adresse"):
+            # Vérifier les champs minimums de l'adresse
+            adresse = demandeur["adresse"]
+            if not adresse.get("code_postal"):
+                missing.append("demandeur.adresse.code_postal")
+            if not adresse.get("ville"):
+                missing.append("demandeur.adresse.ville")
+    
+    # Validation des références cadastrales
+    if "references_cadastrales" in data and isinstance(data["references_cadastrales"], list):
+        if len(data["references_cadastrales"]) > 0:
+            for idx, ref in enumerate(data["references_cadastrales"]):
+                if not isinstance(ref, dict):
+                    continue
+                if not ref.get("section"):
+                    missing.append(f"references_cadastrales[{idx}].section")
+                if not ref.get("numero"):
+                    missing.append(f"references_cadastrales[{idx}].numero")
+    
+    # Validation du header_cu
+    if "header_cu" in data and isinstance(data["header_cu"], dict):
+        header = data["header_cu"]
+        required_header_fields = ["dept", "commune_code", "annee", "numero_dossier"]
+        for field in required_header_fields:
+            if not header.get(field):
+                missing.append(f"header_cu.{field}")
+    
     if missing:
         logger.warning(f"⚠️ Champs manquants ou vides : {missing}")
         return False, missing
+    
     return True, []
 
 def missing_fields_message(missing):

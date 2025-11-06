@@ -46,50 +46,116 @@ def get_parcelle_geometry(section, numero):
         raise ValueError(f"Parcelle {section} {numero} introuvable")
 
 def calculate_intersection(parcelle_wkt, table_name):
+    config = CATALOGUE.get(table_name)
+    if not config:
+        logger.warning(f"  ⚠️  {table_name}: Non catalogué")
+        return []
+
+    keep_cols = list(config.get('keep', []) or [])
+    group_by = list(config.get('group_by', []) or [])
+
+    if not keep_cols:
+        return []
+
     with engine.connect() as conn:
         try:
-            config = CATALOGUE.get(table_name)
-            if not config:
-                logger.warning(f"  ⚠️  {table_name}: Non catalogué")
-                return []
-            
-            keep_cols = config.get('keep', [])
-            if not keep_cols:
-                return []
-            
-            select_cols = ", ".join([f"t.{col}" for col in keep_cols])
-            
-            query = text(f"""
-                WITH p AS (SELECT ST_MakeValid(ST_GeomFromText(:wkt, 2154)) AS g)
-                SELECT 
-                    {select_cols},
-                    ROUND(CAST(ST_Area(ST_Intersection(ST_MakeValid(t.geom_2154), p.g)) AS numeric), 2) AS surface_inter_m2
-                FROM {SCHEMA}.{table_name} t, p
-                WHERE t.geom_2154 IS NOT NULL
-                  AND ST_Intersects(ST_MakeValid(t.geom_2154), p.g)
-                  AND ST_Area(ST_Intersection(ST_MakeValid(t.geom_2154), p.g)) > 0.01
-            """)
-            
-            result = conn.execute(query, {"wkt": parcelle_wkt})
+            # Colonnes à sélectionner pour les attributs non-groupés
+            # (on les agrégera par "première valeur non nulle")
+            non_group_kept = [c for c in keep_cols if c not in group_by]
+
+            # Construction SQL selon présence de group_by
+            if group_by:
+                # ====== MODE "DISSOLVE" PAR GROUP_BY ======
+                # On regroupe les géométries par clés (ex: zonage_reglement),
+                # puis on intersecte UNE seule géométrie par groupe avec la parcelle.
+                # Pour les attributs :
+                # - group_by : renvoyés tels quels (clés)
+                # - reglementation : on prend la plus longue (souvent la plus complète)
+                # - autres colonnes de keep : première valeur non nulle
+
+                gb_cols_sql = ", ".join([f"t.{c}" for c in group_by])
+
+                # Agrégations attributaires
+                agg_attr_sql_parts = []
+                if "reglementation" in non_group_kept:
+                    agg_attr_sql_parts.append(
+                        "(array_agg(t.reglementation ORDER BY length(t.reglementation) DESC) FILTER (WHERE t.reglementation IS NOT NULL))[1] AS reglementation"
+                    )
+                    non_group_kept_copy = [c for c in non_group_kept if c != "reglementation"]
+                else:
+                    non_group_kept_copy = list(non_group_kept)
+
+                for col in non_group_kept_copy:
+                    agg_attr_sql_parts.append(
+                        f"(array_agg(t.{col}) FILTER (WHERE t.{col} IS NOT NULL))[1] AS {col}"
+                    )
+
+                agg_attr_sql = ",\n                    ".join(agg_attr_sql_parts) if agg_attr_sql_parts else ""
+
+                # Requête avec union par groupe et intersection unique
+                query_sql = f"""
+                    WITH p AS (
+                        SELECT ST_MakeValid(ST_GeomFromText(:wkt, 2154)) AS g
+                    ),
+                    raw AS (
+                        SELECT
+                            {gb_cols_sql},
+                            ST_UnaryUnion(ST_Collect(ST_MakeValid(t.geom_2154))) AS geom_union
+                            {("," if agg_attr_sql else "")}
+                            {agg_attr_sql}
+                        FROM {SCHEMA}.{table_name} t, p
+                        WHERE t.geom_2154 IS NOT NULL
+                          AND ST_Intersects(ST_MakeValid(t.geom_2154), p.g)
+                        GROUP BY {gb_cols_sql}
+                    )
+                    SELECT
+                        {", ".join(group_by)},
+                        {(", ".join([c for c in non_group_kept_copy]) + "," if non_group_kept_copy else "")}
+                        {( "reglementation," if "reglementation" in keep_cols else "" )}
+                        ROUND(CAST(ST_Area(ST_Intersection(geom_union, (SELECT g FROM p))) AS numeric), 2) AS surface_inter_m2
+                    FROM raw
+                    WHERE ST_Intersects(geom_union, (SELECT g FROM p))
+                """
+
+            else:
+                # ====== MODE STANDARD (pas de dissolve) ======
+                select_cols = ", ".join([f"t.{col}" for col in keep_cols])
+                query_sql = f"""
+                    WITH p AS (SELECT ST_MakeValid(ST_GeomFromText(:wkt, 2154)) AS g)
+                    SELECT 
+                        {select_cols},
+                        ROUND(CAST(ST_Area(ST_Intersection(ST_MakeValid(t.geom_2154), p.g)) AS numeric), 2) AS surface_inter_m2
+                    FROM {SCHEMA}.{table_name} t, p
+                    WHERE t.geom_2154 IS NOT NULL
+                      AND ST_Intersects(ST_MakeValid(t.geom_2154), p.g)
+                """
+
+            result = conn.execute(text(query_sql), {"wkt": parcelle_wkt})
             cols = [col[0] for col in result.cursor.description]
-            objects = [dict(zip(cols, row)) for row in result.fetchall()]
-            
-            # Dédoublonnage
+            rows = result.fetchall()
+            objects = [dict(zip(cols, row)) for row in rows]
+
+            # Conversions types non JSON
             unique = []
             seen = set()
             for obj in objects:
-                # Convertir Decimal en float
+                # convertir Decimal→float, datetime→iso
                 for k, v in obj.items():
-                    if hasattr(v, '__class__') and v.__class__.__name__ == 'Decimal':
+                    cls = getattr(v, "__class__", None)
+                    name = getattr(cls, "__name__", "")
+                    if name == "Decimal":
                         obj[k] = float(v)
-                
-                key = tuple(obj.values())
+                    elif name == "datetime":
+                        obj[k] = v.isoformat()
+
+                # Dédoublonnage exact si nécessaire
+                key = tuple(sorted(obj.items()))
                 if key not in seen:
                     unique.append(obj)
                     seen.add(key)
-            
+
             return unique
-            
+
         except Exception as e:
             logger.error(f"  ❌ {table_name}: {e}")
             return []

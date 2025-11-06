@@ -159,7 +159,8 @@
       "reglementation"
     ],
     "origine": "wfs",
-    "article": "3"
+    "article": "3",
+    "group_by": ["zonage_reglement"]
   },
   "prescriptions_lin_latresne": {
     "nom": "Prescriptions linéaires",
@@ -309,7 +310,8 @@
     "keep": [
       "uid",
       "source",
-      "legende"
+      "legende",
+      "reglementation"
     ],
     "origine": "wfs",
     "article": "5"

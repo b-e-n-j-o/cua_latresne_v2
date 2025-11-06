@@ -12,8 +12,6 @@
     "nom": "Servitudes AC1",
     "type": "servitude",
     "keep": [
-      "nomsuplitt",
-      "typeass",
       "nature_protection",
       "precision_protection",
       "statut_proprietaire",
@@ -26,7 +24,6 @@
     "nom": "AOC viticoles",
     "type": "information",
     "keep": [
-      "uid",
       "denom",
       "reglementation"
     ],
@@ -37,7 +34,6 @@
     "nom": "Zones de débroussaillement",
     "type": "prescription",
     "keep": [
-      "zonage",
       "reglementation"
     ],
     "origine": "shp",
@@ -47,10 +43,6 @@
     "nom": "Zonage sismique France",
     "type": "information",
     "keep": [
-      "insee",
-      "nom",
-      "departemen",
-      "sismicite",
       "reglementation"
     ],
     "origine": "wfs",
@@ -237,17 +229,7 @@
     "nom": "Réseaux HTA",
     "type": "reseaux",
     "keep": [
-      "code_epci",
-      "nom_departe",
-      "nom_commune",
-      "code_depart",
-      "type",
-      "code_commun",
-      "nom_epci",
-      "source",
-      "nom_region",
-      "code_region",
-      "update"
+      "type"
     ],
     "origine": "shp",
     "article": "6"
@@ -278,7 +260,6 @@
     "nom": "Fossés Latresne",
     "type": "information",
     "keep": [
-      "OBSERVATIO",
       "TYPE",
       "reglementation"
     ],
@@ -289,8 +270,6 @@
     "nom": "Zones ZAENR",
     "type": "information",
     "keep": [
-      "uid",
-      "detail_fil",
       "reglementation"
     ],
     "origine": "wfs",

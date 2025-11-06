@@ -27,29 +27,83 @@ def _safe(x, default=""):
     return default if x in (None, "", []) else x
 
 def _join_addr(ad) -> str:
-    """Construit une adresse depuis dict ou string."""
+    """Construit une adresse complète depuis dict ou string, avec email/téléphone si présents."""
     if not ad:
         return ""
     
-    # Si string directe, retourner tel quel
+    # Si string directe
     if isinstance(ad, str):
         return ad.strip()
     
-    # Sinon traiter comme dict
     parts = []
     if ad.get("numero"): parts.append(str(ad["numero"]).strip())
     if ad.get("voie"): parts.append(str(ad["voie"]).strip())
     if ad.get("lieu_dit"): parts.append(str(ad["lieu_dit"]).strip())
     line1 = " ".join(parts).strip()
-    line2 = " ".join([_safe(ad.get("code_postal")), _safe(ad.get("ville"))]).strip()
-    return (line1 + (", " + line2 if line2 else "")).strip()
+    
+    city = " ".join([_safe(ad.get("code_postal")), _safe(ad.get("ville"))]).strip()
+    
+    # Coordonnées de contact
+    email = ad.get("email")
+    phone = ad.get("telephone")
+    contacts = []
+    if email: contacts.append(email.strip())
+    if phone: contacts.append(phone.strip())
+    
+    lines = []
+    if line1: lines.append(line1)
+    if city: lines.append(city)
+    if contacts: lines.append(" / ".join(contacts))
+    
+    return ", ".join(lines)
 
 def _demandeur_block(cerfa: dict) -> Tuple[str, str]:
+    """
+    Construit le bloc du demandeur :
+    - Gère le cas "personne morale" (entreprise, notaire, SCI, etc.)
+    - Gère le cas "particulier"
+    - Inclut SIRET, représentant, email, téléphone si disponibles
+    """
     d = (cerfa.get("data") or {}).get("demandeur") or {}
-    who = (d.get("denomination") or " ".join([_safe(d.get("prenom")), _safe(d.get("nom"))]).strip()).strip()
-    siret = _safe(d.get("siret"))
-    who_fmt = (who.upper() + (f" (SIRET {siret})" if siret else ""))
-    domicile = _join_addr(((cerfa.get("data") or {}).get("coord_demandeur") or {}).get("adresse") or {})
+    
+    # ✅ Fallback : support de l'ancien format coord_demandeur si présent
+    coord = (cerfa.get("data") or {}).get("coord_demandeur") or {}
+
+    # Type de demandeur
+    demandeur_type = (d.get("type") or "").lower().strip()
+
+    # --- Cas 1 : Personne morale (entreprise, notaire, SCI, etc.)
+    if demandeur_type in ["personne_morale", "morale", "entreprise", "societe"]:
+        denomination = _safe(d.get("denomination")).upper()
+        representant = " ".join([_safe(d.get("representant_prenom")), _safe(d.get("representant_nom"))]).strip()
+        siret = _safe(d.get("siret"))
+
+        who_lines = [denomination or "PERSONNE MORALE"]
+        if siret:
+            who_lines.append(f"SIRET {siret}")
+        if representant:
+            who_lines.append(f"Représentant : {representant}")
+
+    # --- Cas 2 : Personne physique (particulier)
+    else:
+        prenom, nom = _safe(d.get("prenom")), _safe(d.get("nom"))
+        who_lines = [" ".join([prenom, nom]).strip().upper() or "DEMANDEUR INCONNU"]
+
+    # --- Coordonnées (adresse, email, téléphone)
+    # ✅ Priorité au nouveau format (demandeur.adresse), fallback sur coord_demandeur.adresse
+    adresse_dict = d.get("adresse") or coord.get("adresse") or {}
+    domicile = _join_addr(adresse_dict)
+
+    # ✅ Email et téléphone sur lignes séparées avec emojis
+    email = _safe(adresse_dict.get("email") or coord.get("email"))
+    tel = _safe(adresse_dict.get("telephone") or coord.get("telephone"))
+
+    if email:
+        domicile += f"\n📧 {email}"
+    if tel:
+        domicile += f"\n📞 {tel}"
+
+    who_fmt = "\n".join(who_lines)
     return who_fmt, domicile
 
 def _terrain_addr(cerfa: dict) -> str:
@@ -198,6 +252,9 @@ def render_first_page_header(
     terrain = _terrain_addr(cerfa)
     num_cu = data.get("numero_cu") or ""
     
+    # ✅ Extraction de l'email du demandeur (si présent)
+    email = ((data.get("demandeur") or {}).get("adresse") or {}).get("email")
+    
     # Table layout 1×2 (50/50)
     cw = _content_width_cm(doc.sections[0])
     left_w = (cw - 0.5) / 2.0
@@ -208,19 +265,19 @@ def render_first_page_header(
     layout.columns[0].width = Cm(left_w)
     layout.columns[1].width = Cm(right_w)
     
-    # Gauche: tableau récap
+    # Gauche: tableau récap (6 lignes avec email)
     left_cell = layout.cell(0, 0)
-    recap = left_cell.add_table(rows=5, cols=2)
+    recap = left_cell.add_table(rows=6, cols=2)
     recap.style = "Table Grid"
     recap.autofit = False
     recap.columns[0].width = Cm(5.5)
     recap.columns[1].width = Cm(max(2.0, left_w - 5.7))
     
-# cua_header.py ligne ~330
     rows_data = [
         ("Demande déposée le", date_dep),
         ("Par :", who),
         ("Demeurant à :", domicile),
+        ("Courriel :", email or "—"),
         ("Sur un terrain sis à :", terrain),
         ("Lien vers la carte interactive :", qr_url),
     ]
