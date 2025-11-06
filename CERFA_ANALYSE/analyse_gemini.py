@@ -20,7 +20,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 logger = logging.getLogger("cerfa_analyse")
 
-MODEL_PRIMARY = "gemini-2.5-pro"
+MODEL_PRIMARY = "gemini-2.5-flash"
 MODEL_FALLBACK = "gemini-2.5-flash"
 INSEE_CSV = os.path.join(os.path.dirname(__file__), "..", "CONFIG", "v_commune_2025.csv")
 
