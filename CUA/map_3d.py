@@ -55,6 +55,60 @@ SUPABASE_KEY = os.getenv("SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY"
 # 🧩 FONCTIONS PRINCIPALES
 # ============================================================
 
+def inject_mobile_compatibility(html_path):
+    """
+    Injecte les balises meta viewport et le CSS responsive dans un fichier HTML Plotly.
+    
+    Args:
+        html_path (str): Chemin du fichier HTML à modifier
+    
+    Returns:
+        None (modification en place)
+    """
+    with open(html_path, "r", encoding="utf-8") as f:
+        html = f.read()
+
+    # ✅ Injecter un header responsive pour mobile
+    responsive_header = """
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    height: 100%;
+    width: 100%;
+  }
+  .plotly-graph-div {
+    width: 100% !important;
+    height: 100vh !important;
+  }
+  /* 📱 Optimisation mobile pour les contrôles Plotly */
+  .modebar {
+    transform: scale(1.2);
+    transform-origin: top right;
+  }
+  @media (max-width: 768px) {
+    .modebar {
+      transform: scale(1.5);
+    }
+  }
+</style>
+"""
+    
+    # Insérer juste après <head>
+    if "<head>" in html:
+        html = html.replace("<head>", "<head>" + responsive_header)
+    else:
+        # Fallback si la structure est différente
+        html = responsive_header + html
+    
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(html)
+    
+    print("   📱 Compatibilité mobile ajoutée (viewport + responsive CSS)")
+
+
 def fetch_parcelle_wfs(code_insee, id_parcelle):
     """Récupère une parcelle cadastrale via le WFS de l’IGN (méthode legacy)."""
     ENDPOINT = "https://data.geopf.fr/wfs/ows"
@@ -247,7 +301,12 @@ def exporter_visualisation_3d_plotly_from_wkt(wkt_path, output_dir="./out_3d", e
 
         html_name = "carte_3d_unite_fonciere.html"
         html_path = os.path.join(output_dir, html_name)
-        fig.write_html(html_path, include_plotlyjs="cdn", full_html=True)
+        
+        # ✅ Embarquer Plotly directement (pas de CDN) pour compatibilité mobile
+        fig.write_html(html_path, include_plotlyjs=True, full_html=True)
+        
+        # ✅ Injecter les optimisations mobile (viewport + CSS responsive)
+        inject_mobile_compatibility(html_path)
 
         metadata = {
             "resolution": resolution,
@@ -298,7 +357,12 @@ def exporter_visualisation_3d_plotly(code_insee, id_parcelle, output_dir, exagge
 
         html_name = f"carte_3d_{parcelle_id}.html"
         html_path = os.path.join(output_dir, html_name)
-        fig.write_html(html_path, include_plotlyjs="cdn", full_html=True)
+        
+        # ✅ Embarquer Plotly directement (pas de CDN) pour compatibilité mobile
+        fig.write_html(html_path, include_plotlyjs=True, full_html=True)
+        
+        # ✅ Injecter les optimisations mobile (viewport + CSS responsive)
+        inject_mobile_compatibility(html_path)
 
         metadata = {
             "section": parcelles["section"].iloc[0],
