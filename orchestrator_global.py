@@ -22,6 +22,7 @@ from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
 from supabase import create_client
+from CERFA_ANALYSE.auth_utils import is_authorized_for_insee
 
 # ============================================================
 # CONFIG
@@ -96,6 +97,11 @@ def orchestrer_pipeline(pdf_path: str, code_insee: str):
     insee = data.get("commune_insee") or code_insee
     if not insee:
         logger.error("❌ Code INSEE non trouvé dans l’analyse CERFA.")
+        sys.exit(1)
+
+    user_id = os.getenv("USER_ID")
+    if user_id and not is_authorized_for_insee(user_id, insee):
+        logger.error(f"⛔ Utilisateur non autorisé à analyser la commune {insee}")
         sys.exit(1)
 
     # -------------------------------

@@ -245,17 +245,7 @@
     "nom": "Réseaux Haute Tension ENEDIS",
     "type": "carte",
     "keep": [
-      "code_epci",
-      "nom_departe",
-      "nom_commune",
-      "code_depart",
-      "type",
-      "code_commun",
-      "nom_epci",
-      "source",
-      "nom_region",
-      "code_region",
-      "update"
+      "type"
     ],
     "origine": "shp",
     "article": "6",

@@ -225,15 +225,6 @@
     "origine": "shp",
     "article": "6"
   },
-  "reseaux_hta": {
-    "nom": "Réseaux HTA",
-    "type": "reseaux",
-    "keep": [
-      "type"
-    ],
-    "origine": "shp",
-    "article": "6"
-  },
   "retrait_gonflement_argiles_gironde": {
     "nom": "Retrait-gonflement des argiles",
     "type": "prescription",

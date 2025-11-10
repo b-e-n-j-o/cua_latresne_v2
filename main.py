@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException
 from pathlib import Path
 from datetime import datetime
 import subprocess
@@ -9,6 +9,7 @@ import os
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client
 from dotenv import load_dotenv
+from CERFA_ANALYSE.auth_utils import get_user_insee_list
 
 # ============================================================
 # 🔧 CONFIGURATION
@@ -55,6 +56,7 @@ def run_pipeline(job_id: str, pdf_path: Path, code_insee: str | None, env: dict 
         "pdf": pdf_path.name,
         "code_insee": code_insee,
         "logs": [],  # on conserve les lignes de logs ici
+        "current_step": "queued",
     }
     JOBS[job_id] = out
 
@@ -88,7 +90,18 @@ def run_pipeline(job_id: str, pdf_path: Path, code_insee: str | None, env: dict 
 
         for line in process.stdout:
             print(f"[{job_id}] {line}", end="")  # affichage live dans le terminal
-            out["logs"].append(line.strip())
+            stripped = line.strip()
+            out["logs"].append(stripped)
+
+            # Mise à jour du step courant en fonction des logs de l'orchestrateur
+            if "Analyse du CERFA" in stripped:
+                out["current_step"] = "analyse_cerfa"
+            elif "Vérification unité foncière" in stripped:
+                out["current_step"] = "verification_unite_fonciere"
+            elif "Analyse des intersections" in stripped or "Rapport d'intersection" in stripped:
+                out["current_step"] = "intersections"
+            elif "génération des cartes 2D/3D" in stripped or "Sous-orchestrateur CUA" in stripped:
+                out["current_step"] = "generation_cua"
 
         process.wait(timeout=1800)
         out["returncode"] = process.returncode
@@ -107,6 +120,8 @@ def run_pipeline(job_id: str, pdf_path: Path, code_insee: str | None, env: dict 
                 # ✅ Intégration du résultat du sous-orchestrateur (cartes + CUA)
                 sub_result_file = latest_out / "sub_orchestrator_result.json"
                 if sub_result_file.exists():
+                    JOBS[job_id]["current_step"] = "generation_cua"
+                    print(f"🧾 [JOB {job_id}] Étape : génération du certificat CUA")
                     sub_result = json.loads(sub_result_file.read_text(encoding="utf-8"))
                     out["result_enhanced"] = sub_result
                     print(f"✅ [JOB {job_id}] Résultat enrichi avec sub_orchestrator_result.json")
@@ -128,6 +143,12 @@ def run_pipeline(job_id: str, pdf_path: Path, code_insee: str | None, env: dict 
         out["error"] = str(e)
         out["logs"].append(f"❌ Erreur interne : {e}")
     finally:
+        if out.get("status") == "success":
+            out["current_step"] = "done"
+        elif out.get("status") == "error":
+            out["current_step"] = "error"
+        elif out.get("status") == "timeout":
+            out["current_step"] = "timeout"
         if pdf_path.exists():
             pdf_path.unlink()
         out["end_time"] = datetime.now().isoformat()
@@ -160,6 +181,21 @@ async def analyze_cerfa(
         "user_id": user_id,
         "user_email": user_email,
     }
+
+# ============================================================
+# 🔐 Vérification des droits utilisateur
+# ============================================================
+    user_insee_list = get_user_insee_list(user_id) if user_id else []
+    print(f"👤 Droits utilisateur {user_email}: {user_insee_list or 'toutes communes'}")
+
+    if user_insee_list and code_insee and code_insee not in user_insee_list:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Accès refusé : vous n’êtes autorisé qu’à analyser "
+                f"les communes suivantes : {', '.join(user_insee_list)}"
+            )
+        )
 
     # 🧠 Transmission au sous-processus (via variables d'environnement)
     env = os.environ.copy()
