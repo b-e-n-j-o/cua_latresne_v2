@@ -30,7 +30,9 @@ app.add_middleware(
         "https://kerelia.fr",
         "https://*.vercel.app",
         "http://localhost:5173",
-        "http://localhost:3000"
+        "http://localhost:3000",
+        "https://www.kerelia.fr",
+        "https://www.kerelia.fr/*"
     ],
     allow_credentials=True,
     allow_methods=["*"],
