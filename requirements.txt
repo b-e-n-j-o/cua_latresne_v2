@@ -20,3 +20,4 @@ python-multipart==0.0.9
 pypdf
 rasterio==1.4.3
 qrcode[pil]
+sendgrid==6.11.0
