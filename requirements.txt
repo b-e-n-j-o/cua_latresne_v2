@@ -21,3 +21,4 @@ pypdf
 rasterio==1.4.3
 qrcode[pil]
 sendgrid==6.11.0
+email-validator
