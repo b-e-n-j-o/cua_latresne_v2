@@ -1,0 +1,427 @@
+{
+    "a4": {
+      "nom": "Servitudes A4 - Passage sur les berges des cours d’eau",
+      "type": "Servitudes",
+      "keep": [
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": "4",
+      "attribut_map": "None"
+    },
+    "ac1": {
+      "nom": "Servitudes AC1 - Monuments historiques",
+      "type": "Servitudes",
+      "keep": [
+        "nomsuplitt",
+        "typeass",
+        "nature_protection",
+        "precision_protection",
+        "statut_proprietaire",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "4",
+      "attribut_map": "nomsuplitt",
+      "nom_attribut_map": "Monument"
+    },
+    "aoc_viticoles": {
+      "nom": "AOC viticoles",
+      "type": "Informations",
+      "keep": [
+        "uid",
+        "denom",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "5",
+      "attribut_map": "denom",
+      "nom_attribut_map": "Domaine"
+    },
+    "oap_linas": {
+    "nom": "OAP – Secteur de Linas",
+    "type": "prescription",
+    "keep": [
+      "reglementation"
+    ],
+    "origine": "kerelia",
+    "article": "5",
+    "attribut_map": "None",
+    "nom_attribut_map": "OAP"
+  },
+    "debroussaillement": {
+      "nom": "Zones de débroussaillement",
+      "type": "Prescriptions",
+      "keep": [
+        "zonage",
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": "5",
+      "attribut_map": "None",
+      "nom_attribut_map": "Zonage"
+    },
+    "galerie_cheminement_et_pilier": {
+      "nom": "Galeries et piliers souterrains",
+      "type": "Informations",
+      "keep": [
+        "objectid",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "5",
+      "attribut_map": "None"
+    },
+    "haies_bocages_latresne": {
+      "nom": "Haies et bocages",
+      "type": "Informations",
+      "keep": [
+        "id",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "5",
+      "attribut_map": "None"
+    },
+    "i1_hydrocarbure_chimique_gaz": {
+      "nom": "Servitudes I1 – Hydrocarbures, chimiques et gaz",
+      "type": "Servitudes",
+      "keep": [
+        "gml_id",
+        "transporteur",
+        "cat_fluide",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "4",
+      "attribut_map": "cat_fluide",
+      "nom_attribut_map": "Catégorie de fluide"
+    },
+    "i6": {
+      "nom": "Servitudes I6",
+      "type": "Servitudes",
+      "keep": [
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": "4",
+      "attribut_map": "None"
+    },
+    "preemption": {
+      "nom": "Zones de préemption",
+      "type": "Informations",
+      "keep": [
+        "libelle",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "9",
+      "attribut_map": "libelle",
+      "nom_attribut_map": "Zonage"
+    },
+    "mouvements_de_terrain_ponctuels": {
+      "nom": "Mouvements de terrain ponctuels",
+      "type": "Informations",
+      "keep": [
+        "gid",
+        "lieu_dit",
+        "com_geologie"
+      ],
+      "origine": "wfs",
+      "article": "5",
+      "attribut_map": "lieu_dit",
+      "nom_attribut_map": "Lieu-dit"
+    },
+    "nuisances_sonores_gironde": {
+      "nom": "Nuisances sonores Gironde",
+      "type": "Prescriptions",
+      "keep": [
+        "nom_tronc",
+        "debutant",
+        "finissant",
+        "cat_bruit",
+        "larg_secte",
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": "5",
+      "attribut_map": "cat_bruit",
+      "nom_attribut_map": "Catégorie de bruit"
+    },
+    "patrimoine_naturel_latresne": {
+      "nom": "Patrimoine naturel",
+      "type": "Informations ou Prescriptions",
+      "keep": [
+        "nom",
+        "type_patrimoine",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "7, 5",
+      "attribut_map": "type_patrimoine",
+      "nom_attribut_map": "Type de patrimoine"
+    },
+    "plu_latresne": {
+      "nom": "Zonage PLU",
+      "type": "Zonage PLU",
+      "keep": [
+        "id",
+        "zonage_reglement",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "3",
+      "attribut_map": "zonage_reglement",
+      "nom_attribut_map": "Zonage"
+    },
+    "prescriptions_lin_latresne": {
+      "nom": "Prescriptions linéaires",
+      "type": "Prescriptions",
+      "keep": [
+        "gml_id",
+        "libelle",
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": "5",
+      "attribut_map": "libelle",
+      "nom_attribut_map": "Prescription"
+    },
+    "prescriptions_pct_latresne": {
+      "nom": "Prescriptions ponctuelles",
+      "type": "Prescriptions",
+      "keep": [
+        "gml_id",
+        "libelle",
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": "5",
+      "attribut_map": "libelle",
+      "nom_attribut_map": "Prescription"
+    },
+    "prescriptions_surf_latresne": {
+      "nom": "Prescriptions surfaciques",
+      "type": "Prescriptions",
+      "keep": [
+        "gml_id",
+        "libelle",
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": "5",
+      "attribut_map": "libelle",
+      "nom_attribut_map": "Prescription"
+    },
+    "pt3": {
+      "nom": "Servitudes attachées aux réseaux de télécommunications - PT3",
+      "type": "Servitudes",
+      "keep": [
+        "nom_sup",
+        "type",
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": "4",
+      "attribut_map": "None"
+    },
+    "reseaux_aep_eu_lin": {
+      "nom": "Réseaux AEP EU (linéaires)",
+      "type": "Informations",
+      "keep": [
+        "id",
+        "type",
+        "diametre",
+        "materiau",
+        "diametre"
+      ],
+      "origine": "shp",
+      "article": "6",
+      "attribut_map": "None"
+    },
+    "reseaux_aep_eu_pct": {
+      "nom": "Réseaux AEP EU (ponctuels)",
+      "type": "carte",
+      "keep": [
+        "id",
+        "profondeur",
+        "type",
+        "type_noeud"
+      ],
+      "origine": "shp",
+      "article": "6",
+      "attribut_map": "None"
+    },
+    "reseaux_hta": {
+      "nom": "Réseaux Haute Tension ENEDIS",
+      "type": "carte",
+      "keep": [
+        "type"
+      ],
+      "origine": "shp",
+      "article": "6",
+      "attribut_map": "None"
+    },
+    "retrait_gonflement_argiles_gironde": {
+      "nom": "Retrait-gonflement des argiles",
+      "type": "Prescriptions",
+      "keep": [
+        "niveau",
+        "alea",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "5",
+      "attribut_map": "niveau",
+      "nom_attribut_map": "Niveau"
+    },
+    "secteurs_carrieres_comblees": {
+      "nom": "Secteurs carrières comblées",
+      "type": "Informations",
+      "keep": [
+        "type_comblement",
+        "nom_cavite",
+        "commentaires_cd33"
+      ],
+      "origine": "wfs",
+      "article": "5",
+      "attribut_map": "nom_cavite",
+      "nom_attribut_map": "Nom de la cavité"
+    },
+    "troncons_et_fosses_latresne": {
+      "nom": "Fossés et Canalisations Latresne",
+      "type": "Informations",
+      "keep": [
+        "observation",
+        "TYPE",
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": "6",
+      "attribut_map": "type",
+      "nom_attribut_map": "Type"
+    },
+    "zaenr_zones": {
+      "nom": "Zones d'Acceleration des Energies Renouvelables (ZAEnR)",
+      "type": "Informations",
+      "keep": [
+        "uid",
+        "detail_fil",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "7",
+      "attribut_map": "detail_fil",
+      "nom_attribut_map": "Détail filière"
+    },
+    "zbrs_gironde": {
+      "nom": "Zones de Bruit",
+      "type": "Informations",
+      "keep": [
+        "uid",
+        "source",
+        "legende",
+        "reglementation",
+        "jour_nuit"
+      ],
+      "origine": "wfs",
+      "article": "5",
+      "attribut_map": "legende",
+      "nom_attribut_map": "Décibels",
+      "attribut_split": "jour_nuit"
+    },
+    "as1_captages_eau": {
+      "nom": "Captages d'eau potable (AS1)",
+      "type": "Servitudes",
+      "keep": [
+        "nom_captage",
+        "reglementation",
+        "perimetre_protection",
+        "ins_pro__1"
+      ],
+      "origine": "wfs",
+      "article": "4",
+      "attribut_map": "nom_captage",
+      "nom_attribut_map": "Nom du captage"
+    },
+    "buffers_seveso": {
+      "nom": "Zones tampon Seveso",
+      "type": "Informations",
+      "keep": [
+        "nom_ets",
+        "lib_seveso",
+        "zone"
+      ],
+      "origine": "shp",
+      "article": "5",
+      "attribut_map": "nom_ets",
+      "nom_attribut_map": "Nom de l'établissement"
+    },
+    "el3_garonne": {
+      "nom": "Servitudes domaine public fluvial (EL3)",
+      "type": "Servitudes",
+      "keep": [
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": "4",
+      "attribut_map": "None"
+    },
+    "i4_cables_haute_tension": {
+      "nom": "Servitudes I4 - Lignes haute tension",
+      "type": "Servitudes",
+      "keep": [
+        "tension",
+        "type",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "4",
+      "attribut_map": "tension",
+      "nom_attribut_map": "Tension"
+    },
+    "i4_lignes_electriques_locales": {
+      "nom": "Servitudes I4 - Lignes électriques locales",
+      "type": "Servitudes",
+      "keep": [
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": null,
+      "attribut_map": "None"
+    },
+    "icpe_seveso": {
+      "nom": "ICPE Seveso",
+      "type": "installations_classees",
+      "keep": [
+        "nom_ets"
+      ],
+      "origine": "wfs",
+      "article": "5",
+      "attribut_map": "None",
+      "nom_attribut_map": "Nom de l'établissement"
+    },
+    "risque_mouvement_de_terrain": {
+      "nom": "Risques mouvements de terrain",
+      "type": "Prescriptions",
+      "keep": [
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "5",
+      "attribut_map": "None"
+    },
+    "pprmvt_latresne": {
+      "nom": "PPRMVT - Mouvements de terrain",
+      "type": "Prescriptions",
+      "origine": "shp",
+      "keep": [
+        "etiquette",
+        "niveau_max",
+        "texte_cu"
+      ],
+      "article": "5",
+      "attribut_map": "etiquette",
+      "nom_attribut_map": "Zonage"
+    }
+  }

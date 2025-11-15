@@ -1,0 +1,442 @@
+{
+    "a4": {
+      "nom": "Servitudes A4",
+      "type": "servitude",
+      "keep": [
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": "4",
+      "geom_type": "lineaire"
+    },
+    "ac1": {
+      "nom": "Servitudes AC1",
+      "type": "servitude",
+      "keep": [
+        "nomsuplitt",
+        "typeass",
+        "nature_protection",
+        "precision_protection",
+        "statut_proprietaire",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "4",
+      "geom_type": "surfacique"
+    },
+    "pm1_detaillee_gironde": {
+      "nom": "Servitude PM1 détaillée Gironde",
+      "type": "servitude",
+      "keep": [
+        "gid",
+        "source",
+        "nom"
+      ],
+      "origine": "wfs",
+      "article": "4",
+      "geom_type": "surfacique"
+    },
+    "aoc_viticoles": {
+      "nom": "AOC viticoles",
+      "type": "information",
+      "keep": [
+        "uid",
+        "denom",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "5",
+      "geom_type": "surfacique"
+    },
+    "debroussaillement": {
+      "nom": "Zones de débroussaillement",
+      "type": "prescription",
+      "keep": [
+        "zonage",
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": "5",
+      "geom_type": "surfacique"
+    },
+    "france_zonage_sismique": {
+      "nom": "Zonage sismique France",
+      "type": "information",
+      "keep": [
+        "insee",
+        "nom",
+        "departemen",
+        "sismicite",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "5",
+      "geom_type": "surfacique"
+    },
+    "galerie_cheminement_et_pilier": {
+      "nom": "Galeries et piliers souterrains",
+      "type": "information",
+      "keep": [
+        "objectid",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "5",
+      "geom_type": "lineaire"
+    },
+    "haies_bocages_latresne": {
+      "nom": "Haies et bocages",
+      "type": "information",
+      "keep": [
+        "id",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "5",
+      "geom_type": "lineaire"
+    },
+    "i1_hydrocarbure_chimique_gaz": {
+      "nom": "Servitudes I1 – Hydrocarbures, chimiques et gaz",
+      "type": "servitude",
+      "keep": [
+        "gml_id",
+        "transporteur",
+        "cat_fluide",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "4",
+      "geom_type": "surfacique"
+    },
+    "i6": {
+      "nom": "Servitudes I6",
+      "type": "servitude",
+      "keep": [
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": "4",
+      "geom_type": "lineaire"
+    },
+    "preemption": {
+      "nom": "Zones de préemption",
+      "type": "information",
+      "keep": [
+        "libelle",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "9",
+      "geom_type": "surfacique"
+    },
+    "mouvements_de_terrain_ponctuels": {
+      "nom": "Mouvements de terrain ponctuels",
+      "type": "information",
+      "keep": [
+        "gid",
+        "lieu_dit",
+        "com_geologie"
+      ],
+      "origine": "wfs",
+      "article": "5",
+      "geom_type": "surfacique"
+    },
+    "nuisances_sonores_gironde": {
+      "nom": "Nuisances sonores Gironde",
+      "type": "prescription",
+      "keep": [
+        "nom_tronc",
+        "debutant",
+        "finissant",
+        "cat_bruit",
+        "larg_secte",
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": "5",
+      "geom_type": "surfacique"
+    },
+    "patrimoine_naturel_latresne": {
+      "nom": "Patrimoine naturel",
+      "type": "information_ou_prescription",
+      "keep": [
+        "nom",
+        "type_patrimoine",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "7, 5",
+      "geom_type": "surfacique"
+    },
+    "plu_latresne": {
+      "nom": "Zonage PLU",
+      "type": "prescription",
+      "keep": [
+        "id",
+        "zonage_reglement",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "3",
+      "group_by": [
+        "zonage_reglement"
+      ],
+      "geom_type": "surfacique"
+    },
+    "prescriptions_lin_latresne": {
+      "nom": "Prescriptions linéaires",
+      "type": "prescription",
+      "keep": [
+        "gml_id",
+        "libelle",
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": "5",
+      "geom_type": "surfacique"
+    },
+    "prescriptions_pct_latresne": {
+      "nom": "Prescriptions ponctuelles",
+      "type": "prescription",
+      "keep": [
+        "gml_id",
+        "libelle",
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": "5",
+      "geom_type": "surfacique"
+    },
+    "prescriptions_surf_latresne": {
+      "nom": "Prescriptions surfaciques",
+      "type": "prescription",
+      "keep": [
+        "gml_id",
+        "libelle",
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": "5",
+      "geom_type": "surfacique"
+    },
+    "pt3": {
+      "nom": "Servitudes PT3",
+      "type": "servitude",
+      "keep": [
+        "nom_sup",
+        "type",
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": "4",
+      "geom_type": "lineaire"
+    },
+    "radon": {
+      "nom": "IRSN - Radon métropole",
+      "type": "prescription",
+      "keep": [
+        "nom_comm",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "7",
+      "geom_type": "surfacique"
+    },
+    "reseaux_aep_eu_lin": {
+      "nom": "Réseaux AEP EU (linéaires)",
+      "type": "carte",
+      "keep": [
+        "id",
+        "type",
+        "diametre",
+        "materiau",
+        "diametre"
+      ],
+      "origine": "shp",
+      "article": "6",
+      "geom_type": "lineaire"
+    },
+    "reseaux_aep_eu_pct": {
+      "nom": "Réseaux AEP EU (ponctuels)",
+      "type": "carte",
+      "keep": [
+        "id",
+        "profondeur",
+        "type",
+        "type_noeud"
+      ],
+      "origine": "shp",
+      "article": "6",
+      "geom_type": "ponctuel"
+    },
+    "reseaux_hta": {
+      "nom": "Réseaux HTA",
+      "type": "reseaux",
+      "keep": [
+        "code_epci",
+        "nom_departe",
+        "nom_commune",
+        "code_depart",
+        "type",
+        "code_commun",
+        "nom_epci",
+        "source",
+        "nom_region",
+        "code_region",
+        "update"
+      ],
+      "origine": "shp",
+      "article": "6",
+      "geom_type": "lineaire"
+    },
+    "retrait_gonflement_argiles_gironde": {
+      "nom": "Retrait-gonflement des argiles",
+      "type": "prescription",
+      "keep": [
+        "niveau",
+        "alea",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "5",
+      "geom_type": "surfacique"
+    },
+    "secteurs_carrieres_comblees": {
+      "nom": "Secteurs carrières comblées",
+      "type": "information",
+      "keep": [
+        "type_comblement",
+        "nom_cavite",
+        "commentaires_cd33"
+      ],
+      "origine": "wfs",
+      "article": "5",
+      "geom_type": "surfacique"
+    },
+    "troncons_et_fosses_latresne": {
+      "nom": "Fossés Latresne",
+      "type": "information",
+      "keep": [
+        "observation",
+        "type",
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": "6",
+      "geom_type": "lineaire"
+    },
+    "zaenr_zones": {
+      "nom": "Zones ZAENR",
+      "type": "information",
+      "keep": [
+        "uid",
+        "detail_fil",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "7",
+      "geom_type": "surfacique"
+    },
+    "zbrs_gironde": {
+      "nom": "ZBRS Gironde",
+      "type": "information",
+      "keep": [
+        "uid",
+        "source",
+        "legende",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "5",
+      "geom_type": "surfacique"
+    },
+    "as1_captages_eau": {
+      "nom": "Captages d'eau potable (AS1)",
+      "type": "servitude",
+      "keep": [
+        "nom_captage",
+        "reglementation",
+        "perimetre_protection",
+        "ins_pro__1"
+      ],
+      "origine": "wfs",
+      "article": "4",
+      "geom_type": "surfacique"
+    },
+    "buffers_seveso": {
+      "nom": "Zones tampon Seveso",
+      "type": "information",
+      "keep": [
+        "nom_ets",
+        "lib_seveso",
+        "zone"
+      ],
+      "origine": "shp",
+      "article": "5",
+      "geom_type": "surfacique"
+    },
+    "el3_garonne": {
+      "nom": "Servitudes domaine public fluvial (EL3)",
+      "type": "servitude",
+      "keep": [
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": "4",
+      "geom_type": "surfacique"
+    },
+    "i4_cables_haute_tension": {
+      "nom": "Câbles haute tension (I4)",
+      "type": "servitude",
+      "keep": [
+        "tension",
+        "type",
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "6",
+      "geom_type": "lineaire"
+    },
+    "i4_lignes_electriques_locales": {
+      "nom": "Lignes électriques locales (I4)",
+      "type": "carte",
+      "keep": [
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": null,
+      "geom_type": "lineaire"
+    },
+    "icpe_seveso": {
+      "nom": "ICPE Seveso",
+      "type": "installations_classees",
+      "keep": [
+        "nom_ets"
+      ],
+      "origine": "wfs",
+      "article": "5",
+      "geom_type": "surfacique"
+    },
+    "risque_mouvement_de_terrain": {
+      "nom": "Risques mouvements de terrain",
+      "type": "prescription",
+      "keep": [
+        "reglementation"
+      ],
+      "origine": "wfs",
+      "article": "5",
+      "geom_type": "surfacique"
+    },
+    "pprmvt_latresne": {
+      "nom": "PPRMVT",
+      "type": "prescription",
+      "origine": "shp",
+      "keep": [
+        "etiquette",
+        "niveau_max",
+        "texte_cu"
+      ],
+      "article": "5",
+      "geom_type": "surfacique"
+    }
+  }

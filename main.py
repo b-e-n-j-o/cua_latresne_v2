@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 from CERFA_ANALYSE.auth_utils import get_user_insee_list
 from utils.email_utils import send_internal_email
 
+from admin_routes import router as admin_router
+
 
 # ============================================================
 # 🔧 CONFIGURATION
@@ -49,6 +51,8 @@ app.add_middleware(
 
 # Dictionnaire global pour le suivi des jobs
 JOBS = {}
+
+app.include_router(admin_router)
 
 # ============================================================
 # 🔧 Fonction d’exécution du pipeline (tâche asynchrone)

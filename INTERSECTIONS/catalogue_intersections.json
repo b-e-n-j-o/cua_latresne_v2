@@ -368,15 +368,6 @@
     "origine": "shp",
     "article": null
   },
-  "icpe_seveso": {
-    "nom": "ICPE Seveso",
-    "type": "installations_classees",
-    "keep": [
-      "nom_ets"
-    ],
-    "origine": "wfs",
-    "article": "5"
-  },
   "risque_mouvement_de_terrain": {
     "nom": "Risques mouvements de terrain",
     "type": "prescription",
