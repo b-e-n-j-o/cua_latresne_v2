@@ -1,4 +1,5 @@
-from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException, Body
+from pydantic import BaseModel, EmailStr
 from pathlib import Path
 from datetime import datetime
 import subprocess
@@ -10,6 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client
 from dotenv import load_dotenv
 from CERFA_ANALYSE.auth_utils import get_user_insee_list
+from utils.email_utils import send_internal_email
+
 
 # ============================================================
 # 🔧 CONFIGURATION
@@ -23,6 +26,11 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv("SERVICE_KEY") or os.getenv("SUPABASE_SERV
 supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 app = FastAPI(title="Kerelia CUA API", version="2.1")
+# ============================================================
+# 📩 Modèle Lead + endpoint de capture
+# ============================================================
+
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -94,6 +102,16 @@ def run_pipeline(job_id: str, pdf_path: Path, code_insee: str | None, env: dict 
             print(f"[{job_id}] {line}", end="")  # affichage live dans le terminal
             stripped = line.strip()
             out["logs"].append(stripped)
+
+            # 🔥 Détection des erreurs explicites renvoyées par l'orchestrateur
+            if "Utilisateur non autorisé à analyser la commune" in stripped:
+                out["status"] = "error"
+                out["error"] = stripped
+                out["current_step"] = "error"
+            if stripped.startswith("❌") or stripped.startswith("💥"):
+                out["status"] = "error"
+                out["error"] = stripped
+                out["current_step"] = "error"
 
             # Mise à jour du step courant en fonction des logs de l'orchestrateur
             if "Analyse du CERFA" in stripped:
@@ -429,3 +447,65 @@ def debug_supabase():
             "status": "error",
             "details": str(e)
         }
+
+
+
+
+@app.post("/auth/generate-reset-token")
+def generate_reset_token(email: str = Body(..., embed=True)):
+    """
+    Génère un token de réinitialisation Supabase à la demande.
+    Utilisé pour permettre qu'un lien d'email n'expire jamais.
+    """
+    import requests
+
+    url = f"{SUPABASE_URL}/auth/v1/admin/generate_link"
+    headers = {
+        "apikey": SUPABASE_SERVICE_ROLE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "type": "recovery",
+        "email": email
+    }
+
+    r = requests.post(url, headers=headers, json=payload)
+    data = r.json()
+
+    if "action_link" not in data:
+        print("❌ Erreur generate_link :", data)
+        raise HTTPException(500, "Impossible de générer un token Supabase")
+
+    # Lien final vers la page officielle Supabase pour définir un mot de passe
+    return {"reset_url": data["action_link"]}
+
+
+class Lead(BaseModel):
+    email: EmailStr
+    need: str
+    profile: str | None = None
+    commune: str
+    parcelle: str | None = None
+    message: str | None = None
+
+
+@app.post("/lead")
+async def receive_lead(payload: dict):
+    try:
+        supabase.table("leads").insert({
+            "profile": payload.get("profile"),
+            "email": payload.get("email"),
+            "commune": payload.get("commune"),
+            "parcelle": payload.get("parcelle"),
+            "message": payload.get("message"),
+        }).execute()
+
+        # 👉 Appel à ton module SendGrid
+        send_internal_email(payload)
+
+        return {"status": "ok"}
+
+    except Exception as e:
+        print("❌ Erreur /lead:", e)
+        raise HTTPException(status_code=500, detail="Erreur serveur")

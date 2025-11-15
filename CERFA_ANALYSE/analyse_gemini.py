@@ -49,6 +49,9 @@ Structure header_cu :
 • Année : 2 chiffres (ex: 25 = 2025)
 • N° dossier : 5 chiffres (ex: 00078)
 
+Code insee : [Dpt][Commune]
+Exemple : 033234 = 33234, le code insee est à 5 chiffres, ex: 33234 et est composé du departement en 2 chiffres, puis la commune en 3 chiffres, ex: 33234 = 33 et 234. 
+
 📌 TYPE DE CERTIFICAT (PAGE 1, section 1)
 ┌─────────────────────────────────────────────────────────┐
 │ 1 Objet de la demande de certificat d'urbanisme       │
@@ -226,6 +229,8 @@ SCHÉMA JSON STRICT À RESPECTER :
 ───────────────────────────────────────────────
 RÈGLES D'EXTRACTION :
 ───────────────────────────────────────────────
+0. Extraire impértivement correctement le code insee lié à la commune ou se situe le projet, ce code insee est à 5 chiffres, ex: 33234 et est composé du departement en 2 chiffres, puis la commune en 3 chiffres, ex: 33234 = 33 et 234. 
+
 1. Si le cadre « Vous êtes un particulier » (2.1) est coché → type = "particulier"
    - Extraire : nom, prénom, adresse complète, email, téléphone.
 

@@ -38,6 +38,17 @@
     "attribut_map": "denom",
     "nom_attribut_map": "Domaine"
   },
+  "oap_linas": {
+  "nom": "OAP – Secteur de Linas",
+  "type": "prescription",
+  "keep": [
+    "reglementation"
+  ],
+  "origine": "kerelia",
+  "article": "5",
+  "attribut_map": "None",
+  "nom_attribut_map": "OAP"
+},
   "debroussaillement": {
     "nom": "Zones de débroussaillement",
     "type": "Prescriptions",

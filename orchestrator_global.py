@@ -62,6 +62,26 @@ def run_subprocess(cmd, desc):
         logger.error(f"💥 Échec lors de {desc}: {e}")
         sys.exit(1)
 
+
+def fail_pipeline(reason: str):
+    """Enregistre l'erreur dans la DB puis stoppe le pipeline."""
+    try:
+        slug = os.getenv("PIPELINE_SLUG")
+        supabase = None
+        if SUPABASE_URL and SUPABASE_KEY:
+            supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+        if slug and supabase:
+            supabase.schema("latresne").table("pipelines").update({
+                "status": "error",
+                "error": reason
+            }).eq("slug", slug).execute()
+    except Exception as e:
+        logger.error(f"Impossible d'enregistrer l'erreur dans pipelines: {e}")
+
+    logger.error(reason)
+    sys.exit(1)
+
 # ============================================================
 # PIPELINE PRINCIPAL
 # ============================================================
@@ -101,8 +121,7 @@ def orchestrer_pipeline(pdf_path: str, code_insee: str):
 
     user_id = os.getenv("USER_ID")
     if user_id and not is_authorized_for_insee(user_id, insee):
-        logger.error(f"⛔ Utilisateur non autorisé à analyser la commune {insee}")
-        sys.exit(1)
+        fail_pipeline(f"⛔ Utilisateur non autorisé à analyser la commune {insee}")
 
     # -------------------------------
     # ÉTAPE 2 : VALIDATION UNITÉ FONCIÈRE
