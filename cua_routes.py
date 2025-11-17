@@ -83,7 +83,7 @@ async def cua_update(req: UpdateRequest):
         supabase.storage.from_("visualisation").upload(
             path,
             file_bytes,
-            {"upsert": True}
+            {"upsert": 'true'}
         )
 
         return {"status": "success", "path": path}
