@@ -358,7 +358,7 @@
     "nom_attribut_map": "Nom de l'établissement"
   },
   "el3_garonne": {
-    "nom": "Servitudes domaine public fluvial (EL3)",
+    "nom": "SUP domaine public fluvial (EL3)",
     "type": "Servitudes",
     "keep": [
       "reglementation"

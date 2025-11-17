@@ -10,7 +10,7 @@
     "geom_type": "lineaire"
   },
   "ac1": {
-    "nom": "Servitudes AC1",
+    "nom": "Servitude AC1 - Monuments historiques",
     "type": "servitude",
     "keep": [
       "nomsuplitt",
@@ -25,7 +25,7 @@
     "geom_type": "surfacique"
   },
   "pm1_detaillee_gironde": {
-    "nom": "Servitude PM1 détaillée Gironde",
+    "nom": "Servitude PM1 - Risques inondations",
     "type": "servitude",
     "keep": [
       "gid",
@@ -383,7 +383,7 @@
     ],
     "origine": "shp",
     "article": "4",
-    "geom_type": "surfacique"
+    "geom_type": "lineaire"
   },
   "i4_cables_haute_tension": {
     "nom": "Câbles haute tension (I4)",

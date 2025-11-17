@@ -34,6 +34,7 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 SUPABASE_BUCKET = "visualisation"
+SUPABASE_BUCKET_CUA = "cua-artifacts"  # Bucket dédié pour les CUA DOCX
 KERELIA_BASE_URL = "https://kerelia.fr/maps"
 
 # ✅ Un seul client global
@@ -59,10 +60,11 @@ def generate_short_slug(length=26):
     return ''.join(secrets.choice(alphabet) for _ in range(length))
 
 
-def upload_to_supabase(local_path, remote_path):
+def upload_to_supabase(local_path, remote_path, bucket=None):
     """Upload d'un fichier vers Supabase Storage et renvoie l'URL publique."""
+    bucket = bucket or SUPABASE_BUCKET
     with open(local_path, "rb") as f:
-        supabase.storage.from_(SUPABASE_BUCKET).upload(
+        supabase.storage.from_(bucket).upload(
             remote_path,
             f.read(),
             {
@@ -71,7 +73,7 @@ def upload_to_supabase(local_path, remote_path):
                 "upsert": "true",
             },
         )
-    public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{remote_path}"
+    public_url = f"{SUPABASE_URL}/storage/v1/object/public/{bucket}/{remote_path}"
     return public_url
 
 
@@ -210,9 +212,21 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     # ============================================================
     logger.info("\n📤 Upload final du CUA vers Supabase...")
 
+    # Upload du CUA dans le bucket dédié "cua-artifacts"
     remote_cua = f"{remote_dir}/CUA_unite_fonciere.docx"
-    cua_url = upload_to_supabase(output_docx_path, remote_cua)
-    logger.info(f"📎 CUA uploadé : {cua_url}")
+    cua_url = upload_to_supabase(output_docx_path, remote_cua, bucket=SUPABASE_BUCKET_CUA)
+    logger.info(f"📎 CUA uploadé dans {SUPABASE_BUCKET_CUA} : {cua_url}")
+
+    # ============================================================
+    # 🔑 GÉNÉRATION DU TOKEN POUR L'URL /cua?t={token}
+    # ============================================================
+    logger.info("\n🔑 Génération du token pour l'URL /cua...")
+    payload_cua = {
+        "docx": remote_cua  # Chemin relatif dans le bucket cua-artifacts
+    }
+    token_cua = base64.b64encode(json.dumps(payload_cua).encode()).decode()
+    cua_viewer_url = f"https://kerelia.fr/cua?t={token_cua}"
+    logger.info(f"✅ URL CUA générée : {cua_viewer_url}")
 
     # 🧠 L'upload du pipeline_result.json est désormais géré par orchestrator_global.py
     result_url = None
@@ -229,6 +243,7 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
         "carte_2d_url": url_2d,
         "carte_3d_url": url_3d,
         "output_cua": cua_url,
+        "cua_viewer_url": cua_viewer_url,  # URL pour afficher le CUA en HTML
         "bucket_path": remote_dir,
         "pipeline_result_url": result_url,
         "metadata_2d": metadata_2d,

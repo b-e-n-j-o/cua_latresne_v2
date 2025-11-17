@@ -1,4 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException, Body
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 from pathlib import Path
 from datetime import datetime
@@ -6,6 +7,9 @@ import subprocess
 import uuid
 import json
 import os
+import base64
+import mammoth
+from io import BytesIO
 
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client
@@ -513,3 +517,38 @@ async def receive_lead(payload: dict):
     except Exception as e:
         print("❌ Erreur /lead:", e)
         raise HTTPException(status_code=500, detail="Erreur serveur")
+
+
+# ============================================================
+# 📄 ENDPOINT — CONVERSION DOCX → HTML
+# ============================================================
+
+@app.get("/cua/html")
+async def get_cua_html(t: str):
+    """
+    Convertit un DOCX CUA stocké dans Supabase Storage en HTML.
+    Le paramètre `t` est un token base64 encodé contenant le chemin du fichier.
+    """
+    try:
+        decoded = json.loads(base64.b64decode(t).decode("utf-8"))
+        path = decoded.get("docx")
+
+        if not path:
+            raise HTTPException(400, "Token invalide : pas de chemin docx")
+
+        # Télécharger le DOCX depuis Supabase Storage
+        res = supabase.storage.from_("cua-artifacts").download(path)
+
+        if not res:
+            raise HTTPException(404, "CUA introuvable dans le storage")
+
+        docx_bytes = BytesIO(res)
+
+        # Convertir en HTML
+        result = mammoth.convert_to_html(docx_bytes)
+        html = result.value
+
+        return JSONResponse({"html": html})
+
+    except Exception as e:
+        raise HTTPException(500, f"Erreur interne : {e}")
