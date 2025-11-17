@@ -18,6 +18,9 @@ from CERFA_ANALYSE.auth_utils import get_user_insee_list
 from utils.email_utils import send_internal_email
 
 from admin_routes import router as admin_router
+from cua_routes import router as cua_router
+import tempfile
+import pypandoc
 
 
 # ============================================================
@@ -30,6 +33,9 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv("SERVICE_KEY") or os.getenv("SUPABASE_SERV
 
 # ✅ Un seul client global (cible les schémas via .schema())
 supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+
+import cua_routes
+cua_routes.supabase = supabase
 
 app = FastAPI(title="Kerelia CUA API", version="2.1")
 # ============================================================
@@ -57,7 +63,7 @@ app.add_middleware(
 JOBS = {}
 
 app.include_router(admin_router)
-
+app.include_router(cua_router)
 # ============================================================
 # 🔧 Fonction d’exécution du pipeline (tâche asynchrone)
 # ============================================================
@@ -518,32 +524,3 @@ async def receive_lead(payload: dict):
         print("❌ Erreur /lead:", e)
         raise HTTPException(status_code=500, detail="Erreur serveur")
 
-
-# ============================================================
-# 📄 ENDPOINT — CONVERSION DOCX → HTML
-# ============================================================
-
-@app.get("/cua/html")
-async def get_cua_html(t: str):
-    try:
-        decoded = json.loads(base64.b64decode(t).decode("utf-8"))
-        path = decoded.get("docx")
-
-        if not path:
-            raise HTTPException(400, "Token invalide : pas de chemin docx")
-
-        # Télécharger le DOCX depuis le bon bucket
-        res = supabase.storage.from_("visualisation").download(path)
-
-        if not res:
-            raise HTTPException(404, "CUA introuvable dans Supabase Storage")
-
-        docx_bytes = BytesIO(res)
-
-        result = mammoth.convert_to_html(docx_bytes)
-        html = result.value
-
-        return JSONResponse({"html": html})
-
-    except Exception as e:
-        raise HTTPException(500, f"Erreur interne : {e}")
