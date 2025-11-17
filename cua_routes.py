@@ -136,30 +136,31 @@ async def cua_update(req: UpdateRequest):
 
 
 @router.get("/cua/download/docx")
-async def download_docx(slug: str):
+async def download_docx(t: str):
     try:
-        # récupérer l'entrée pipeline correspondante
-        res = supabase.table("pipelines").select("output_cua").eq("slug", slug).single().execute()
-        path = res.data.get("output_cua")
+        # Décoder le token comme pour le PDF
+        decoded = json.loads(base64.b64decode(t).decode("utf-8"))
+        path = decoded.get("docx")
 
         if not path:
-            raise HTTPException(404, "Fichier DOCX introuvable")
+            raise HTTPException(400, "Token invalide")
 
-        # télécharger les bytes depuis Supabase
-        file_bytes = supabase.storage.from_("cua-artifacts").download(path.split("/cua-artifacts/")[1])
+        # Télécharger depuis le bucket 'visualisation'
+        file_bytes = supabase.storage.from_("visualisation").download(path)
+        
+        if not file_bytes:
+            raise HTTPException(404, "Fichier DOCX introuvable")
 
         return Response(
             content=file_bytes,
             media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             headers={
-                "Content-Disposition": f'attachment; filename="cua_{slug}.docx"'
+                "Content-Disposition": f'attachment; filename="CUA.docx"'
             }
         )
 
     except Exception as e:
         raise HTTPException(500, f"Erreur téléchargement DOCX : {e}")
-
-
 
 
 @router.get("/cua/download/pdf")
