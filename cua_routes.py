@@ -4,7 +4,7 @@
 # ============================================================
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response, FileResponse
 from pydantic import BaseModel
 import base64
 import json
@@ -15,47 +15,27 @@ import pypandoc
 
 import subprocess
 import uuid
-from fastapi.responses import FileResponse
 
 # Le client Supabase est injecté depuis main.py
 supabase = None
 
 router = APIRouter()
 
+BUCKET_NAME = "visualisation"
+
 
 # ============================================================
-# Utilitaire : détermine bucket + object_path
+# Utilitaire : nettoie le path
 # ============================================================
 
-def resolve_bucket_and_path(path: str):
-    """
-    Décode tous les formats possibles :
-      - visualisation/...
-      - cua-artifacts/...
-      - public/visualisation/...
-      - public/cua-artifacts/...
-    """
-
-    # On nettoie d'abord
+def get_docx_path(path: str) -> str:
+    """Nettoie le path - retire visualisation/ ou public/visualisation/ si présent"""
     path = path.lstrip("/")
-
-    # Cas 1 : `visualisation/...`
-    if path.startswith("visualisation/"):
-        return "visualisation", path[len("visualisation/"):]
-    
-    # Cas 2 : `public/visualisation/...`
     if path.startswith("public/visualisation/"):
-        return "visualisation", path[len("public/visualisation/"):]
-    
-    # Cas 3 : `cua-artifacts/...`
-    if path.startswith("cua-artifacts/"):
-        return "cua-artifacts", path[len("cua-artifacts/"):]
-    
-    # Cas 4 : `public/cua-artifacts/...`
-    if path.startswith("public/cua-artifacts/"):
-        return "cua-artifacts", path[len("public/cua-artifacts/"):]
-    
-    raise HTTPException(400, f"Chemin DOCX non supporté : {path}")
+        return path[len("public/visualisation/"):]
+    if path.startswith("visualisation/"):
+        return path[len("visualisation/"):]
+    return path
 
 
 # ============================================================
@@ -66,17 +46,14 @@ def resolve_bucket_and_path(path: str):
 async def cua_html(t: str):
     try:
         decoded = json.loads(base64.b64decode(t).decode("utf-8"))
-        path = decoded.get("docx")
+        path = get_docx_path(decoded.get("docx"))
 
         if not path:
             raise HTTPException(400, "Token invalide : aucun chemin DOCX")
 
-        bucket, object_path = resolve_bucket_and_path(path)
-
-        # Téléchargement depuis le bon bucket
-        res = supabase.storage.from_(bucket).download(object_path)
+        res = supabase.storage.from_(BUCKET_NAME).download(path)
         if not res:
-            raise HTTPException(404, f"Fichier introuvable dans bucket {bucket}")
+            raise HTTPException(404, f"Fichier introuvable dans bucket {BUCKET_NAME}")
 
         docx_bytes = BytesIO(res)
         html = mammoth.convert_to_html(docx_bytes).value
@@ -100,12 +77,10 @@ class UpdateRequest(BaseModel):
 async def cua_update(req: UpdateRequest):
     try:
         decoded = json.loads(base64.b64decode(req.token).decode("utf-8"))
-        path = decoded.get("docx")
+        path = get_docx_path(decoded.get("docx"))
 
         if not path:
             raise HTTPException(400, "Token invalide : pas de chemin DOCX")
-
-        bucket, object_path = resolve_bucket_and_path(path)
 
         # --- HTML → DOCX ---
         with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
@@ -121,8 +96,8 @@ async def cua_update(req: UpdateRequest):
             file_bytes = tmp.read()
 
         # Upload en overwrite
-        supabase.storage.from_(bucket).upload(
-            object_path,
+        supabase.storage.from_(BUCKET_NAME).upload(
+            path,
             file_bytes,
             {"upsert": "true"}
         )
@@ -138,27 +113,20 @@ async def cua_update(req: UpdateRequest):
 @router.get("/cua/download/docx")
 async def download_docx(t: str):
     try:
-        # Décoder le token comme pour le PDF
         decoded = json.loads(base64.b64decode(t).decode("utf-8"))
-        path = decoded.get("docx")
-
+        path = get_docx_path(decoded.get("docx"))
         if not path:
             raise HTTPException(400, "Token invalide")
 
-        # Télécharger depuis le bucket 'visualisation'
-        file_bytes = supabase.storage.from_("visualisation").download(path)
-        
+        file_bytes = supabase.storage.from_(BUCKET_NAME).download(path)
         if not file_bytes:
             raise HTTPException(404, "Fichier DOCX introuvable")
 
         return Response(
             content=file_bytes,
             media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            headers={
-                "Content-Disposition": f'attachment; filename="CUA.docx"'
-            }
+            headers={"Content-Disposition": 'attachment; filename="CUA.docx"'}
         )
-
     except Exception as e:
         raise HTTPException(500, f"Erreur téléchargement DOCX : {e}")
 
@@ -170,24 +138,20 @@ async def cua_pdf(t: str):
     """
     try:
         decoded = json.loads(base64.b64decode(t).decode("utf-8"))
-        path = decoded.get("docx")
-
+        path = get_docx_path(decoded.get("docx"))
         if not path:
             raise HTTPException(400, "Token invalide")
 
-        # Télécharger le DOCX depuis Supabase
-        res = supabase.storage.from_("visualisation").download(path)
+        res = supabase.storage.from_(BUCKET_NAME).download(path)
         if not res:
             raise HTTPException(404, "DOCX introuvable")
 
-        # Sauvegarde temporaire
         tmp_docx = tempfile.NamedTemporaryFile(suffix=".docx", delete=False)
         tmp_docx.write(res)
         tmp_docx.close()
 
         tmp_pdf_path = tmp_docx.name.replace(".docx", ".pdf")
 
-        # Conversion via libreoffice
         subprocess.run([
             "libreoffice", "--headless", "--convert-to", "pdf",
             "--outdir", "/tmp", tmp_docx.name
@@ -198,6 +162,5 @@ async def cua_pdf(t: str):
             media_type="application/pdf",
             filename="CUA.pdf"
         )
-
     except Exception as e:
         raise HTTPException(500, f"Erreur PDF : {e}")
