@@ -130,3 +130,58 @@ async def cua_update(req: UpdateRequest):
         raise HTTPException(500, f"Erreur mise à jour : {e}")
 
 
+
+@router.get("/cua/download/docx")
+async def download_docx(slug: str):
+    try:
+        # récupérer l'entrée pipeline correspondante
+        res = supabase.table("pipelines").select("output_cua").eq("slug", slug).single().execute()
+        path = res.data.get("output_cua")
+
+        if not path:
+            raise HTTPException(404, "Fichier DOCX introuvable")
+
+        # télécharger les bytes depuis Supabase
+        file_bytes = supabase.storage.from_("cua-artifacts").download(path.split("/cua-artifacts/")[1])
+
+        return Response(
+            content=file_bytes,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={
+                "Content-Disposition": f'attachment; filename="cua_{slug}.docx"'
+            }
+        )
+
+    except Exception as e:
+        raise HTTPException(500, f"Erreur téléchargement DOCX : {e}")
+
+
+@router.get("/cua/download/pdf")
+async def download_pdf(slug: str):
+    try:
+        # récupérer l'URL du DOCX
+        res = supabase.table("pipelines").select("output_cua").eq("slug", slug).single().execute()
+        path = res.data.get("output_cua")
+
+        if not path:
+            raise HTTPException(404, "DOCX introuvable")
+
+        # télécharger contenu DOCX
+        docx_bytes = supabase.storage.from_("cua-artifacts").download(path.split("/cua-artifacts/")[1])
+
+        with tempfile.NamedTemporaryFile(suffix=".docx") as tmp_in:
+            tmp_in.write(docx_bytes)
+            tmp_in.flush()
+
+            with tempfile.NamedTemporaryFile(suffix=".pdf") as tmp_out:
+                pypandoc.convert_file(tmp_in.name, "pdf", outputfile=tmp_out.name)
+                pdf_bytes = tmp_out.read()
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="cua_{slug}.pdf"'}
+        )
+
+    except Exception as e:
+        raise HTTPException(500, f"Erreur génération PDF : {e}")
