@@ -13,16 +13,49 @@ import tempfile
 import mammoth
 import pypandoc
 
-
-
-# Le client Supabase sera injecté depuis main.py
+# Le client Supabase est injecté depuis main.py
 supabase = None
 
 router = APIRouter()
 
 
 # ============================================================
-# 📄 Route 1 : DOCX → HTML (visualisation)
+# Utilitaire : détermine bucket + object_path
+# ============================================================
+
+def resolve_bucket_and_path(path: str):
+    """
+    Décode tous les formats possibles :
+      - visualisation/...
+      - cua-artifacts/...
+      - public/visualisation/...
+      - public/cua-artifacts/...
+    """
+
+    # On nettoie d'abord
+    path = path.lstrip("/")
+
+    # Cas 1 : `visualisation/...`
+    if path.startswith("visualisation/"):
+        return "visualisation", path[len("visualisation/"):]
+    
+    # Cas 2 : `public/visualisation/...`
+    if path.startswith("public/visualisation/"):
+        return "visualisation", path[len("public/visualisation/"):]
+    
+    # Cas 3 : `cua-artifacts/...`
+    if path.startswith("cua-artifacts/"):
+        return "cua-artifacts", path[len("cua-artifacts/"):]
+    
+    # Cas 4 : `public/cua-artifacts/...`
+    if path.startswith("public/cua-artifacts/"):
+        return "cua-artifacts", path[len("public/cua-artifacts/"):]
+    
+    raise HTTPException(400, f"Chemin DOCX non supporté : {path}")
+
+
+# ============================================================
+# 📄 Route : DOCX → HTML
 # ============================================================
 
 @router.get("/cua/html")
@@ -34,10 +67,12 @@ async def cua_html(t: str):
         if not path:
             raise HTTPException(400, "Token invalide : aucun chemin DOCX")
 
-        # Téléchargement dans le bucket ‘visualisation’
-        res = supabase.storage.from_("visualisation").download(path)
+        bucket, object_path = resolve_bucket_and_path(path)
+
+        # Téléchargement depuis le bon bucket
+        res = supabase.storage.from_(bucket).download(object_path)
         if not res:
-            raise HTTPException(404, "Fichier introuvable dans Supabase")
+            raise HTTPException(404, f"Fichier introuvable dans bucket {bucket}")
 
         docx_bytes = BytesIO(res)
         html = mammoth.convert_to_html(docx_bytes).value
@@ -49,7 +84,7 @@ async def cua_html(t: str):
 
 
 # ============================================================
-# 📄 Route 2 : HTML édité → DOCX (sauvegarde)
+# 📄 Route : HTML → DOCX
 # ============================================================
 
 class UpdateRequest(BaseModel):
@@ -66,7 +101,9 @@ async def cua_update(req: UpdateRequest):
         if not path:
             raise HTTPException(400, "Token invalide : pas de chemin DOCX")
 
-        # --- HTML → DOCX via pypandoc ---
+        bucket, object_path = resolve_bucket_and_path(path)
+
+        # --- HTML → DOCX ---
         with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
             pypandoc.convert_text(
                 req.html,
@@ -79,11 +116,11 @@ async def cua_update(req: UpdateRequest):
             tmp.seek(0)
             file_bytes = tmp.read()
 
-        # --- Upload en overwrite ---
-        supabase.storage.from_("visualisation").upload(
-            path,
+        # Upload en overwrite
+        supabase.storage.from_(bucket).upload(
+            object_path,
             file_bytes,
-            {"upsert": 'true'}
+            {"upsert": "true"}
         )
 
         return {"status": "success", "path": path}
@@ -91,3 +128,5 @@ async def cua_update(req: UpdateRequest):
     except Exception as e:
         print("⚠️ DEBUG CUA UPDATE ERROR:", repr(e))
         raise HTTPException(500, f"Erreur mise à jour : {e}")
+
+
