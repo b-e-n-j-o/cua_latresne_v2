@@ -13,6 +13,8 @@ import tempfile
 import mammoth
 import pypandoc
 
+
+
 # Le client Supabase sera injecté depuis main.py
 supabase = None
 
