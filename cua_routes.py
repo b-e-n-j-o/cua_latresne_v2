@@ -89,4 +89,5 @@ async def cua_update(req: UpdateRequest):
         return {"status": "success", "path": path}
 
     except Exception as e:
+        print("⚠️ DEBUG CUA UPDATE ERROR:", repr(e))
         raise HTTPException(500, f"Erreur mise à jour : {e}")
