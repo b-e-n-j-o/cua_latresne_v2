@@ -23,3 +23,4 @@ qrcode[pil]
 sendgrid==6.11.0
 email-validator
 mammoth
+pypandoc
