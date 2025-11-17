@@ -13,6 +13,10 @@ import tempfile
 import mammoth
 import pypandoc
 
+import subprocess
+import uuid
+from fastapi.responses import FileResponse
+
 # Le client Supabase est injecté depuis main.py
 supabase = None
 
@@ -156,32 +160,43 @@ async def download_docx(slug: str):
         raise HTTPException(500, f"Erreur téléchargement DOCX : {e}")
 
 
+
+
 @router.get("/cua/download/pdf")
-async def download_pdf(slug: str):
+async def cua_pdf(t: str):
+    """
+    Convertit le DOCX demandé en PDF et renvoie le fichier au navigateur.
+    """
     try:
-        # récupérer l'URL du DOCX
-        res = supabase.table("pipelines").select("output_cua").eq("slug", slug).single().execute()
-        path = res.data.get("output_cua")
+        decoded = json.loads(base64.b64decode(t).decode("utf-8"))
+        path = decoded.get("docx")
 
         if not path:
+            raise HTTPException(400, "Token invalide")
+
+        # Télécharger le DOCX depuis Supabase
+        res = supabase.storage.from_("visualisation").download(path)
+        if not res:
             raise HTTPException(404, "DOCX introuvable")
 
-        # télécharger contenu DOCX
-        docx_bytes = supabase.storage.from_("cua-artifacts").download(path.split("/cua-artifacts/")[1])
+        # Sauvegarde temporaire
+        tmp_docx = tempfile.NamedTemporaryFile(suffix=".docx", delete=False)
+        tmp_docx.write(res)
+        tmp_docx.close()
 
-        with tempfile.NamedTemporaryFile(suffix=".docx") as tmp_in:
-            tmp_in.write(docx_bytes)
-            tmp_in.flush()
+        tmp_pdf_path = tmp_docx.name.replace(".docx", ".pdf")
 
-            with tempfile.NamedTemporaryFile(suffix=".pdf") as tmp_out:
-                pypandoc.convert_file(tmp_in.name, "pdf", outputfile=tmp_out.name)
-                pdf_bytes = tmp_out.read()
+        # Conversion via libreoffice
+        subprocess.run([
+            "libreoffice", "--headless", "--convert-to", "pdf",
+            "--outdir", "/tmp", tmp_docx.name
+        ], check=True)
 
-        return Response(
-            content=pdf_bytes,
+        return FileResponse(
+            tmp_pdf_path,
             media_type="application/pdf",
-            headers={"Content-Disposition": f'attachment; filename="cua_{slug}.pdf"'}
+            filename="CUA.pdf"
         )
 
     except Exception as e:
-        raise HTTPException(500, f"Erreur génération PDF : {e}")
+        raise HTTPException(500, f"Erreur PDF : {e}")
