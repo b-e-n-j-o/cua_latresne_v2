@@ -14,7 +14,7 @@ import pandas as pd
 from dotenv import load_dotenv
 
 # Import de la pré-analyse complète
-from pre_analyse_cerfa import pre_analyse_cerfa
+from CERFA_ANALYSE.pre_analyse_cerfa import pre_analyse_cerfa
 
 # ============================================================
 # CONFIG
