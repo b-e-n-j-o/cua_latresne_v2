@@ -19,7 +19,7 @@ from folium import Element
 # ============================================================
 # IMPORT DES UTILITAIRES
 # ============================================================
-from map_utils import (
+from CUA.map_utils import (
     random_color,
     clean_properties,
     get_parcelle_geometry,
@@ -28,7 +28,7 @@ from map_utils import (
 
 # 🆕 Import du module PPRI (cartographie uniquement)
 try:
-    from ppri_map_module import ajouter_ppri_a_carte
+    from CUA.ppri_map_module import ajouter_ppri_a_carte
     PPRI_DISPONIBLE = True
 except ImportError:
     PPRI_DISPONIBLE = False

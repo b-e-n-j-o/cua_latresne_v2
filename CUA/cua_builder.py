@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional
 from docx.shared import Cm, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-from cua_utils import (
+from CUA.cua_utils import (
     read_json, fmt_surface, fmt_pct, join_addr, parcels_label,
     build_footer_number, setup_doc, set_footer_num,
     add_first_article_title, add_article_title, add_paragraph, add_kv_table, add_objects_table,
@@ -23,9 +23,9 @@ from cua_utils import (
     add_annexes_section, ensure_page_space_for_article,
 )
 
-from cas_speciaux import appliquer_cas_speciaux
-from cua_header import render_first_page_header, add_mayor_section_with_vu
-from ppri_cua_module import analyser_ppri_corrige, generer_rapport_cua_avec_table
+from CUA.cas_speciaux import appliquer_cas_speciaux
+from CUA.cua_header import render_first_page_header, add_mayor_section_with_vu
+from CUA.ppri_cua_module import analyser_ppri_corrige, generer_rapport_cua_avec_table
 
 
 # ============================================================
@@ -433,6 +433,63 @@ def build_cua_docx(
     print(f"\n✅ CUA DOCX généré : {output_docx}")
 
 
+# ====================== FONCTION IMPORTABLE ======================
+
+def run_builder(
+    cerfa_json,
+    intersections_json,
+    catalogue_json,
+    output_path,
+    wkt_path=None,
+    logo_first_page=None,
+    signature_logo=None,
+    qr_url="https://www.kerelia.com/carte",
+    plu_nom="PLU en vigueur",
+    plu_date_appro="13/02/2017"
+):
+    """
+    Fonction importable pour générer un CUA DOCX sans passer par subprocess.
+    Reprend exactement la logique actuelle du CLI.
+    
+    Args:
+        cerfa_json: Chemin vers le fichier JSON CERFA ou dict
+        intersections_json: Chemin vers le fichier JSON intersections ou dict
+        catalogue_json: Chemin vers le fichier JSON catalogue ou dict
+        output_path: Chemin de sortie pour le fichier DOCX
+        wkt_path: Chemin vers le fichier WKT (optionnel)
+        logo_first_page: Chemin vers le logo première page (optionnel)
+        signature_logo: Chemin vers le logo signature (optionnel)
+        qr_url: URL du QR code
+        plu_nom: Nom du PLU
+        plu_date_appro: Date d'approbation du PLU
+    """
+    # Lecture des fichiers JSON si ce sont des chemins
+    if isinstance(cerfa_json, str):
+        cerfa = read_json(cerfa_json)
+    else:
+        cerfa = cerfa_json
+    
+    if isinstance(intersections_json, str):
+        inters = read_json(intersections_json)
+    else:
+        inters = intersections_json
+    
+    if isinstance(catalogue_json, str):
+        catalogue = read_json(catalogue_json)
+    else:
+        catalogue = catalogue_json
+
+    build_cua_docx(
+        cerfa, inters, catalogue, output_path,
+        wkt_path=wkt_path,
+        logo_first_page=logo_first_page,
+        signature_logo=signature_logo,
+        qr_url=qr_url,
+        plu_nom=plu_nom,
+        plu_date_appro=plu_date_appro,
+    )
+
+
 # ====================== CLI ======================
 
 def main():
@@ -449,12 +506,11 @@ def main():
     ap.add_argument("--plu-date-appro", default="13/02/2017")
     args = ap.parse_args()
 
-    cerfa = read_json(args.cerfa_json)
-    inters = read_json(args.intersections_json)
-    catalogue = read_json(args.catalogue_json)
-
-    build_cua_docx(
-        cerfa, inters, catalogue, args.output,
+    run_builder(
+        cerfa_json=args.cerfa_json,
+        intersections_json=args.intersections_json,
+        catalogue_json=args.catalogue_json,
+        output_path=args.output,
         wkt_path=args.wkt_path,
         logo_first_page=args.logo_first_page or None,
         signature_logo=args.signature_logo or None,

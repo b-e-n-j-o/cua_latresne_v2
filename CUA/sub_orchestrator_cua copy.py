@@ -16,15 +16,15 @@ import os
 import json
 import base64
 import logging
+import subprocess
 import secrets
 import string
 from pathlib import Path
 from dotenv import load_dotenv
 from supabase import create_client
 
-from CUA.map_2d import generate_map_from_wkt
-from CUA.map_3d import exporter_visualisation_3d_plotly_from_wkt
-from CUA.cua_builder import run_builder
+from map_2d import generate_map_from_wkt
+from map_3d import exporter_visualisation_3d_plotly_from_wkt
 
 # ============================================================
 # 🔧 CONFIGURATION
@@ -170,6 +170,7 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     logger.info("\n📦 ÉTAPE 5/5 : Génération du CUA DOCX avec QR dynamique")
 
     BASE_DIR = os.path.dirname(__file__)
+    builder_path = os.path.join(BASE_DIR, "cua_builder.py")
 
     cerfa_path = os.path.join(OUT_DIR, "cerfa_result.json")
     intersections_files = list(Path(OUT_DIR).glob("rapport_intersections_*.json"))
@@ -184,23 +185,26 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     logo_latresne_path = os.path.join(BASE_DIR, "logos", "logo_latresne.png")
     logo_kerelia_path = os.path.join(BASE_DIR, "logos", "logo_kerelia.png")
 
+    cmd = [
+        "python3", builder_path,
+        "--cerfa-json", cerfa_path,
+        "--intersections-json", intersections_path,
+        "--wkt-path", str(wkt_path),  # ✅ Passage du WKT
+        "--catalogue-json", catalogue_path,
+        "--output", output_docx_path,
+        "--logo-first-page", logo_latresne_path,
+        "--signature-logo", logo_kerelia_path,
+        "--qr-url", qr_url,
+        "--plu-nom", "PLU de Latresne",
+        "--plu-date-appro", "13/02/2017"
+    ]
+
+    logger.info(f"🛠️ Commande exécutée : {' '.join(cmd)}")
     try:
-        run_builder(
-            cerfa_json=cerfa_path,
-            intersections_json=intersections_path,
-            catalogue_json=catalogue_path,
-            output_path=output_docx_path,
-            wkt_path=str(wkt_path),
-            logo_first_page=logo_latresne_path,
-            signature_logo=logo_kerelia_path,
-            qr_url=qr_url,
-            plu_nom="PLU de Latresne",
-            plu_date_appro="13/02/2017"
-        )
+        subprocess.run(cmd, check=True)
         logger.info("✅ CUA DOCX généré avec succès.")
-    except Exception as e:
+    except subprocess.CalledProcessError as e:
         logger.error(f"💥 Échec génération CUA DOCX : {e}")
-        raise
 
     # ============================================================
     # 📤 UPLOAD FINAL DES ARTIFACTS (CUA uniquement)

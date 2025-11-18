@@ -12,7 +12,7 @@ import folium
 import geopandas as gpd
 import json
 from sqlalchemy import text
-from ppri_analyse_tolerance import analyser_ppri_tolerance
+from CUA.ppri_analyse_tolerance import analyser_ppri_tolerance
 
 # ============================================================
 # 🎨 Couleurs PPRI
@@ -283,7 +283,7 @@ def ajouter_ppri_a_carte(
     parcelle_wkt = resultats.get("parcelle", {}).get("wkt", "")
     if not parcelle_wkt:
         # Fallback : reconstruire la géométrie de la parcelle
-        from map_utils import get_parcelle_geometry
+        from CUA.map_utils import get_parcelle_geometry
         geom_parcelle = get_parcelle_geometry(engine, section, numero)
         parcelle_wkt = geom_parcelle.wkt
     

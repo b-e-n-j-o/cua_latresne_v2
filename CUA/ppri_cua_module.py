@@ -9,7 +9,7 @@ import geopandas as gpd
 from sqlalchemy import text
 # --- Import du moteur SQL global défini dans ppri_analyse_tolerance
 try:
-    from ppri_analyse_tolerance import engine as ENGINE_PPRI
+    from CUA.ppri_analyse_tolerance import engine as ENGINE_PPRI
     if ENGINE_PPRI is None:
         print("⚠️ ENGINE_PPRI est None — tentative de reconstruction manuelle.")
         from dotenv import load_dotenv
@@ -31,14 +31,14 @@ except Exception as e:
 
 # --- Import du module altimétrique IGN pour le paragraphe NGF général
 try:
-    from cote_ngf import cote_ngf_parcelle
+    from CUA.cote_ngf import cote_ngf_parcelle
 except ImportError:
     cote_ngf_parcelle = None
     print("⚠️ Module cote_ngf non disponible : paragraphe altimétrique IGN désactivé.")
 
 # 🔌 Import de la connexion existante depuis ppri_analyse_tolerance
 try:
-    from ppri_analyse_tolerance import engine as ppri_engine
+    from CUA.ppri_analyse_tolerance import engine as ppri_engine
     engine = ppri_engine
     print("✅ Engine PPRI importé depuis ppri_analyse_tolerance.")
 except Exception as e:
@@ -239,7 +239,7 @@ def analyser_ppri_corrige(geom_wkt=None, section=None, numero=None, code_insee=N
     - section + numero : identifiants parcellaires (fallback)
     """
     print("⚙️ [Compatibilité] Appel de analyser_ppri_corrige() redirigé vers analyser_ppri_tolerance()")
-    from ppri_analyse_tolerance import analyser_ppri_tolerance, engine as ppri_engine
+    from CUA.ppri_analyse_tolerance import analyser_ppri_tolerance, engine as ppri_engine
     
     # ✅ Utiliser ENGINE_PPRI si engine n'est pas fourni
     if engine is None:

@@ -13,7 +13,6 @@ orchestrator_global.py — Pipeline global KERELIA (phase 2)
 """
 
 import subprocess
-subprocess.run(["pip", "list"], check=True)  # Liste les packages installés
 import json
 import logging
 import sys
@@ -23,6 +22,13 @@ from pathlib import Path
 from dotenv import load_dotenv
 from supabase import create_client
 from CERFA_ANALYSE.auth_utils import is_authorized_for_insee
+
+# ✨ Nouveau : imports directs des modules internes
+from CERFA_ANALYSE.analyse_gemini import analyse_cerfa
+from CERFA_ANALYSE.verification_unite_fonciere import verifier_unite_fonciere
+from INTERSECTIONS.intersections import calculate_intersection, CATALOGUE
+from CUA.sub_orchestrator_cua import generer_visualisations_et_cua_depuis_wkt
+from sqlalchemy import create_engine, text
 
 # ============================================================
 # CONFIG
@@ -46,9 +52,8 @@ VERIF_UF_SCRIPT = "./CERFA_ANALYSE/verification_unite_fonciere.py"
 INTERSECTIONS_SCRIPT = "./INTERSECTIONS/intersections.py"
 SUB_ORCHESTRATOR_CUA = "./CUA/sub_orchestrator_cua.py"
 
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-OUT_DIR = Path("./out_pipeline") / timestamp
-OUT_DIR.mkdir(parents=True, exist_ok=True)
+# Variable globale pour OUT_DIR (sera initialisée dans run_global_pipeline)
+OUT_DIR = None
 
 # ============================================================
 # UTILS
@@ -82,121 +87,253 @@ def fail_pipeline(reason: str):
     logger.error(reason)
     sys.exit(1)
 
-# ============================================================
-# PIPELINE PRINCIPAL
-# ============================================================
-def orchestrer_pipeline(pdf_path: str, code_insee: str):
-    """
-    Orchestration complète du process CERFA → UF → Intersections
-    """
-    pdf = Path(pdf_path)
-    if not pdf.exists():
-        logger.error(f"❌ Fichier PDF introuvable : {pdf}")
-        sys.exit(1)
 
-    logger.info(f"📄 Analyse du fichier CERFA : {pdf.name}")
+def _analyse_intersections_depuis_wkt(wkt_path: str, out_dir: Path):
+    """
+    Fonction helper pour analyser les intersections depuis un fichier WKT.
+    Reproduit la logique du CLI de intersections.py sans subprocess.
+    """
+    # Configuration DB (identique à intersections.py)
+    SUPABASE_HOST = os.getenv('SUPABASE_HOST')
+    SUPABASE_DB = os.getenv('SUPABASE_DB')
+    SUPABASE_USER = os.getenv('SUPABASE_USER')
+    SUPABASE_PASSWORD = os.getenv('SUPABASE_PASSWORD')
+    SUPABASE_PORT = os.getenv('SUPABASE_PORT')
     
-    cerfa_json_path = OUT_DIR / "cerfa_result.json"
-    uf_json_path = OUT_DIR / "rapport_unite_fonciere.json"
-    geom_wkt_path = OUT_DIR / "geom_unite_fonciere.wkt"
-    intersections_json_path = OUT_DIR / "rapport_intersections.json"
+    DATABASE_URL = f"postgresql+psycopg2://{SUPABASE_USER}:{SUPABASE_PASSWORD}@{SUPABASE_HOST}:{SUPABASE_PORT}/{SUPABASE_DB}"
+    engine = create_engine(DATABASE_URL)
+    
+    # Lecture du WKT
+    with open(wkt_path, "r", encoding="utf-8") as f:
+        parcelle_wkt = f.read()
+    
+    logger.info(f"📐 Analyse des intersections depuis : {wkt_path}")
+    
+    # Calcul de la surface
+    with engine.connect() as conn:
+        area_parcelle = float(conn.execute(
+            text("SELECT ST_Area(ST_GeomFromText(:wkt, 2154))"),
+            {"wkt": parcelle_wkt}
+        ).scalar())
+    
+    rapport = {
+        "parcelle": "UF 0000",
+        "surface_m2": round(area_parcelle, 2),
+        "intersections": {}
+    }
+    
+    # Analyse pour chaque table du catalogue
+    for table, config in CATALOGUE.items():
+        logger.info(f"→ {table}")
+        objets = calculate_intersection(parcelle_wkt, table)
+        surface_totale = sum(obj['surface_inter_m2'] for obj in objets)
+        
+        if objets:
+            logger.info(f"  ✅ {len(objets)} objet(s) | {surface_totale:.2f} m²")
+            rapport["intersections"][table] = {
+                "nom": config['nom'],
+                "type": config['type'],
+                "surface_m2": round(surface_totale, 2),
+                "pourcentage": round(surface_totale / area_parcelle * 100, 2),
+                "objets": objets
+            }
+        else:
+            logger.info(f"  ❌ Aucune intersection")
+            rapport["intersections"][table] = {
+                "nom": config['nom'],
+                "type": config['type'],
+                "surface_m2": 0.0,
+                "pourcentage": 0.0,
+                "objets": []
+            }
+    
+    # Sauvegarde des rapports
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_json = out_dir / f"rapport_intersections_{timestamp}.json"
+    out_html = out_dir / f"rapport_intersections_{timestamp}.html"
+    
+    with open(out_json, "w", encoding="utf-8") as f:
+        json.dump(rapport, f, indent=2, ensure_ascii=False)
+    
+    html = generate_html(rapport)
+    with open(out_html, "w", encoding="utf-8") as f:
+        f.write(html)
+    
+    logger.info(f"✅ Rapports d'intersections exportés ({out_json}, {out_html})")
+    return str(out_json)
 
-    # -------------------------------
-    # ÉTAPE 1 : ANALYSE GEMINI
-    # -------------------------------
-    run_subprocess([
-        "python3", CERFA_ANALYSE_SCRIPT,
-        "--pdf", str(pdf),
-        "--out-json", str(cerfa_json_path),
-        "--out-dir", str(OUT_DIR),
-        "--insee-csv", "../CONFIG/v_commune_2025.csv"
-    ], "Analyse du CERFA (Gemini)")
 
-    cerfa_data = json.load(open(cerfa_json_path))
-    data = cerfa_data.get("data", {})
-    insee = data.get("commune_insee") or code_insee
+def generate_html(rapport):
+    """Génère le HTML du rapport d'intersections (copié depuis intersections.py)."""
+    parcelle = rapport['parcelle']
+    area = rapport['surface_m2']
+    results = rapport['intersections']
+    
+    # Grouper par type
+    by_type = {}
+    for table, data in results.items():
+        t = data['type']
+        if t not in by_type:
+            by_type[t] = []
+        by_type[t].append((table, data))
+    
+    html = f"""<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Rapport {parcelle}</title>
+<style>
+body {{ font-family: Arial, sans-serif; margin: 20px; }}
+h1 {{ color: #333; }}
+.info {{ background: #f0f0f0; padding: 10px; margin-bottom: 20px; }}
+.type-section {{ margin-bottom: 30px; }}
+.type-header {{ background: #2c5aa0; color: white; padding: 10px; }}
+.couche {{ margin: 10px 0; padding: 10px; border: 1px solid #ddd; }}
+.couche h3 {{ margin: 0 0 10px 0; color: #2c5aa0; }}
+table {{ border-collapse: collapse; width: 100%; margin-top: 10px; }}
+th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+th {{ background: #f5f5f5; }}
+.no-intersect {{ color: #999; }}
+</style>
+</head>
+<body>
+<h1>Rapport d'intersection</h1>
+<div class="info">
+<strong>Parcelle:</strong> {parcelle}<br>
+<strong>Surface:</strong> {area:,.2f} m²
+</div>
+"""
+    
+    for type_name in sorted(by_type.keys()):
+        items = by_type[type_name]
+        intersected = [(t, d) for t, d in items if d['objets']]
+        
+        html += f"""
+<div class="type-section">
+<div class="type-header">
+<h2>{type_name.upper()} ({len(intersected)}/{len(items)} intersections)</h2>
+</div>
+"""
+        
+        for table, data in items:
+            if data['objets']:
+                html += f"""
+<div class="couche">
+<h3>✓ {data['nom']}</h3>
+<p><strong>Surface:</strong> {data['surface_m2']:,.2f} m² ({data['pourcentage']:.1f}%)</p>
+<table>
+<tr>
+"""
+                # Headers
+                for key in data['objets'][0].keys():
+                    html += f"<th>{key}</th>"
+                html += "</tr>\n"
+                
+                # Rows
+                for obj in data['objets']:
+                    html += "<tr>"
+                    for val in obj.values():
+                        html += f"<td>{val}</td>"
+                    html += "</tr>\n"
+                
+                html += "</table></div>\n"
+            else:
+                html += f"""<div class="couche no-intersect"><h3>✗ {data['nom']}</h3><p>Aucune intersection</p></div>\n"""
+        
+        html += "</div>\n"
+    
+    html += "</body></html>"
+    return html
+
+# ============================================================
+# PIPELINE PRINCIPAL (IMPORTABLE)
+# ============================================================
+def run_global_pipeline(
+    pdf_path: str,
+    code_insee: str | None = None,
+    user_id: str | None = None,
+    user_email: str | None = None,
+    notify_step=None
+):
+    """
+    Pipeline importable : analyse CERFA → UF → intersections → CUA
+    Utilisée par FastAPI et WebSocket.
+    notify_step(event) : callback appelée à chaque étape.
+    """
+    global OUT_DIR
+    
+    # Initialisation du dossier de sortie
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    OUT_DIR = Path("./out_pipeline") / timestamp
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # Petit wrapper pour notifier le front si fourni
+    def emit(evt, payload=None):
+        if notify_step:
+            try:
+                notify_step({"event": evt, "payload": payload})
+            except Exception:
+                pass
+
+    emit("start", {"pdf": pdf_path})
+
+    # 1️⃣ Analyse CERFA
+    emit("analyse_cerfa:start")
+    cerfa_out = OUT_DIR / "cerfa_result.json"
+    cerfa_json = analyse_cerfa(str(pdf_path), out_json=str(cerfa_out))
+    emit("analyse_cerfa:done", cerfa_json)
+
+    insee = cerfa_json["data"].get("commune_insee") or code_insee
     if not insee:
-        logger.error("❌ Code INSEE non trouvé dans l’analyse CERFA.")
-        sys.exit(1)
+        raise RuntimeError("Code INSEE introuvable")
 
-    user_id = os.getenv("USER_ID")
-    if user_id and not is_authorized_for_insee(user_id, insee):
-        fail_pipeline(f"⛔ Utilisateur non autorisé à analyser la commune {insee}")
+    # Vérification autorisation utilisateur
+    if user_id:
+        if not is_authorized_for_insee(user_id, insee):
+            raise RuntimeError(f"⛔ Utilisateur non autorisé à analyser la commune {insee}")
 
-    # -------------------------------
-    # ÉTAPE 2 : VALIDATION UNITÉ FONCIÈRE
-    # -------------------------------
-    run_subprocess([
-        "python3", VERIF_UF_SCRIPT,
-        "--cerfa-json", str(cerfa_json_path),
-        "--code-insee", insee,
-        "--out", str(uf_json_path),
-        "--out-dir", str(OUT_DIR)
-    ], "Vérification unité foncière")
+    # 2️⃣ Vérification unité foncière
+    emit("uf:start")
+    uf_json_path = OUT_DIR / "rapport_unite_fonciere.json"
+    uf_json = verifier_unite_fonciere(
+        str(cerfa_out), insee, str(OUT_DIR)
+    )
+    Path(uf_json_path).write_text(json.dumps(uf_json, indent=2, ensure_ascii=False), encoding="utf-8")
+    emit("uf:done", uf_json)
 
-    uf_result = json.load(open(uf_json_path))
-    logger.info(f"📊 Résultat UF : {uf_result['message']}")
-    if not uf_result.get("success", False):
-        logger.warning("❌ Arrêt du pipeline : unité foncière non valide.")
-        sys.exit(1)
+    if not uf_json.get("success"):
+        raise RuntimeError("Unité foncière non valide")
 
-    # Vérification que la géométrie WKT a bien été générée dans OUT_DIR
-    if not geom_wkt_path.exists():
-        logger.error(f"❌ Fichier de géométrie d'unité foncière manquant : {geom_wkt_path}")
-        sys.exit(1)
+    wkt_path = uf_json.get("geom_wkt_path")
+    if not wkt_path or not Path(wkt_path).exists():
+        raise RuntimeError("Geom WKT manquant")
 
-    # -------------------------------
-    # ÉTAPE 3 : INTERSECTIONS
-    # -------------------------------
-    run_subprocess([
-        "python3", INTERSECTIONS_SCRIPT,
-        "--geom-wkt", str(geom_wkt_path),
-        "--out-dir", str(OUT_DIR)
-    ], "Analyse des intersections")
+    # 3️⃣ Intersections
+    emit("intersections:start")
+    intersections_json_path = _analyse_intersections_depuis_wkt(wkt_path, OUT_DIR)
+    emit("intersections:done", {"path": intersections_json_path})
 
-    # Récupération du rapport généré (le nom dépend du script d'intersections)
-    json_candidates = list(OUT_DIR.glob("rapport_intersections_*.json"))
-    if json_candidates:
-        json_candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-        latest_report = json_candidates[0]
-        logger.info(f"📑 Rapport d'intersection généré : {latest_report.name}")
-    else:
-        logger.warning("⚠️ Aucun rapport d'intersection trouvé.")
-        latest_report = None
-
-    logger.info("✅ Étape intersections terminée — suite du traitement possible.")
-    logger.info("🧩 Étapes suivantes à venir : cartes 2D/3D, CUA...")
-
-    # -------------------------------
-    # ÉTAPE 4 : GÉNÉRATION CARTES + CUA
-    # -------------------------------
-    if latest_report and geom_wkt_path.exists():
-        logger.info("\n🗺️  Lancement de la génération des cartes 2D/3D et du CUA...")
-        try:
-            run_subprocess([
-                "python3", SUB_ORCHESTRATOR_CUA,
-                "--wkt", str(geom_wkt_path),
-                "--code_insee", insee,
-                "--commune", "latresne",
-                "--out-dir", str(OUT_DIR)  # ✅
-            ], "Génération cartes + CUA")
-            logger.info("✅ Sous-orchestrateur CUA exécuté avec succès.")
-        except Exception as e:
-            logger.error(f"💥 Échec du sous-orchestrateur CUA : {e}")
-    else:
-        logger.warning("⚠️ Impossible de lancer la génération CUA : géométrie ou rapport manquant.")
+    # 4️⃣ Génération cartes + CUA
+    emit("cua:start")
+    cua_result = generer_visualisations_et_cua_depuis_wkt(
+        wkt_path=wkt_path,
+        out_dir=str(OUT_DIR),
+        commune="latresne",
+        code_insee=insee
+    )
+    emit("cua:done", cua_result)
 
     # -------------------------------
     # RETOUR GLOBAL
     # -------------------------------
     result = {
-        "cerfa_result": str(cerfa_json_path),
+        "cerfa_result": str(cerfa_out),
         "uf_result": str(uf_json_path),
-        "geom_wkt": str(geom_wkt_path),
-        "intersections": str(latest_report) if latest_report else None
+        "geom_wkt": wkt_path,
+        "intersections": intersections_json_path
     }
 
-    # Intégration du résultat global du sous-orchestrateur, s'il a produit un fichier final
+    # Intégration du résultat global du sous-orchestrateur
     cua_docx = OUT_DIR / "CUA_unite_fonciere.docx"
     if cua_docx.exists():
         result["cua_docx"] = str(cua_docx)
@@ -253,9 +390,6 @@ def orchestrer_pipeline(pdf_path: str, code_insee: str):
             # 👤 MISE À JOUR : user_id / user_email dans la table pipelines
             # ============================================================
             try:
-                user_id = os.getenv("USER_ID")
-                user_email = os.getenv("USER_EMAIL")
-
                 if slug and (user_id or user_email):
                     logger.info(f"👤 Mise à jour des infos utilisateur pour le pipeline {slug}...")
                     update_data = {}
@@ -267,7 +401,7 @@ def orchestrer_pipeline(pdf_path: str, code_insee: str):
                     supabase.schema("latresne").table("pipelines").update(update_data).eq("slug", slug).execute()
                     logger.info(f"✅ user_id / user_email mis à jour : {user_id or 'None'} / {user_email or 'None'}")
                 else:
-                    logger.info("⚠️ Aucun USER_ID ou USER_EMAIL trouvé dans l'environnement — pas de mise à jour utilisateur.")
+                    logger.info("⚠️ Aucun USER_ID ou USER_EMAIL trouvé — pas de mise à jour utilisateur.")
             except Exception as e:
                 logger.error(f"💥 Erreur lors de la mise à jour des infos utilisateur : {e}")
             
@@ -291,6 +425,35 @@ def orchestrer_pipeline(pdf_path: str, code_insee: str):
     
     except Exception as e:
         logger.error(f"💥 Erreur lors de l'upload final : {e}")
+
+    return {
+        "cerfa": cerfa_json,
+        "uf": uf_json,
+        "cua": cua_result
+    }
+
+
+# ============================================================
+# PIPELINE PRINCIPAL (CLI - COMPATIBILITÉ)
+# ============================================================
+def orchestrer_pipeline(pdf_path: str, code_insee: str):
+    """
+    Orchestration complète du process CERFA → UF → Intersections (CLI)
+    Wrapper pour compatibilité avec l'ancienne CLI.
+    """
+    user_id = os.getenv("USER_ID")
+    user_email = os.getenv("USER_EMAIL")
+    
+    try:
+        run_global_pipeline(
+            pdf_path=pdf_path,
+            code_insee=code_insee,
+            user_id=user_id,
+            user_email=user_email,
+            notify_step=None
+        )
+    except Exception as e:
+        fail_pipeline(str(e))
 
 # ============================================================
 # CLI
