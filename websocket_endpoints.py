@@ -105,6 +105,13 @@ async def ws_pipeline(ws: WebSocket):
                 
                 job_id = str(uuid.uuid4())
                 pdf_path = Path(message["pdf_path"])
+                
+                # Vérifier que le PDF existe
+                if not pdf_path.exists():
+                    await ws.send_json({"event": "error", "message": f"PDF introuvable: {pdf_path}"})
+                    print(f"❌ [launch_pipeline] PDF introuvable: {pdf_path}")
+                    return
+                
                 code_insee = message.get("insee")
                 user_id = message.get("user_id")
                 user_email = message.get("user_email")
@@ -115,6 +122,10 @@ async def ws_pipeline(ws: WebSocket):
                     env["USER_ID"] = user_id
                 if user_email:
                     env["USER_EMAIL"] = user_email
+
+                # Ajouter des logs
+                print(f"🚀 [launch_pipeline] Lancement pipeline: job_id={job_id}, pdf={pdf_path}, insee={code_insee}")
+                print(f"👤 [launch_pipeline] USER_ID={user_id} USER_EMAIL={user_email}")
 
                 # Lancer le pipeline en background
                 asyncio.create_task(run_pipeline(job_id, pdf_path, code_insee, env))

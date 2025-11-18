@@ -79,6 +79,7 @@ app.include_router(cua_router)
 
 async def run_pipeline(job_id: str, pdf_path: Path, code_insee: str | None, env: dict | None = None):
     """Exécute le pipeline global et diffuse les logs en temps réel via WebSocket."""
+    print(f"🟢 [run_pipeline] START job_id={job_id}, pdf={pdf_path}, insee={code_insee}")
     
     BASE_DIR = Path(__file__).resolve().parent
     ORCHESTRATOR = BASE_DIR / "orchestrator_global.py"
