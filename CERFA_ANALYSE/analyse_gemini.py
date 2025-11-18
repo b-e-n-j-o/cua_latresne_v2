@@ -13,8 +13,6 @@ import google.generativeai as genai
 import pandas as pd
 from dotenv import load_dotenv
 
-# Import du module d'extraction INSEE
-from insee_extractor import extract_insee_robust
 # Import de la pré-analyse complète
 from pre_analyse_cerfa import pre_analyse_cerfa
 
