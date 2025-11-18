@@ -273,6 +273,50 @@ async def analyze_cerfa(
 
 
 # ============================================================
+# 🚀 Endpoint REST : lancement pipeline après validation CERFA
+# ============================================================
+
+class PipelineInput(BaseModel):
+    pdf_path: str
+    insee: str | None = None
+    user_id: str | None = None
+    user_email: str | None = None
+
+@app.post("/pipeline/run-rest")
+async def pipeline_run_rest(payload: PipelineInput):
+    """
+    Lance le pipeline global APRES la validation CERFA.
+    (Appelé par le FRONT après /ws/pipeline → cerfa_done)
+    """
+    job_id = str(uuid.uuid4())
+    pdf_path = Path(payload.pdf_path)
+
+    if not pdf_path.exists():
+        raise HTTPException(400, f"PDF introuvable : {pdf_path}")
+
+    env = os.environ.copy()
+    if payload.user_id:
+        env["USER_ID"] = payload.user_id
+    if payload.user_email:
+        env["USER_EMAIL"] = payload.user_email
+
+    # Lancement du pipeline interne
+    asyncio.create_task(
+        run_pipeline(
+            job_id=job_id,
+            pdf_path=pdf_path,
+            code_insee=payload.insee,
+            env=env
+        )
+    )
+
+    return {
+        "success": True,
+        "job_id": job_id
+    }
+
+
+# ============================================================
 # 🔍 Endpoint de suivi : état du job
 # ============================================================
 
