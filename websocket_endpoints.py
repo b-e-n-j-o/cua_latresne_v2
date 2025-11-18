@@ -95,6 +95,7 @@ async def ws_pipeline(ws: WebSocket):
                     "cerfa": cerfa_full
                 })
 
+                await ws.close()  # Fermeture propre de la connexion WebSocket
                 break  # Sortir de la boucle, fermeture propre via finally
 
             else:

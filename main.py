@@ -222,14 +222,15 @@ async def run_pipeline(job_id: str, pdf_path: Path, code_insee: str | None, env:
 # 🚀 Endpoint principal : lancement du pipeline
 # ============================================================
 
-@app.post("/analyze-cerfa")
-async def analyze_cerfa(
+@app.post("/analyze-cerfa-legacy")
+async def analyze_cerfa_legacy(
     pdf: UploadFile = File(...),
     code_insee: str = Form(None),
     user_id: str = Form(None),
     user_email: str = Form(None),
 ):
-    """Lance le pipeline complet (CERFA → UF → Intersections → CUA)."""
+    """⚠️ ANCIEN ENDPOINT - Pour tests uniquement"""
+    print(f"⚠️ [LEGACY] Appel à analyze-cerfa-legacy")
     job_id = str(uuid.uuid4())
     temp_pdf = Path(f"/tmp/cerfa_{job_id}.pdf")
 
