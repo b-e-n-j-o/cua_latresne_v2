@@ -1,13 +1,13 @@
-from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException, Body
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 from pathlib import Path
 from datetime import datetime
-import subprocess
 import uuid
 import json
 import os
 import base64
+import asyncio
 import mammoth
 from io import BytesIO
 
@@ -74,129 +74,148 @@ JOBS = {}
 app.include_router(admin_router)
 app.include_router(cua_router)
 # ============================================================
-# 🔧 Fonction d’exécution du pipeline (tâche asynchrone)
+# 🔧 Fonction d'exécution du pipeline (tâche asynchrone)
 # ============================================================
 
-def run_pipeline(job_id: str, pdf_path: Path, code_insee: str | None, env: dict | None = None):
-    """Exécute le pipeline complet en tâche de fond, avec logs live + sauvegarde."""
+async def run_pipeline(job_id: str, pdf_path: Path, code_insee: str | None, env: dict | None = None):
+    """Exécute le pipeline global et diffuse les logs en temps réel via WebSocket."""
+    
     BASE_DIR = Path(__file__).resolve().parent
     ORCHESTRATOR = BASE_DIR / "orchestrator_global.py"
 
-    # Prépare les infos du job
-    out = {
+    JOBS[job_id] = {
         "status": "running",
         "start_time": datetime.now().isoformat(),
-        "pdf": pdf_path.name,
-        "code_insee": code_insee,
-        "logs": [],  # on conserve les lignes de logs ici
+        "filename": pdf_path.name,
         "current_step": "queued",
+        "logs": []
     }
-    JOBS[job_id] = out
 
-    try:
-        # Commande du pipeline global
-        cmd = ["python3", str(ORCHESTRATOR), "--pdf", str(pdf_path)]
-        if code_insee:
-            cmd.extend(["--code-insee", code_insee])
+    if env is None:
+        env = os.environ.copy()
 
-        print(f"🚀 [JOB {job_id}] Lancement du pipeline : {' '.join(cmd)}")
+    cmd = ["python3", str(ORCHESTRATOR), "--pdf", str(pdf_path)]
+    if code_insee:
+        cmd += ["--code-insee", code_insee]
 
-        # ============================================================
-        # 🧑‍💼 Gestion de l'environnement utilisateur
-        # ============================================================
-        # Si l'environnement utilisateur est passé depuis /analyze-cerfa, on l'utilise
-        if env is None:
-            env = os.environ.copy()
+    print(f"🚀 [JOB {job_id}] Lancement du pipeline : {' '.join(cmd)}")
+    print(f"👤 [JOB {job_id}] USER_ID={env.get('USER_ID')} USER_EMAIL={env.get('USER_EMAIL')}")
 
-        # Pour vérification
-        print(f"👤 [JOB {job_id}] USER_ID={env.get('USER_ID')} USER_EMAIL={env.get('USER_EMAIL')}")
+    # 📌 On lance le pipeline en mode asyncio
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+        cwd=str(BASE_DIR),
+        env=env
+    )
 
-        # Exécution avec affichage progressif
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,  # affichage ligne par ligne
-            env=env,  # 🧠 passage des variables d'environnement
-        )
+    # 📌 Lecture ligne par ligne
+    while True:
+        if process.stdout.at_eof():
+            break
 
-        for line in process.stdout:
-            print(f"[{job_id}] {line}", end="")  # affichage live dans le terminal
-            stripped = line.strip()
-            out["logs"].append(stripped)
+        line_bytes = await process.stdout.readline()
+        if not line_bytes:
+            break
 
-            # 🔥 Détection des erreurs explicites renvoyées par l'orchestrateur
-            if "Utilisateur non autorisé à analyser la commune" in stripped:
-                out["status"] = "error"
-                out["error"] = stripped
-                out["current_step"] = "error"
-            if stripped.startswith("❌") or stripped.startswith("💥"):
-                out["status"] = "error"
-                out["error"] = stripped
-                out["current_step"] = "error"
+        line = line_bytes.decode().rstrip()
+        print(f"[{job_id}] {line}")
 
-            # Mise à jour du step courant en fonction des logs de l'orchestrateur
-            if "Analyse du CERFA" in stripped:
-                out["current_step"] = "analyse_cerfa"
-            elif "Vérification unité foncière" in stripped:
-                out["current_step"] = "verification_unite_fonciere"
-            elif "Analyse des intersections" in stripped or "Rapport d'intersection" in stripped:
-                out["current_step"] = "intersections"
-            elif "génération des cartes 2D/3D" in stripped or "Sous-orchestrateur CUA" in stripped:
-                out["current_step"] = "generation_cua"
+        JOBS[job_id]["logs"].append(line)
 
-        process.wait(timeout=1800)
-        out["returncode"] = process.returncode
+        # 🟩 BROADCAST à TOUS LES CLIENTS WebSocket
+        await ws_manager.broadcast(job_id, {
+            "event": "log",
+            "message": line
+        })
 
-        # On vérifie la sortie pipeline
-        out_dirs = list((BASE_DIR / "out_pipeline").glob("*"))
-        if out_dirs:
-            latest_out = max(out_dirs, key=os.path.getmtime)
-            result_file = latest_out / "pipeline_result.json"
+        # 🟦 Détection d'étapes
+        if "Analyse du CERFA" in line:
+            JOBS[job_id]["current_step"] = "analyse_cerfa"
+            await ws_manager.broadcast(job_id, {
+                "step": "analyse_cerfa",
+                "event": "step"
+            })
+        elif "Unité foncière" in line:
+            JOBS[job_id]["current_step"] = "verification_unite_fonciere"
+            await ws_manager.broadcast(job_id, {
+                "step": "verification_unite_fonciere",
+                "event": "step"
+            })
+        elif "Rapport d'intersection" in line:
+            JOBS[job_id]["current_step"] = "intersections"
+            await ws_manager.broadcast(job_id, {
+                "step": "intersections",
+                "event": "step"
+            })
+        elif "CUA" in line or "carte" in line:
+            JOBS[job_id]["current_step"] = "generation_cua"
+            await ws_manager.broadcast(job_id, {
+                "step": "generation_cua",
+                "event": "step"
+            })
 
-            if result_file.exists():
-                result_json = json.loads(result_file.read_text(encoding="utf-8"))
-                out["result"] = result_json
-                out["status"] = "success" if process.returncode == 0 else "error"
-                
-                # ✅ Intégration du résultat du sous-orchestrateur (cartes + CUA)
-                sub_result_file = latest_out / "sub_orchestrator_result.json"
-                if sub_result_file.exists():
-                    JOBS[job_id]["current_step"] = "generation_cua"
-                    print(f"🧾 [JOB {job_id}] Étape : génération du certificat CUA")
-                    sub_result = json.loads(sub_result_file.read_text(encoding="utf-8"))
-                    out["result_enhanced"] = sub_result
-                    print(f"✅ [JOB {job_id}] Résultat enrichi avec sub_orchestrator_result.json")
-                else:
-                    print(f"⚠️ [JOB {job_id}] sub_orchestrator_result.json introuvable")
-            else:
-                out["status"] = "error"
-                out["error"] = "Pipeline terminé mais aucun résultat trouvé."
+        # 🔥 Détection des erreurs explicites
+        if "Utilisateur non autorisé à analyser la commune" in line:
+            JOBS[job_id]["status"] = "error"
+            JOBS[job_id]["error"] = line
+            JOBS[job_id]["current_step"] = "error"
+        if line.startswith("❌") or line.startswith("💥"):
+            JOBS[job_id]["status"] = "error"
+            JOBS[job_id]["error"] = line
+            JOBS[job_id]["current_step"] = "error"
+
+    # 📌 Fin du pipeline
+    returncode = await process.wait()
+    JOBS[job_id]["returncode"] = returncode
+    JOBS[job_id]["end_time"] = datetime.now().isoformat()
+
+    # On vérifie la sortie pipeline
+    out_dirs = list((BASE_DIR / "out_pipeline").glob("*"))
+    if out_dirs:
+        latest_out = max(out_dirs, key=os.path.getmtime)
+        result_file = latest_out / "pipeline_result.json"
+
+        if result_file.exists():
+            result_json = json.loads(result_file.read_text(encoding="utf-8"))
+            JOBS[job_id]["result"] = result_json
+            JOBS[job_id]["status"] = "success" if returncode == 0 else "error"
+            
+            # ✅ Intégration du résultat du sous-orchestrateur (cartes + CUA)
+            sub_result_file = latest_out / "sub_orchestrator_result.json"
+            if sub_result_file.exists():
+                JOBS[job_id]["current_step"] = "generation_cua"
+                print(f"🧾 [JOB {job_id}] Étape : génération du certificat CUA")
+                sub_result = json.loads(sub_result_file.read_text(encoding="utf-8"))
+                JOBS[job_id]["result_enhanced"] = sub_result
+                print(f"✅ [JOB {job_id}] Résultat enrichi avec sub_orchestrator_result.json")
         else:
-            out["status"] = "error"
-            out["error"] = "Aucun dossier out_pipeline trouvé."
+            JOBS[job_id]["status"] = "error"
+            JOBS[job_id]["error"] = "Pipeline terminé mais aucun résultat trouvé."
+    else:
+        JOBS[job_id]["status"] = "error"
+        JOBS[job_id]["error"] = "Aucun dossier out_pipeline trouvé."
 
-    except subprocess.TimeoutExpired:
-        out["status"] = "timeout"
-        out["error"] = "⏱️ Pipeline > 30 min"
-        out["logs"].append("⚠️ Pipeline arrêté pour dépassement de temps.")
-    except Exception as e:
-        out["status"] = "error"
-        out["error"] = str(e)
-        out["logs"].append(f"❌ Erreur interne : {e}")
-    finally:
-        if out.get("status") == "success":
-            out["current_step"] = "done"
-        elif out.get("status") == "error":
-            out["current_step"] = "error"
-        elif out.get("status") == "timeout":
-            out["current_step"] = "timeout"
-        if pdf_path.exists():
-            pdf_path.unlink()
-        out["end_time"] = datetime.now().isoformat()
-        JOBS[job_id] = out
-        print(f"✅ [JOB {job_id}] Terminé avec statut : {out['status']}")
+    if JOBS[job_id].get("status") == "success":
+        JOBS[job_id]["current_step"] = "done"
+        await ws_manager.broadcast(job_id, {
+            "status": "success",
+            "event": "done"
+        })
+    else:
+        JOBS[job_id]["current_step"] = "error"
+        await ws_manager.broadcast(job_id, {
+            "status": "error",
+            "event": "error",
+            "error": JOBS[job_id].get("error", "Erreur inconnue")
+        })
+
+    # Nettoyage
+    if pdf_path.exists():
+        pdf_path.unlink()
+
+    print(f"🏁 [JOB {job_id}] Terminé avec statut : {JOBS[job_id]['status']}")
 
 # ============================================================
 # 🚀 Endpoint principal : lancement du pipeline
@@ -204,7 +223,6 @@ def run_pipeline(job_id: str, pdf_path: Path, code_insee: str | None, env: dict 
 
 @app.post("/analyze-cerfa")
 async def analyze_cerfa(
-    background_tasks: BackgroundTasks,
     pdf: UploadFile = File(...),
     code_insee: str = Form(None),
     user_id: str = Form(None),
@@ -235,7 +253,7 @@ async def analyze_cerfa(
         raise HTTPException(
             status_code=403,
             detail=(
-                "Accès refusé : vous n’êtes autorisé qu’à analyser "
+                "Accès refusé : vous n'êtes autorisé qu'à analyser "
                 f"les communes suivantes : {', '.join(user_insee_list)}"
             )
         )
@@ -247,7 +265,8 @@ async def analyze_cerfa(
     if user_email:
         env["USER_EMAIL"] = user_email
 
-    background_tasks.add_task(run_pipeline, job_id, temp_pdf, code_insee, env)
+    # 🔥 Lancement du pipeline en tâche asynchrone
+    asyncio.create_task(run_pipeline(job_id, temp_pdf, code_insee, env))
 
     return {"success": True, "job_id": job_id}
 

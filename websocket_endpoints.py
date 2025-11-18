@@ -1,13 +1,16 @@
 # websocket_endpoints.py
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from pathlib import Path
 import uuid
 import os
 import base64
+import asyncio
 
 from websocket_manager import ws_manager
 from CERFA_ANALYSE.pre_analyse_cerfa import pre_analyse_cerfa
 from CERFA_ANALYSE.analyse_gemini import analyse_cerfa
+# Import tardif pour éviter la dépendance circulaire avec main.py
 
 router = APIRouter()
 
@@ -93,6 +96,36 @@ async def ws_pipeline(ws: WebSocket):
 
                 await ws.send_json({"event": "cerfa_done", "cerfa": cerfa_full})
 
+            # ------------------------------
+            # 3) LANCER LE PIPELINE COMPLET
+            # ------------------------------
+            elif action == "launch_pipeline":
+                # Import tardif pour éviter la dépendance circulaire
+                from main import run_pipeline
+                
+                job_id = str(uuid.uuid4())
+                pdf_path = Path(message["pdf_path"])
+                code_insee = message.get("insee")
+                user_id = message.get("user_id")
+                user_email = message.get("user_email")
+
+                # Créer l'environnement
+                env = os.environ.copy()
+                if user_id:
+                    env["USER_ID"] = user_id
+                if user_email:
+                    env["USER_EMAIL"] = user_email
+
+                # Lancer le pipeline en background
+                asyncio.create_task(run_pipeline(job_id, pdf_path, code_insee, env))
+
+                # Retourner le job_id pour que le front se connecte au WebSocket job
+                await ws.send_json({
+                    "event": "pipeline_started",
+                    "job_id": job_id
+                })
+                break  # Fermer cette connexion WS, le front se connectera à /ws/job/{job_id}
+
             else:
                 await ws.send_json({"event": "error", "message": f"Action inconnue : {action}"})
 
@@ -102,8 +135,7 @@ async def ws_pipeline(ws: WebSocket):
         print(f"❌ Erreur WebSocket pipeline: {e}")
         await ws.send_json({"event": "error", "message": str(e)})
     finally:
-        if pdf_temp_path and os.path.exists(pdf_temp_path):
-            try:
-                os.unlink(pdf_temp_path)
-            except:
-                pass
+        # Ne pas supprimer le PDF ici si le pipeline a été lancé
+        # run_pipeline() s'en charge. Si l'utilisateur se déconnecte avant,
+        # le PDF restera temporairement mais ce n'est pas critique.
+        pass
