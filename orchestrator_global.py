@@ -253,19 +253,29 @@ def run_global_pipeline(
     code_insee: str | None = None,
     user_id: str | None = None,
     user_email: str | None = None,
-    notify_step=None
+    notify_step=None,
+    out_dir: str | None = None  # ← NOUVEAU : accepter un OUT_DIR existant
 ):
     """
     Pipeline importable : analyse CERFA → UF → intersections → CUA
     Utilisée par FastAPI et WebSocket.
     notify_step(event) : callback appelée à chaque étape.
+    out_dir : chemin vers un dossier de sortie existant (optionnel).
     """
     global OUT_DIR
     
     # Initialisation du dossier de sortie
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    OUT_DIR = Path("./out_pipeline") / timestamp
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    if out_dir:
+        # ✅ Utiliser le OUT_DIR fourni (créé par WebSocket)
+        OUT_DIR = Path(out_dir)
+        OUT_DIR.mkdir(parents=True, exist_ok=True)
+        logger.info(f"📁 Utilisation du OUT_DIR fourni : {OUT_DIR}")
+    else:
+        # Créer un nouveau OUT_DIR avec timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        OUT_DIR = Path("./out_pipeline") / timestamp
+        OUT_DIR.mkdir(parents=True, exist_ok=True)
+        logger.info(f"📁 Création d'un nouveau OUT_DIR : {OUT_DIR}")
     
     # Petit wrapper pour notifier le front si fourni
     def emit(evt, payload=None):
@@ -278,9 +288,19 @@ def run_global_pipeline(
     emit("start", {"pdf": pdf_path})
 
     # 1️⃣ Analyse CERFA
+    logger.info("=== Analyse du CERFA ===")
     emit("analyse_cerfa:start")
     cerfa_out = OUT_DIR / "cerfa_result.json"
-    cerfa_json = analyse_cerfa(str(pdf_path), out_json=str(cerfa_out))
+
+    # ✅ Skip si déjà analysé
+    if cerfa_out.exists():
+        logger.info("✅ CERFA déjà analysé, chargement du JSON existant")
+        with open(cerfa_out, "r", encoding="utf-8") as f:
+            cerfa_json = json.load(f)
+    else:
+        logger.info("📄 Analyse du CERFA en cours...")
+        cerfa_json = analyse_cerfa(str(pdf_path), out_json=str(cerfa_out))
+
     emit("analyse_cerfa:done", cerfa_json)
 
     insee = cerfa_json["data"].get("commune_insee") or code_insee
@@ -293,6 +313,7 @@ def run_global_pipeline(
             raise RuntimeError(f"⛔ Utilisateur non autorisé à analyser la commune {insee}")
 
     # 2️⃣ Vérification unité foncière
+    logger.info("=== Unité foncière ===")
     emit("uf:start")
     uf_json_path = OUT_DIR / "rapport_unite_fonciere.json"
     uf_json = verifier_unite_fonciere(
@@ -309,11 +330,13 @@ def run_global_pipeline(
         raise RuntimeError("Geom WKT manquant")
 
     # 3️⃣ Intersections
+    logger.info("=== Rapport d'intersection ===")
     emit("intersections:start")
     intersections_json_path = _analyse_intersections_depuis_wkt(wkt_path, OUT_DIR)
     emit("intersections:done", {"path": intersections_json_path})
 
     # 4️⃣ Génération cartes + CUA
+    logger.info("=== Génération CUA ===")
     emit("cua:start")
     cua_result = generer_visualisations_et_cua_depuis_wkt(
         wkt_path=wkt_path,
@@ -436,7 +459,7 @@ def run_global_pipeline(
 # ============================================================
 # PIPELINE PRINCIPAL (CLI - COMPATIBILITÉ)
 # ============================================================
-def orchestrer_pipeline(pdf_path: str, code_insee: str):
+def orchestrer_pipeline(pdf_path: str, code_insee: str, out_dir: str | None = None):
     """
     Orchestration complète du process CERFA → UF → Intersections (CLI)
     Wrapper pour compatibilité avec l'ancienne CLI.
@@ -450,7 +473,8 @@ def orchestrer_pipeline(pdf_path: str, code_insee: str):
             code_insee=code_insee,
             user_id=user_id,
             user_email=user_email,
-            notify_step=None
+            notify_step=None,
+            out_dir=out_dir  # ← NOUVEAU : transmettre out_dir
         )
     except Exception as e:
         fail_pipeline(str(e))
@@ -463,6 +487,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Orchestrator global — KERELIA (phase 2)")
     ap.add_argument("--pdf", required=True, help="Chemin vers le CERFA PDF")
     ap.add_argument("--code-insee", default=None, help="Code INSEE (fallback si non trouvé)")
+    ap.add_argument("--out-dir", default=None, help="Dossier de sortie existant (optionnel)")
     args = ap.parse_args()
 
-    orchestrer_pipeline(args.pdf, args.code_insee)
+    orchestrer_pipeline(args.pdf, args.code_insee, args.out_dir)

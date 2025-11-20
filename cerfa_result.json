@@ -1,0 +1,120 @@
+{
+  "success": false,
+  "data": {
+    "cerfa_reference": "13410*12",
+    "commune_nom": "Latresne",
+    "commune_insee": "33234",
+    "departement_code": "33",
+    "numero_cu": "033-234-2025-X00078",
+    "type_cu": "CUa",
+    "date_depot": "2025-10-27",
+    "demandeur": {
+      "type": "personne_morale",
+      "nom": null,
+      "prenom": null,
+      "denomination": "SERAGORA NOTAIRES",
+      "representant_nom": "OUSTRIC",
+      "representant_prenom": "Romain",
+      "siret": "84450014000018",
+      "adresse": {
+        "numero": "189",
+        "voie": "rue Georges Bonnac",
+        "lieu_dit": null,
+        "code_postal": "33000",
+        "ville": "Bordeaux",
+        "email": "marie.danis@seragora.notaires.fr",
+        "telephone": "0535540523"
+      }
+    },
+    "adresse_terrain": {
+      "numero": "11 et 13",
+      "voie": "Chemin de Bernichon",
+      "lieu_dit": null,
+      "code_postal": "33360",
+      "ville": "Latresne"
+    },
+    "references_cadastrales": [
+      {
+        "section": "AI",
+        "numero": "0310",
+        "surface_m2": 5755
+      },
+      {
+        "section": "AI",
+        "numero": "0058",
+        "surface_m2": 256
+      },
+      {
+        "section": "AI",
+        "numero": "0311",
+        "surface_m2": 1368
+      },
+      {
+        "section": "AI",
+        "numero": "0313",
+        "surface_m2": 4931
+      }
+    ],
+    "superficie_totale_m2": 12310,
+    "header_cu": {
+      "dept": "033",
+      "commune_code": "234",
+      "annee": "25",
+      "numero_dossier": "00078"
+    },
+    "_insee_confidence": "high",
+    "_insee_method": "header+name_match",
+    "source_file": "preanalyse_60ef8067-db76-483f-bd5e-3ad121372c3a.pdf"
+  },
+  "errors": [
+    "demandeur.nom"
+  ],
+  "model_used": "gemini-2.5-pro",
+  "insee_extraction": {
+    "insee": "33234",
+    "confidence": "high",
+    "method": "header+name_match",
+    "commune_nom_officiel": "Latresne"
+  },
+  "pre_analyse": {
+    "insee": {
+      "code": "33234",
+      "confidence": "high",
+      "method": "header+name_match",
+      "commune_nom_officiel": "Latresne",
+      "details": {
+        "llm_raw": {
+          "header_dept": "033",
+          "header_commune": "234",
+          "commune_nom": "Latresne",
+          "code_postal": "33360"
+        },
+        "checks": {
+          "header_format": true,
+          "code_exists": true,
+          "name_found": true,
+          "dept_coherent": true
+        },
+        "insee_from_header": "33234",
+        "commune_officiel": "Latresne"
+      }
+    },
+    "parcelles": [
+      {
+        "section": "AI",
+        "numero": "0310"
+      },
+      {
+        "section": "AI",
+        "numero": "0058"
+      },
+      {
+        "section": "AI",
+        "numero": "0311"
+      }
+    ],
+    "superficie_totale_m2": 12310,
+    "model_used": "gemini-2.5-pro"
+  },
+  "timestamp": "2025-11-18 12:10:58"
+}

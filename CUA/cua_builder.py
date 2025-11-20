@@ -419,7 +419,8 @@ def build_cua_docx(
         "QR Code : Le QR code permet d'accéder à une Carte interactive des règles applicables (zonage, SUP, risques, "
         "prescriptions, obligations, informations). Affichage informatif ; en cas de divergence, les pièces écrites "
         "et le règlement en vigueur font foi. Cette solution vous est proposée par KERELIA, société immatriculée "
-        "944 763 275 au R.C.S. de Bordeaux"
+        "944 763 275 au R.C.S. de Bordeaux\n\n"
+        "Modalités de calcul des surfaces : La surface totale de l'unité foncière mentionnée dans ce document est la contenance cadastrale, qui a une valeur purement indicative. De même, les surfaces partielles correspondant à l'intersection avec des zones réglementaires sont des estimations obtenues en appliquant un pourcentage de superposition cartographique (calculé par Système d'Information Géographique) à ladite surface totale indicative. Par conséquent, toutes les surfaces mentionnées dans ce certificat sont communiquées à titre informatif et sont dépourvues de valeur juridique. Seul un arpentage ou un bornage réalisé par un géomètre-expert peut garantir la surface réelle du terrain et de ses fractions."
     )
     r_info.font.size = Pt(8)
 

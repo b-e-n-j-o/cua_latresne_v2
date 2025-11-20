@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-analyse_gemini.py — Analyse d'un CERFA CU (13410*12)
+analyse_gemini.py — Analyse d'un CERFA CU (13410*11)
 Gemini 2.5 Flash → JSON structuré conforme au CUA Builder
-avec pré-extraction INSEE robuste, validation + relance intelligente
+avec validation + relance intelligente en cas de champs manquants.
 """
 
 import os, json, re, time, random, logging
@@ -12,9 +12,6 @@ from pypdf import PdfReader
 import google.generativeai as genai
 import pandas as pd
 from dotenv import load_dotenv
-
-# Import de la pré-analyse complète
-from CERFA_ANALYSE.pre_analyse_cerfa import pre_analyse_cerfa
 
 # ============================================================
 # CONFIG
@@ -25,8 +22,7 @@ logger = logging.getLogger("cerfa_analyse")
 
 MODEL_PRIMARY = "gemini-2.5-pro"
 MODEL_FALLBACK = "gemini-2.5-flash"
-# Chemin vers le CSV INSEE : CONFIG est au même niveau que CERFA_ANALYSE
-INSEE_CSV = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "CONFIG", "v_commune_2025.csv"))
+INSEE_CSV = os.path.join(os.path.dirname(__file__), "..", "CONFIG", "v_commune_2025.csv")
 
 # ============================================================
 # INDICES VISUELS DE LOCALISATION
@@ -54,7 +50,7 @@ Structure header_cu :
 • N° dossier : 5 chiffres (ex: 00078)
 
 Code insee : [Dpt][Commune]
-Exemple : 033234 = 33234, le code insee est à 5 chiffres (33 + 234)
+Exemple : 033234 = 33234, le code insee est à 5 chiffres, ex: 33234 et est composé du departement en 2 chiffres, puis la commune en 3 chiffres, ex: 33234 = 33 et 234. 
 
 📌 TYPE DE CERTIFICAT (PAGE 1, section 1)
 ┌─────────────────────────────────────────────────────────┐
@@ -96,7 +92,7 @@ Pour une PERSONNE MORALE (section 2.2) :
 ⚠️ ATTENTION : L'adresse du terrain (section 4) est DIFFÉRENTE de
               l'adresse du demandeur (section 3, page 2)
 
-📌 RÉFÉRENCES CADASTRALES (PAGE 4, section 4.2)
+📌 RÉFÉRENCES CADASTRALES (PAGE 2, section 4.2)
 ┌─────────────────────────────────────────────────────────┐
 │ 4.2 Références cadastrales :                           │
 │                                                         │
@@ -112,11 +108,24 @@ Format parcelles :
 • Numéro : 4 CHIFFRES avec zéros initiaux (ex: 0310, 0058)
 • Superficie : nombre entier en m²
 
-⚠️ Si > 1 parcelles→ CONTINUER SUR PAGE 4
+⚠️ Si > 3 parcelles → CONTINUER SUR PAGE ANNEXE 8
+┌─────────────────────────────────────────────────────────┐
+│ ANNEXE - Références cadastrales complémentaires        │
+│ (dernière page du PDF)                                 │
+│                                                         │
+│ Section : [AI]  Numéro : [0313]  Superficie : 4931 m² │
+│ Section : [__]  Numéro : [____]  Superficie : ____ m² │
+└─────────────────────────────────────────────────────────┘
 
 📌 NUMÉRO CU COMPLET (à reconstruire)
 Format final attendu : [Dept]-[Commune]-20[Année]-X[Dossier]
 Exemple : 033-234-2025-X00078
+
+Construction depuis header_cu :
+• Dept = 033 → "033"
+• Commune = 234 → "234"  
+• Année = 25 → "2025"
+• Dossier = 00078 → "X00078"
 
 ═══════════════════════════════════════════════════════════════════════════════
 ⚠️ RÈGLES CRITIQUES
@@ -132,6 +141,21 @@ Exemple : 033-234-2025-X00078
 # ============================================================
 # OUTILS
 # ============================================================
+def normalize_name(s):
+    return re.sub(r"\s+", " ", s.strip().lower()) if s else ""
+
+def get_insee(commune, dep):
+    try:
+        df = pd.read_csv(INSEE_CSV, dtype=str)
+        df["LIBELLE_n"] = df["LIBELLE"].map(normalize_name)
+        df["DEP"] = df["DEP"].str.zfill(2)
+        row = df[(df["LIBELLE_n"] == normalize_name(commune)) &
+                 (df["DEP"] == str(dep).zfill(2))]
+        return str(row.iloc[0]["COM"]) if len(row) == 1 else None
+    except Exception as e:
+        logger.warning(f"INSEE lookup failed: {e}")
+        return None
+
 def extract_json(text):
     i, j = text.find("{"), text.rfind("}")
     if i == -1 or j == -1:
@@ -146,70 +170,6 @@ def extract_json(text):
             return json.loads(raw)
         except:
             return None
-
-def get_nested_value(data, keys):
-    """Récupère une valeur imbriquée dans un dict via une liste de clés"""
-    for k in keys:
-        if '[' in k:  # Gestion listes (ex: "references_cadastrales[0].section")
-            k_name, idx = k.split('[')
-            idx = int(idx.rstrip(']'))
-            if isinstance(data, dict) and k_name in data:
-                data = data[k_name]
-                if isinstance(data, list) and len(data) > idx:
-                    data = data[idx]
-                else:
-                    return None
-            else:
-                return None
-        else:
-            data = data.get(k) if isinstance(data, dict) else None
-        if data is None:
-            return None
-    return data
-
-def set_nested_value(data, keys, value):
-    """Définit une valeur imbriquée dans un dict via une liste de clés"""
-    for i, k in enumerate(keys[:-1]):
-        if '[' in k:
-            k_name, idx = k.split('[')
-            idx = int(idx.rstrip(']'))
-            if k_name not in data:
-                data[k_name] = []
-            while len(data[k_name]) <= idx:
-                data[k_name].append({})
-            data = data[k_name][idx]
-        else:
-            if k not in data:
-                data[k] = {}
-            data = data[k]
-    
-    final_key = keys[-1]
-    if '[' in final_key:
-        k_name, idx = final_key.split('[')
-        idx = int(idx.rstrip(']'))
-        if k_name not in data:
-            data[k_name] = []
-        while len(data[k_name]) <= idx:
-            data[k_name].append(None)
-        data[k_name][idx] = value
-    else:
-        data[final_key] = value
-
-def merge_extraction_results(base_data, new_data, missing_fields):
-    """
-    Fusionne en privilégiant les champs non-null de base_data,
-    sauf pour les champs explicitement manquants à corriger
-    """
-    merged = json.loads(json.dumps(base_data))  # Deep copy
-    
-    for field in missing_fields:
-        keys = field.split('.')
-        new_value = get_nested_value(new_data, keys)
-        if new_value is not None:
-            set_nested_value(merged, keys, new_value)
-            logger.info(f"  ↳ Champ complété: {field}")
-    
-    return merged
 
 # ============================================================
 # PROMPTS
@@ -269,6 +229,8 @@ SCHÉMA JSON STRICT À RESPECTER :
 ───────────────────────────────────────────────
 RÈGLES D'EXTRACTION :
 ───────────────────────────────────────────────
+0. Extraire impértivement correctement le code insee lié à la commune ou se situe le projet, ce code insee est à 5 chiffres, ex: 33234 et est composé du departement en 2 chiffres, puis la commune en 3 chiffres, ex: 33234 = 33 et 234. 
+
 1. Si le cadre « Vous êtes un particulier » (2.1) est coché → type = "particulier"
    - Extraire : nom, prénom, adresse complète, email, téléphone.
 
@@ -391,191 +353,22 @@ def validate_cerfa_json(data):
     return True, []
 
 def missing_fields_message(missing):
-    """Génère un message décrivant les champs manquants"""
     parts = [FIELD_TRANSLATIONS.get(f, f) for f in missing]
-    return "Certains champs essentiels sont absents : " + ", ".join(parts) + "."
-
-def build_correction_prompt(previous_data, missing):
-    """Construit un prompt de correction avec contexte des données déjà extraites"""
-    # Extraire les données déjà validées (non manquantes)
-    validated_data = {}
-    for key, value in previous_data.items():
-        # Garder seulement les champs qui ne sont pas dans missing
-        if key not in [m.split('.')[0] for m in missing]:
-            validated_data[key] = value
-    
-    correction_hint = f"""
-───────────────────────────────────────────────
-CONTEXTE : CORRECTION DE CHAMPS MANQUANTS
-───────────────────────────────────────────────
-
-DONNÉES DÉJÀ EXTRAITES (À CONSERVER TELLES QUELLES) :
-{json.dumps(validated_data, indent=2, ensure_ascii=False)}
-
-CHAMPS À COMPLÉTER UNIQUEMENT :
-{missing_fields_message(missing)}
-
-INSTRUCTIONS :
-- Relis attentivement le document PDF en suivant le GUIDE DE LOCALISATION VISUELLE
-- Complète UNIQUEMENT les champs manquants listés ci-dessus
-- Renvoie le JSON COMPLET en incluant :
-  1. Toutes les données déjà extraites ci-dessus (inchangées)
-  2. Les champs manquants maintenant complétés
-- Ne modifie PAS les données déjà validées
-- Respecte strictement le schéma JSON
-"""
-    return correction_hint
-
-# ============================================================
-# AFFICHAGE ET CONFIRMATION PRÉ-ANALYSE
-# ============================================================
-def display_pre_analyse_results(pre_analyse_result):
-    """
-    Affiche les résultats de la pré-analyse de manière lisible
-    """
-    print("\n" + "="*70)
-    print("📊 RÉSULTATS DE LA PRÉ-ANALYSE")
-    print("="*70)
-    
-    # INSEE
-    insee = pre_analyse_result.get('insee', {})
-    print("\n📍 CODE INSEE DE LA COMMUNE")
-    print("-" * 70)
-    if insee.get('code'):
-        print(f"  Code INSEE : {insee['code']}")
-        print(f"  Confiance  : {insee.get('confidence', 'unknown')}")
-        print(f"  Méthode    : {insee.get('method', 'unknown')}")
-        if insee.get('commune_nom_officiel'):
-            print(f"  Commune    : {insee['commune_nom_officiel']}")
-    else:
-        print("  ❌ Code INSEE non trouvé")
-    
-    # Parcelles
-    parcelles = pre_analyse_result.get('parcelles', [])
-    print(f"\n📋 PARCELLES CADASTRALES ({len(parcelles)} trouvée(s))")
-    print("-" * 70)
-    if parcelles:
-        for idx, parcelle in enumerate(parcelles, 1):
-            section = parcelle.get('section', 'N/A')
-            numero = parcelle.get('numero', 'N/A')
-            print(f"  {idx}. Section: {section:4s} | Numéro: {numero}")
-    else:
-        print("  ❌ Aucune parcelle trouvée")
-    
-    # Superficie
-    superficie = pre_analyse_result.get('superficie_totale_m2')
-    print(f"\n📏 SUPERFICIE TOTALE DU TERRAIN")
-    print("-" * 70)
-    if superficie:
-        print(f"  Superficie : {superficie:,} m²")
-    else:
-        print("  ❌ Superficie non trouvée")
-    
-    print("\n" + "="*70)
-    
-    return True
-
-def ask_user_confirmation():
-    """
-    Demande confirmation à l'utilisateur avant de continuer
-    """
-    while True:
-        response = input("\n❓ Voulez-vous continuer avec l'analyse complète du CERFA ? (o/n) : ").strip().lower()
-        if response in ['o', 'oui', 'y', 'yes']:
-            return True
-        elif response in ['n', 'non', 'no']:
-            return False
-        else:
-            print("⚠️  Réponse invalide. Veuillez répondre 'o' (oui) ou 'n' (non).")
+    return "Certains champs essentiels sont absents : " + ", ".join(parts) + ". " \
+           "Relis attentivement le document en suivant le GUIDE DE LOCALISATION VISUELLE " \
+           "et complète uniquement ces champs manquants dans le JSON final."
 
 # ============================================================
 # MAIN PIPELINE
 # ============================================================
-def analyse_cerfa(pdf_path, out_json="cerfa_result.json", max_retries=1, interactive=True):
-    """
-    Analyse complète d'un CERFA avec extraction robuste
-    
-    Args:
-        pdf_path: Chemin du PDF CERFA
-        out_json: Fichier de sortie JSON
-        max_retries: Nombre de tentatives maximum (0 = pas de retry, 2 = 3 essais au total)
-        interactive: Si True, affiche les résultats de pré-analyse et demande confirmation
-    
-    Returns:
-        dict: Résultat complet avec succès, données, erreurs, métadonnées, pré-analyse
-    """
+def analyse_cerfa(pdf_path, out_json="cerfa_result.json", retry_if_incomplete=True):
     genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
     pdf = Path(pdf_path)
-    logger.info(f"📄 Analyse du fichier {pdf.name}")
-    
-    # ============================================================
-    # ÉTAPE 1 : PRÉ-ANALYSE COMPLÈTE (INSEE + PARCELLES + SUPERFICIE)
-    # ============================================================
-    logger.info("="*60)
-    logger.info("🎯 ÉTAPE 1/4 : PRÉ-ANALYSE COMPLÈTE")
-    logger.info("="*60)
-    logger.info("📋 Extraction simultanée : INSEE + Parcelles + Superficie")
-    logger.info("   (Analyse des 4 premières pages uniquement)")
-    
-    pre_analyse_result = pre_analyse_cerfa(pdf_path, MODEL_PRIMARY, MODEL_FALLBACK)
-    
-    # Affichage des résultats et demande de confirmation
-    if interactive:
-        display_pre_analyse_results(pre_analyse_result)
-        if not ask_user_confirmation():
-            logger.info("❌ Analyse annulée par l'utilisateur")
-            return {
-                "success": False,
-                "data": None,
-                "errors": ["user_cancelled"],
-                "model_used": None,
-                "pre_analyse": pre_analyse_result,
-                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-            }
-        logger.info("✅ Confirmation reçue, poursuite de l'analyse...")
-    else:
-        logger.info("📊 Résultats pré-analyse (mode non-interactif):")
-        logger.info(f"   INSEE: {pre_analyse_result.get('insee', {}).get('code', 'N/A')}")
-        logger.info(f"   Parcelles: {len(pre_analyse_result.get('parcelles', []))}")
-        logger.info(f"   Superficie: {pre_analyse_result.get('superficie_totale_m2', 'N/A')} m²")
-    
-    # Préparer les données INSEE pour l'injection (compatibilité avec l'ancien format)
-    insee_result = {
-        'insee': pre_analyse_result.get('insee', {}).get('code'),
-        'confidence': pre_analyse_result.get('insee', {}).get('confidence', 'unknown'),
-        'method': pre_analyse_result.get('insee', {}).get('method', 'unknown'),
-        'commune_nom_officiel': pre_analyse_result.get('insee', {}).get('commune_nom_officiel')
-    }
-    
-    # ============================================================
-    # ÉTAPE 2 : EXTRACTION COMPLÈTE AVEC RETRY PROGRESSIF
-    # ============================================================
-    logger.info("="*60)
-    logger.info("📋 ÉTAPE 2/4 : EXTRACTION COMPLÈTE DU CERFA")
-    logger.info("="*60)
-    
-    # Enrichir le prompt avec les données de pré-analyse
-    pre_analyse_context = ""
-    if pre_analyse_result.get('insee', {}).get('code'):
-        pre_analyse_context += f"\n📌 CONTEXTE DE PRÉ-ANALYSE (à utiliser comme référence) :\n"
-        pre_analyse_context += f"- Code INSEE détecté : {pre_analyse_result['insee']['code']}\n"
-        if pre_analyse_result.get('insee', {}).get('commune_nom_officiel'):
-            pre_analyse_context += f"- Commune : {pre_analyse_result['insee']['commune_nom_officiel']}\n"
-        if pre_analyse_result.get('parcelles'):
-            pre_analyse_context += f"- Parcelles détectées : {len(pre_analyse_result['parcelles'])} parcelle(s)\n"
-            for p in pre_analyse_result['parcelles'][:3]:  # Afficher les 3 premières
-                pre_analyse_context += f"  • Section {p.get('section', 'N/A')} - Numéro {p.get('numero', 'N/A')}\n"
-        if pre_analyse_result.get('superficie_totale_m2'):
-            pre_analyse_context += f"- Superficie totale détectée : {pre_analyse_result['superficie_totale_m2']} m²\n"
-        pre_analyse_context += "\n⚠️ Utilise ces informations comme référence, mais vérifie-les dans le document complet.\n"
-    
-    enriched_base_prompt = BASE_PROMPT + pre_analyse_context
+    logger.info(f"Analyse du fichier {pdf.name}")
     
     model_used = MODEL_PRIMARY
-    previous_data = None
-    
+
     def _run_gemini(prompt, model):
-        """Exécute une requête Gemini et parse le JSON"""
         try:
             model_instance = genai.GenerativeModel(model)
             response = model_instance.generate_content(
@@ -591,164 +384,77 @@ def analyse_cerfa(pdf_path, out_json="cerfa_result.json", max_retries=1, interac
         except Exception as e:
             logger.warning(f"⚠️ Erreur avec {model}: {e}")
             raise
-    
-    # Boucle de retry progressive
-    for attempt in range(max_retries + 1):
-        logger.info(f"\n🔄 Tentative {attempt + 1}/{max_retries + 1}")
-        
+
+    # Premier essai avec Pro
+    logger.info(f"🤖 Analyse avec {MODEL_PRIMARY}...")
+    try:
+        data = _run_gemini(BASE_PROMPT, MODEL_PRIMARY)
+        ok, missing = validate_cerfa_json(data)
+    except Exception as e:
+        # Fallback vers Flash en cas d'échec Pro
+        logger.info(f"🔄 Fallback vers {MODEL_FALLBACK} suite à l'échec de Pro...")
+        time.sleep(random.uniform(2, 4))
         try:
-            if attempt == 0:
-                # Premier essai avec prompt enrichi (incluant pré-analyse)
-                logger.info(f"🤖 Extraction avec {MODEL_PRIMARY}...")
-                data = _run_gemini(enriched_base_prompt, MODEL_PRIMARY)
-                model_used = MODEL_PRIMARY
-            else:
-                # Retry avec prompt enrichi et merge
-                logger.info(f"🔧 Correction des champs manquants...")
-                correction_prompt = enriched_base_prompt + "\n\n" + build_correction_prompt(previous_data, missing)
-                
-                # Essayer avec le modèle qui a marché précédemment
-                try:
-                    data = _run_gemini(correction_prompt, model_used)
-                except Exception:
-                    # Fallback si le modèle échoue
-                    if model_used == MODEL_PRIMARY:
-                        logger.info(f"⚠️ Fallback vers {MODEL_FALLBACK}...")
-                        time.sleep(random.uniform(2, 4))
-                        data = _run_gemini(correction_prompt, MODEL_FALLBACK)
-                        model_used = MODEL_FALLBACK
-                    else:
-                        raise
-                
-                # Merge intelligent : garde les bonnes valeurs, complète les manquantes
-                data = merge_extraction_results(previous_data, data, missing)
-        
-        except Exception as e:
-            # Fallback vers Flash si Pro échoue au premier essai
-            if attempt == 0 and model_used == MODEL_PRIMARY:
-                logger.warning(f"⚠️ Échec {MODEL_PRIMARY}, fallback vers {MODEL_FALLBACK}...")
+            data = _run_gemini(BASE_PROMPT, MODEL_FALLBACK)
+            model_used = MODEL_FALLBACK
+            ok, missing = validate_cerfa_json(data)
+        except Exception as e2:
+            logger.error(f"❌ Échec total (Pro et Flash) : {e2}")
+            raise RuntimeError(f"Impossible d'analyser le PDF avec Pro ni Flash : {e2}")
+
+    # Relance intelligente si champs manquants
+    if not ok and retry_if_incomplete:
+        correction_hint = missing_fields_message(missing)
+        enhanced_prompt = BASE_PROMPT + "\n\n" + correction_hint + \
+            "\nNe réécris pas tout le JSON, mais renvoie-le complet et corrigé selon le même format strict."
+        logger.info(f"🔄 Relance pour compléter les champs manquants...")
+        time.sleep(random.uniform(3, 6))
+        try:
+            # Essayer d'abord avec le modèle qui a fonctionné
+            data = _run_gemini(enhanced_prompt, model_used)
+            ok, missing = validate_cerfa_json(data)
+        except Exception:
+            # Si échec, tenter avec Flash en fallback
+            if model_used == MODEL_PRIMARY:
+                logger.info(f"🔄 Fallback vers {MODEL_FALLBACK} pour la relance...")
                 time.sleep(random.uniform(2, 4))
                 try:
-                    data = _run_gemini(enriched_base_prompt, MODEL_FALLBACK)
+                    data = _run_gemini(enhanced_prompt, MODEL_FALLBACK)
                     model_used = MODEL_FALLBACK
-                except Exception as e2:
-                    logger.error(f"❌ Échec total (Pro et Flash) : {e2}")
-                    return {
-                        "success": False,
-                        "data": None,
-                        "errors": ["extraction_failed"],
-                        "model_used": None,
-                        "insee_extraction": insee_result,
-                        "pre_analyse": pre_analyse_result,
-                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-                    }
+                    ok, missing = validate_cerfa_json(data)
+                except Exception as e:
+                    logger.warning(f"⚠️ Relance échouée même avec Flash : {e}")
             else:
-                logger.error(f"❌ Échec extraction tentative {attempt + 1}: {e}")
-                if attempt == max_retries:
-                    return {
-                        "success": False,
-                        "data": previous_data,
-                        "errors": missing if previous_data else ["extraction_failed"],
-                        "model_used": model_used,
-                        "insee_extraction": insee_result,
-                        "pre_analyse": pre_analyse_result,
-                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-                    }
-                continue
-        
-        # Validation
-        ok, missing = validate_cerfa_json(data)
-        
-        if ok:
-            logger.info(f"✅ Extraction complète réussie !")
-            break
-        
-        # Acceptation partielle si < 3 champs manquants au dernier essai
-        if len(missing) < 3 and attempt == max_retries:
-            logger.warning(f"⚠️ Acceptation partielle : {len(missing)} champ(s) manquant(s)")
-            break
-        
-        # Sauvegarder pour le prochain retry
-        previous_data = data
-        
-        if attempt < max_retries:
-            logger.warning(f"⚠️ {len(missing)} champ(s) manquant(s), nouvelle tentative...")
-            time.sleep(random.uniform(2, 5))
-    
-    # ============================================================
-    # ÉTAPE 3 : ENRICHISSEMENT ET NORMALISATION
-    # ============================================================
-    logger.info("="*60)
-    logger.info("🔧 ÉTAPE 3/4 : ENRICHISSEMENT DES DONNÉES")
-    logger.info("="*60)
-    
-    # Injection des données de pré-analyse (priorité haute)
-    # INSEE
-    if insee_result.get('insee'):
-        data['commune_insee'] = insee_result['insee']
-        if insee_result.get('commune_nom_officiel'):
-            data['commune_nom'] = insee_result['commune_nom_officiel']
-        data['_insee_confidence'] = insee_result['confidence']
-        data['_insee_method'] = insee_result['method']
-        logger.info(f"✅ INSEE injecté: {insee_result['insee']} (confiance: {insee_result['confidence']})")
-    
-    # Parcelles (si non trouvées ou incomplètes dans l'extraction complète)
-    pre_parcelles = pre_analyse_result.get('parcelles', [])
-    if pre_parcelles:
-        extracted_parcelles = data.get('references_cadastrales', [])
-        if not extracted_parcelles or len(extracted_parcelles) == 0:
-            # Convertir le format de pré-analyse vers le format attendu
-            data['references_cadastrales'] = [
-                {
-                    'section': p.get('section'),
-                    'numero': p.get('numero'),
-                    'surface_m2': None  # Pas de surface dans la pré-analyse
-                }
-                for p in pre_parcelles
-            ]
-            logger.info(f"✅ Parcelles injectées depuis pré-analyse: {len(pre_parcelles)} parcelle(s)")
-        elif len(pre_parcelles) > len(extracted_parcelles):
-            logger.info(f"⚠️ Pré-analyse a trouvé plus de parcelles ({len(pre_parcelles)}) que l'extraction complète ({len(extracted_parcelles)})")
-    
-    # Superficie (si non trouvée dans l'extraction complète)
-    pre_superficie = pre_analyse_result.get('superficie_totale_m2')
-    if pre_superficie and not data.get('superficie_totale_m2'):
-        data['superficie_totale_m2'] = pre_superficie
-        logger.info(f"✅ Superficie injectée depuis pré-analyse: {pre_superficie} m²")
-    
-    # Métadonnées
+                logger.warning("⚠️ Relance échouée")
+
+    # Normalisation
     data["source_file"] = pdf.name
-    
-    # Normalisation du numéro CU
+    if data.get("commune_nom") and data.get("departement_code"):
+        insee = get_insee(data["commune_nom"], data["departement_code"])
+        if insee:
+            data["commune_insee"] = insee
+
     num = data.get("numero_cu", "")
     if re.match(r"^CU\d{8}X\d+$", num):
         data["numero_cu"] = f"{num[2:4]}-{num[4:7]}-20{num[7:9]}-{num[9:]}"
-    
-    # Normalisation type_cu
     if data.get("type_cu", "").lower().startswith("info"):
         data["type_cu"] = "CUa"
-    
-    # Résultat final
+
     final = {
         "success": ok,
         "data": data,
         "errors": missing,
         "model_used": model_used,
-        "insee_extraction": insee_result,
-        "pre_analyse": pre_analyse_result,
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
     }
-    
-    # Sauvegarde
+
     Path(out_json).write_text(json.dumps(final, indent=2, ensure_ascii=False), encoding="utf-8")
-    
-    logger.info("="*60)
+
     if ok:
-        logger.info(f"✅ SUCCÈS : JSON complet sauvegardé → {out_json}")
+        logger.info(f"✅ JSON complet sauvegardé avec {model_used} : {out_json}")
     else:
-        logger.warning(f"⚠️ PARTIEL : JSON sauvegardé avec {len(missing)} champ(s) manquant(s) → {out_json}")
-    logger.info("="*60)
-    
+        logger.warning(f"⚠️ JSON partiel sauvegardé avec {model_used} ({len(missing)} champs manquants) : {out_json}")
+
     return final
 
 # ============================================================
@@ -757,14 +463,14 @@ def analyse_cerfa(pdf_path, out_json="cerfa_result.json", max_retries=1, interac
 if __name__ == "__main__":
     import argparse
 
-    ap = argparse.ArgumentParser(description="Analyse CERFA Gemini (Pro + Fallback Flash) avec pré-analyse et extraction robuste")
+    ap = argparse.ArgumentParser(description="Analyse CERFA Gemini (Pro + Fallback Flash)")
     ap.add_argument("--pdf", required=True, help="Chemin du PDF CERFA à analyser")
     ap.add_argument("--out-json", default="cerfa_result.json", help="Chemin de sortie JSON")
-    ap.add_argument("--out-dir", default=".", help="Dossier de sortie (compatibilité orchestrator)")
-    ap.add_argument("--max-retries", type=int, default=2, help="Nombre de retries maximum (défaut: 2)")
-    ap.add_argument("--non-interactive", action="store_true", help="Mode non-interactif (pas de confirmation)")
+    ap.add_argument("--out-dir", default=".", help="Dossier de sortie (non utilisé pour l'instant, compatibilité orchestrator)")
+    ap.add_argument("--insee-csv", default=os.path.join(os.path.dirname(__file__), "..", "CONFIG", "v_commune_2025.csv"),
+                    help="Chemin vers le CSV INSEE des communes")
 
     args = ap.parse_args()
 
-    # Appel unique
-    analyse_cerfa(args.pdf, args.out_json, max_retries=args.max_retries, interactive=not args.non_interactive)
+    # Appel unique — seul --out-json est utile ici
+    analyse_cerfa(args.pdf, args.out_json)
