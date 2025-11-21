@@ -177,9 +177,7 @@ def analyser_ppri_tolerance(section=None, numero=None, code_insee=None, ppri_tab
     
     # Statistiques par type de zone
     zones_types = ppri_initial.groupby("codezone").size()
-    print("\n📊 Répartition par type de zone (avant traitement):")
-    for zone_type, count in zones_types.items():
-        print(f"   • {zone_type:<30} : {count:2d} occurrence(s)")
+    print(f"   📊 {len(zones_types)} type(s) de zone(s) différentes")
 
     # =========================================================
     # 3️⃣ Nettoyage et filtrage
@@ -220,9 +218,7 @@ def analyser_ppri_tolerance(section=None, numero=None, code_insee=None, ppri_tab
     ppri = gpd.GeoDataFrame(zones_valides, crs=2154)
     
     if zones_exclues:
-        print(f"   🗑️ {len(zones_exclues)} zones marginales exclues:")
-        for ze in zones_exclues:
-            print(f"      • {ze['codezone']:<30} ({ze['surface']:.4f} m²) - {ze['raison']}")
+        print(f"   🗑️ {len(zones_exclues)} zones marginales exclues")
 
     # =========================================================
     # 4️⃣ Éclatement des MultiPolygons
@@ -239,7 +235,6 @@ def analyser_ppri_tolerance(section=None, numero=None, code_insee=None, ppri_tab
         
         if geom.geom_type == 'MultiPolygon':
             nb_parties = len(geom.geoms)
-            print(f"   ✂️ Éclatement: {row.codezone} → {nb_parties} parties")
             for i, poly in enumerate(geom.geoms, 1):
                 if poly.area > 0.001:
                     ppri_exploded.append({
@@ -265,24 +260,8 @@ def analyser_ppri_tolerance(section=None, numero=None, code_insee=None, ppri_tab
     ppri = ppri[ppri.geometry.area >= 1.0].copy().reset_index(drop=True)
     nb_filtrees_petites = nb_avant_filtre - len(ppri)
     
-    print(f"\n   ✅ Éclatement terminé:")
-    print(f"      • Zones avant: {nb_avant_eclatement}")
-    print(f"      • MultiPolygons éclatés: {nb_multipolygons}")
-    print(f"      • Fragments après éclatement: {nb_avant_filtre}")
-    print(f"      • Fragments < 1m² supprimés: {nb_filtrees_petites}")
-    print(f"      • Fragments conservés: {len(ppri)}")
-    
-    # Statistiques détaillées
-    print(f"\n   📊 Statistiques des fragments:")
     surface_totale_zones = ppri.geometry.area.sum()
-    surface_min = ppri.geometry.area.min()
-    surface_max = ppri.geometry.area.max()
-    surface_moy = ppri.geometry.area.mean()
-    
-    print(f"      • Surface totale couverte: {surface_totale_zones:.2f} m² ({surface_totale_zones/surface_parcelle*100:.1f}% de la parcelle)")
-    print(f"      • Fragment le plus petit: {surface_min:.4f} m²")
-    print(f"      • Fragment le plus grand: {surface_max:.2f} m²")
-    print(f"      • Surface moyenne: {surface_moy:.2f} m²")
+    print(f"   ✅ Éclatement terminé: {len(ppri)} fragment(s) conservé(s) ({surface_totale_zones:.2f} m², {surface_totale_zones/surface_parcelle*100:.1f}% de la parcelle)")
     
     # Créer les buffers
     ppri_buffer = ppri.copy()
@@ -294,27 +273,15 @@ def analyser_ppri_tolerance(section=None, numero=None, code_insee=None, ppri_tab
     print("\n🔍 ÉTAPE 5/6 : Analyse d'absorption avec hiérarchie de contrainte")
     print("-" * 80)
     
-    # Afficher la hiérarchie
-    print("\n📏 Hiérarchie de contrainte appliquée:")
-    print("   (Une zone ne peut être absorbée QUE par une zone moins restrictive)\n")
-    zones_presentes = set([z.codezone for _, z in ppri.iterrows()])
-    zones_tri = sorted(
-        [(z, get_niveau_contrainte(z)) for z in zones_presentes],
-        key=lambda x: x[1]
-    )
-    for zone, niveau in zones_tri:
-        restrictivite = "🔴 Très restrictif" if niveau <= 3 else ("🟠 Restrictif" if niveau <= 7 else "🟢 Peu restrictif")
-        print(f"   {niveau:2d} - {zone:<30} {restrictivite}")
+    # Afficher la hiérarchie (version simplifiée)
+    print("📏 Hiérarchie de contrainte appliquée")
     
     print("\n" + "-" * 80)
-    print("🔎 Analyse fragment par fragment:\n")
     
     absorbées, conservées, relations = [], [], []
     zones_conservees_force = []  # Zones conservées malgré couverture complète
     
     for i, z in ppri.iterrows():
-        print(f"   Fragment {i+1}/{len(ppri)}: {z.codezone} ({z.geometry.area:.4f} m²)")
-        
         other_buffers = ppri_buffer[ppri_buffer.index != i]
         
         if other_buffers.empty:
@@ -323,7 +290,6 @@ def analyser_ppri_tolerance(section=None, numero=None, code_insee=None, ppri_tab
                 "reglementation": z.get("reglementation", ""),
                 "geometry": z.geometry
             })
-            print(f"      → ✅ CONSERVÉE (aucun buffer voisin)\n")
             continue
         
         union_others = unary_union(other_buffers.geometry)
@@ -343,16 +309,12 @@ def analyser_ppri_tolerance(section=None, numero=None, code_insee=None, ppri_tab
             (pct_couverture >= 99.99 and surface_residuelle <= 0.1)
         )
         
-        print(f"      • Couverture géométrique: {pct_couverture:.2f}%")
-        print(f"      • Surface résiduelle: {surface_residuelle:.6f} m²")
-        
         if not est_absorbee_geometriquement:
             conservées.append({
                 "codezone": z.codezone,
                 "reglementation": z.get("reglementation", ""),
                 "geometry": z.geometry
             })
-            print(f"      → ✅ CONSERVÉE (couverture insuffisante)\n")
             continue
         
         # Identifier les absorbeurs potentiels
@@ -387,8 +349,6 @@ def analyser_ppri_tolerance(section=None, numero=None, code_insee=None, ppri_tab
                 "pct_couverture": pct_couverture,
                 "zones_interdites": absorbeurs_interdits
             })
-            print(f"      ⚠️ Zones potentielles (interdites): {', '.join(absorbeurs_interdits)}")
-            print(f"      → ✅ CONSERVÉE (hiérarchie : aucune zone moins restrictive)\n")
         else:
             absorbées.append({
                 "codezone": z.codezone,
@@ -405,11 +365,6 @@ def analyser_ppri_tolerance(section=None, numero=None, code_insee=None, ppri_tab
                 "pct_couverture": pct_couverture,
                 "surface_residuelle": surface_residuelle
             })
-            
-            print(f"      ✅ Absorbeurs autorisés: {', '.join(set(absorbeurs_autorises))}")
-            if absorbeurs_interdits:
-                print(f"      ❌ Absorbeurs rejetés: {', '.join(set(absorbeurs_interdits))}")
-            print(f"      → 🔴 ABSORBÉE\n")
 
     ppri_abs = gpd.GeoDataFrame(absorbées, geometry="geometry", crs=ppri.crs) if absorbées else gpd.GeoDataFrame()
     ppri_cons = gpd.GeoDataFrame(conservées, geometry="geometry", crs=ppri.crs)

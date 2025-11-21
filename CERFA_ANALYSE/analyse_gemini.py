@@ -448,6 +448,13 @@ def analyse_cerfa(pdf_path, out_json="cerfa_result.json", retry_if_incomplete=Tr
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
     }
 
+    # 🔎 Log de la surface cadastrale indicative extraite du CERFA
+    surface_totale = data.get("superficie_totale_m2")
+    if surface_totale:
+        logger.info(f"📏 Superficie cadastrale totale extraite du CERFA : {surface_totale} m²")
+    else:
+        logger.warning("⚠️ Superficie cadastrale totale non trouvée dans le CERFA")
+
     Path(out_json).write_text(json.dumps(final, indent=2, ensure_ascii=False), encoding="utf-8")
 
     if ok:

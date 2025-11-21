@@ -7,7 +7,7 @@ Nouveautés v6 :
 - Labels explicites : "Surface d'intersection" et "Pourcentage d'intersection"
 """
 
-import argparse, os
+import argparse, os, logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -63,18 +63,25 @@ def render_layer_content(
         force_table_mode: Force le mode tableau même si 'reglementation' dans keep
     """
     nom = layer.get("nom") or "Couche"
-    surface_m2 = layer.get("surface_m2", 0)
+    surface_m2 = layer.get("surface_m2", 0)   # encore utile en interne si besoin
     pourcentage = layer.get("pourcentage", 0)
     objets = layer.get("objets") or []
     
     # Titre de la couche
     add_paragraph(doc, nom, bold=True)
     
-    # Surface et pourcentage (toujours affichés)
-    add_paragraph(
-        doc,
-        f"Surface d'intersection : {fmt_surface(surface_m2)} m² ({fmt_pct(pourcentage)})"
-    )
+    # ✅ On n'affiche plus que le pourcentage, pas les m²
+    if pourcentage:
+        add_paragraph(
+            doc,
+            f"Part de l'unité foncière concernée : {fmt_pct(pourcentage)} de la surface cadastrale indicative."
+        )
+    else:
+        add_paragraph(
+            doc,
+            "Part de l'unité foncière concernée : —",
+            italic=True,
+        )
     
     # ============================================================
     # LOGIQUE CONDITIONNELLE
@@ -85,15 +92,25 @@ def render_layer_content(
         reglements_annexes = []
         objets_pour_table = []
         
+        # Fonction pour retirer les colonnes de surfaces (m²) du tableau
+        def _strip_surface_keys(d):
+            return {
+                k: v
+                for k, v in d.items()
+                if k != "reglementation"
+                and not k.lower().startswith("surface")
+                and not k.lower().endswith("_m2")
+            }
+        
         # ✅ Pas de dédoublonnage ici : déjà fait dans filter_zonage_plu() pour l'article 3
         for obj in objets:
+            # On retire totalement les colonnes de surfaces (m²) du tableau
             if "reglementation" in obj and obj["reglementation"]:
                 reglements_annexes.append(obj["reglementation"])
-                # Retirer 'reglementation' pour le tableau
-                obj_sans_regl = {k: v for k, v in obj.items() if k != "reglementation"}
+                obj_sans_regl = _strip_surface_keys(obj)
                 objets_pour_table.append(obj_sans_regl)
             else:
-                objets_pour_table.append(obj)
+                objets_pour_table.append(_strip_surface_keys(obj))
         
         # Afficher le tableau si des objets existent
         if objets_pour_table:
@@ -152,6 +169,12 @@ def build_cua_docx(
     surface_indicative = surface_total
     if not surface_indicative:
         raise ValueError("surface_indicative (superficie_totale_m2) manquante dans le CERFA")
+    
+    # 🔎 Log : on plaque toutes les intersections sur la surface cadastrale CERFA
+    logger = logging.getLogger("cua_builder")
+    logger.info(
+        f"📏 Surface indicative CERFA utilisée pour normaliser les intersections : {surface_indicative} m²"
+    )
     
     intersections_raw = inters.get("intersections") or {}
     
