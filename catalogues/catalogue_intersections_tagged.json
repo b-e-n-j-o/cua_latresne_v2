@@ -29,7 +29,6 @@
       "type": "servitude",
       "keep": [
         "gid",
-        "source",
         "nom"
       ],
       "origine": "wfs",
@@ -275,16 +274,7 @@
       "type": "reseaux",
       "keep": [
         "code_epci",
-        "nom_departe",
-        "nom_commune",
-        "code_depart",
-        "type",
-        "code_commun",
-        "nom_epci",
-        "source",
-        "nom_region",
-        "code_region",
-        "update"
+        "type"
       ],
       "origine": "shp",
       "article": "6",
@@ -373,7 +363,8 @@
         "adresse",
         "lib_naf",
         "num_siret",
-        "url_fiche"
+        "url_fiche",
+        "reglementation"
       ],
       "origine": "kerelia",
       "article": "5",

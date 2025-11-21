@@ -179,7 +179,8 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     else:
         raise FileNotFoundError(f"❌ Aucun rapport d'intersections trouvé dans {OUT_DIR}")
 
-    catalogue_path = os.path.join(BASE_DIR, "catalogue_avec_articles.json")
+    # Utiliser le catalogue avec geom_type
+    catalogue_path = os.path.join(BASE_DIR, "..", "catalogues", "catalogue_intersections_tagged.json")
     output_docx_path = os.path.join(OUT_DIR, "CUA_unite_fonciere.docx")
     logo_latresne_path = os.path.join(BASE_DIR, "logos", "logo_latresne.png")
     logo_kerelia_path = os.path.join(BASE_DIR, "logos", "logo_kerelia.png")

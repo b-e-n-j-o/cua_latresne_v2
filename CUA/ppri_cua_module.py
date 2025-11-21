@@ -265,14 +265,19 @@ def analyser_ppri_corrige(geom_wkt=None, section=None, numero=None, code_insee=N
     cons = resultats["zones"]["ppri_conservees"]
     surface_parcelle = resultats["parcelle"]["surface"]
     
+    # ✅ Grouper les fragments par codezone (fusionner géométriquement)
+    zones_groupees = cons.dissolve(by='codezone', aggfunc={
+        'reglementation': 'first'  # Prendre la première réglementation
+    }).reset_index()
+    
     zones_liste = []
-    for _, row in cons.iterrows():
+    for _, row in zones_groupees.iterrows():
         surface_zone = row.geometry.area
         zones_liste.append({
-            "nom": str(row.get("codezone", "Zone")),
+            "nom": str(row.codezone),
             "pourcentage": round((surface_zone / surface_parcelle) * 100, 2),
             "surface_m2": round(surface_zone, 2),
-            "texte": str(row.get("reglementation", "")).strip()
+            "texte": str(row.reglementation or "").strip()
         })
 
     surface_totale = sum(z["surface_m2"] for z in zones_liste)

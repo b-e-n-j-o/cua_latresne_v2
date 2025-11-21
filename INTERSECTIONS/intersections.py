@@ -72,6 +72,10 @@ def calculate_intersection(parcelle_wkt, table_name):
     if not keep_cols:
         return [], 0.0, {"nb_raw": 0, "nb_grouped": 0, "items": []}
 
+    logger.info(f"\n────────────────────────────────────────")
+    logger.info(f"🧩 CALCUL INTERSECTION : {table_name}")
+    logger.info(f"→ group_by = {group_by or 'Aucun'}")
+
     with engine.connect() as conn:
         try:
 
@@ -168,6 +172,12 @@ def calculate_intersection(parcelle_wkt, table_name):
                     "somme_surfaces_brutes": float(d["somme_surfaces_brutes"] or 0)
                 }
 
+            logger.info("   📊 Étape 1 — Surfaces brutes avant union")
+            for key, det in details.items():
+                label = " / ".join(str(x) for x in key)
+                logger.info(f"      • Groupe '{label}': {det['nb_entites']} entités, "
+                            f"somme brute = {det['somme_surfaces_brutes']} m²")
+
             # -------- UNION géométrique + surface réelle --------
             select_cols_final = ", ".join(group_by)
             if non_group_kept:
@@ -202,6 +212,24 @@ def calculate_intersection(parcelle_wkt, table_name):
             rs = conn.execute(text(q_union), {"wkt": parcelle_wkt})
             cols = [c[0] for c in rs.cursor.description]
             rows = rs.fetchall()
+
+            logger.info("   🔧 Étape 2 — Surfaces après union (dissolve)")
+            for row in rows:
+                d = dict(zip(cols, row))
+                surf_union = float(d.get("union_area", 0) or 0)
+                key = tuple(d.get(c) for c in group_by)
+                label = " / ".join(str(x) for x in key)
+
+                det = details.get(key, {"nb_entites": 0, "somme_surfaces_brutes": 0})
+                somme = det["somme_surfaces_brutes"]
+                chev = max(somme - surf_union, 0)
+                pct = (chev / somme * 100) if somme > 0 else 0
+
+                logger.info(f"      • Groupe '{label}':")
+                logger.info(f"         - Surface union = {surf_union:.2f} m²")
+                logger.info(f"         - Surface brute = {somme:.2f} m²")
+                logger.info(f"         - Chevauchement = {chev:.2f} m² ({pct:.1f}%)")
+                logger.info(f"         - Nb entités = {det['nb_entites']}")
 
             objects = []
             surfaces = []
@@ -252,6 +280,10 @@ def calculate_intersection(parcelle_wkt, table_name):
                 """),
                 {"wkt": parcelle_wkt}
             ).scalar()
+
+            logger.info(f"   📦 Étape 3 — Comptage")
+            logger.info(f"      - Entités brutes : {nb_raw}")
+            logger.info(f"      - Groupes après union : {len(objects)}")
 
             metadata = {
                 "nb_raw": nb_raw,
@@ -328,6 +360,15 @@ def analyse_parcelle(section, numero):
                             logger.info(f"         • Surface moyenne d'intersection par entité : {surface_moyenne:.2f} m²")
                         
                         logger.info(f"         ──────────────────────────────────────────")
+            
+            # Résumé regroupement
+            if metadata["nb_raw"] > metadata["nb_grouped"]:
+                logger.info("   🔧 Résumé regroupement :")
+                for item in metadata["items"]:
+                    logger.info(f"      -> {item['label']}: "
+                                f"{item['count']} entités → {item['surface']} m² "
+                                f"(avant union: {item['surface_avant_union']} m², "
+                                f"chevauchement: {item['chevauchement_m2']} m²)")
             
             # Cas où on additionne plusieurs morceaux d'une même zone (sans regroupement)
             elif any(item.get("count", 0) > 1 for item in metadata["items"]):
@@ -530,6 +571,15 @@ if __name__ == "__main__":
                             logger.info(f"         • Surface moyenne d'intersection par entité : {surface_moyenne:.2f} m²")
                         
                         logger.info(f"         ──────────────────────────────────────────")
+            
+            # Résumé regroupement
+            if metadata["nb_raw"] > metadata["nb_grouped"]:
+                logger.info("   🔧 Résumé regroupement :")
+                for item in metadata["items"]:
+                    logger.info(f"      -> {item['label']}: "
+                                f"{item['count']} entités → {item['surface']} m² "
+                                f"(avant union: {item['surface_avant_union']} m², "
+                                f"chevauchement: {item['chevauchement_m2']} m²)")
             
             # Cas où on additionne plusieurs morceaux d'une même zone (sans regroupement)
             elif any(item.get("count", 0) > 1 for item in metadata["items"]):

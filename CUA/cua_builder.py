@@ -66,6 +66,7 @@ def render_layer_content(
     surface_m2 = layer.get("surface_m2", 0)   # encore utile en interne si besoin
     pourcentage = layer.get("pourcentage", 0)
     objets = layer.get("objets") or []
+    print(f"🔍 DEBUG render_layer_content début: layer_key={layer_key}, nb_objets={len(objets)}, force_table_mode={force_table_mode}")
     
     # Titre de la couche
     add_paragraph(doc, nom, bold=True)
@@ -77,11 +78,21 @@ def render_layer_content(
             f"Part de l'unité foncière concernée : {fmt_pct(pourcentage)} de la surface cadastrale indicative."
         )
     else:
-        add_paragraph(
-            doc,
-            "Part de l'unité foncière concernée : —",
-            italic=True,
-        )
+        # ✅ Vérifier le type de géométrie depuis le catalogue
+        geom_type = catalogue.get(layer_key, {}).get("geom_type")
+        
+        if geom_type in ("lineaire", "ponctuelle"):
+            add_paragraph(
+                doc,
+                f"Part de l'unité foncière concernée : entités {geom_type}s (pas de surface mesurable).",
+                italic=True,
+            )
+        else:
+            add_paragraph(
+                doc,
+                "Part de l'unité foncière concernée : —",
+                italic=True,
+            )
     
     # ============================================================
     # LOGIQUE CONDITIONNELLE
@@ -93,24 +104,28 @@ def render_layer_content(
         objets_pour_table = []
         
         # Fonction pour retirer les colonnes de surfaces (m²) du tableau
+        # ✅ Ne supprimer que les colonnes de surface, PAS la réglementation
         def _strip_surface_keys(d):
             return {
                 k: v
                 for k, v in d.items()
-                if k != "reglementation"
-                and not k.lower().startswith("surface")
+                if not k.lower().startswith("surface")
                 and not k.lower().endswith("_m2")
             }
         
         # ✅ Pas de dédoublonnage ici : déjà fait dans filter_zonage_plu() pour l'article 3
+        print(f"🔍 DEBUG render_layer_content: {len(objets)} objet(s) à traiter pour {layer_key}")
         for obj in objets:
-            # On retire totalement les colonnes de surfaces (m²) du tableau
+            print(f"🔍 Objet brut : {obj}")  # DEBUG
+            # ✅ Extraire la réglementation AVANT de traiter l'objet
             if "reglementation" in obj and obj["reglementation"]:
                 reglements_annexes.append(obj["reglementation"])
-                obj_sans_regl = _strip_surface_keys(obj)
-                objets_pour_table.append(obj_sans_regl)
-            else:
-                objets_pour_table.append(_strip_surface_keys(obj))
+            # ✅ Créer une copie sans réglementation pour le tableau
+            obj_sans_regl = {k: v for k, v in obj.items() if k != "reglementation"}
+            obj_sans_regl = _strip_surface_keys(obj_sans_regl)
+            print(f"🔍 Objet après _strip_surface_keys : {obj_sans_regl}")  # DEBUG
+            objets_pour_table.append(obj_sans_regl)
+        print(f"🔍 DEBUG: {len(objets_pour_table)} objet(s) dans objets_pour_table après traitement")
         
         # Afficher le tableau si des objets existent
         if objets_pour_table:
@@ -160,15 +175,27 @@ def build_cua_docx(
     commune = (meta.get("commune_nom") or "—").upper()
     parcelles = parcels_label(meta.get("references_cadastrales") or [])
     terrain = join_addr(meta.get("adresse_terrain") or {})
-    surface_total = meta.get("superficie_totale_m2")
     footer_num = build_footer_number(meta)
     ncu = meta.get("numero_cu") or "—"
+
+    # --- Surface indicative : sécurisation / cast en float ---
+    raw_surface_total = meta.get("superficie_totale_m2")
+
+    surface_total = None
+    if raw_surface_total not in (None, "", " "):
+        try:
+            # Support format européen (ex: "1 649,5")
+            cleaned = str(raw_surface_total).replace(" ", "").replace("\u202f", "").replace(",", ".")
+            surface_total = float(cleaned)
+        except (TypeError, ValueError):
+            raise ValueError(f"[CUA] superficie_totale_m2 invalide dans le CERFA: {raw_surface_total!r}")
+
+    if surface_total is None:
+        raise ValueError("[CUA] surface_indicative manquante ou invalide dans le CERFA.")
 
     inters = intersections_json or {}
     # ✅ Surface indicative = surface du CERFA (pas la surface SIG)
     surface_indicative = surface_total
-    if not surface_indicative:
-        raise ValueError("surface_indicative (superficie_totale_m2) manquante dans le CERFA")
     
     # 🔎 Log : on plaque toutes les intersections sur la surface cadastrale CERFA
     logger = logging.getLogger("cua_builder")
@@ -188,7 +215,16 @@ def build_cua_docx(
 
     # Normalisation des surfaces et pourcentages (sans filtrage par seuil)
     # Utiliser surface_indicative pour les calculs
-    intersections = filter_intersections(intersections_raw, surface_indicative, min_pct=0.5)
+    intersections = filter_intersections(
+        intersections_raw,
+        catalogue_json,
+        surface_indicative,
+        min_pct=0.0  # ✅ Garder toutes les couches, filtrer après sur objets
+    )
+
+    print(f"\n🔍 DEBUG: Couches après filtrage:")
+    for key in intersections.keys():
+        print(f"   - {key}")
 
     # Initialisation du regroupement par article
     layers_by_article: Dict[str, List] = {}
@@ -196,11 +232,32 @@ def build_cua_docx(
     # Regroupement des couches selon leur article (AVANT cas spéciaux)
     unknown_layers = []
     for key, layer in intersections.items():
-        article = str(catalogue_json.get(key, {}).get("article") or "").strip()
-        if article and (article.isdigit() or article in {"7", "8", "9"}):
-            layers_by_article.setdefault(article, []).append((key, layer))
+        raw_art = catalogue_json.get(key, {}).get("article", None)
+        
+        # Normalisation de l'article en liste d'entiers
+        if raw_art is None:
+            article_list = None
+        elif isinstance(raw_art, str) and "," in raw_art:
+            # Cas "7, 5" → [7, 5]
+            article_list = [int(x.strip()) for x in raw_art.split(",") if x.strip().isdigit()]
+        elif isinstance(raw_art, str):
+            # Cas "3" → [3]
+            article_list = [int(raw_art.strip())] if raw_art.strip().isdigit() else None
+        elif isinstance(raw_art, int):
+            # Cas 3 → [3]
+            article_list = [raw_art]
+        else:
+            article_list = None
+        
+        # Tri dans les articles correspondants
+        if article_list:
+            for a in article_list:
+                article_str = str(a)
+                layers_by_article.setdefault(article_str, []).append((key, layer))
         else:
             unknown_layers.append(key)
+
+    print(f"\n🔍 DEBUG: layers_by_article['3'] = {layers_by_article.get('3')}")
 
     # Application des cas particuliers (après)
     # appliquer_cas_speciaux(intersections, layers_by_article)  # DÉSACTIVÉ temporairement
@@ -210,23 +267,21 @@ def build_cua_docx(
         for k in unknown_layers:
             print(f"   - {k}")
 
-    # ✅ Filtrage spécifique pour le zonage PLU (Article 3) : seuil 1%
+    # ✅ Zonage PLU (Article 3) : garder les objets tels quels, pas de filtrage par seuil
     if layers_by_article.get("3"):
-        filtered_zonage = []
         for layer_key, layer_data in layers_by_article["3"]:
-            filtered_layer = filter_zonage_plu(layer_data, surface_indicative, min_pct=1.0)
-            if filtered_layer:  # Garder seulement si non vide après filtrage
-                filtered_zonage.append((layer_key, filtered_layer))
-        layers_by_article["3"] = filtered_zonage
-        print(f"✅ Zonage PLU filtré : {len(filtered_zonage)} zone(s) conservée(s) (seuil 1%)")
+            # Sécurité : garder les objets tels quels, utiliser pct_sig comme pourcentage
+            if layer_data.get("objets"):
+                pct_sig = layer_data.get("pct_sig", 0)
+                layer_data["pourcentage"] = pct_sig
+        print(f"✅ Zonage PLU : {len(layers_by_article['3'])} zone(s) conservée(s)")
 
-    # Équilibrage des pourcentages dans chaque article (sauf Article 3 déjà équilibré)
+    # Équilibrage des pourcentages dans chaque article
     for art, layer_tuples in layers_by_article.items():
-        if art == "3":  # Skip article 3, déjà équilibré dans filter_zonage_plu
-            continue
-        # Extraire les layers pour équilibrage
+        # Extraire les layers et leurs clés pour équilibrage
         layers_data = [layer for _, layer in layer_tuples]
-        balanced_layers = equilibrer_pourcentages(layers_data)
+        layer_keys = [key for key, _ in layer_tuples]
+        balanced_layers = equilibrer_pourcentages(layers_data, layer_keys=layer_keys, catalogue=catalogue_json)
         # Reconstituer les tuples
         layers_by_article[art] = [(layer_tuples[i][0], balanced_layers[i]) 
                                    for i in range(len(layer_tuples))]
@@ -287,14 +342,15 @@ def build_cua_docx(
 
     if layers_by_article.get("3"):
         for layer_key, layer_data in layers_by_article["3"]:
-            render_layer_content(
-                doc, 
-                layer_data, 
-                layer_key, 
-                catalogue_json,
-                add_annexes_callback=lambda annex: annexes.append(annex),
-                force_table_mode=True  # ✅ Force mode tableau pour zonage PLU
-            )
+            if layer_data.get("objets"):  # ✅ Ajout
+                render_layer_content(
+                    doc, 
+                    layer_data, 
+                    layer_key, 
+                    catalogue_json,
+                    add_annexes_callback=lambda annex: annexes.append(annex),
+                    force_table_mode=True  # ✅ Force mode tableau pour zonage PLU
+                )
     else:
         add_paragraph(doc, "Aucune donnée de zonage disponible.", italic=True)
 
@@ -304,7 +360,8 @@ def build_cua_docx(
     
     if layers_by_article.get("4"):
         for layer_key, layer_data in layers_by_article["4"]:
-            render_layer_content(doc, layer_data, layer_key, catalogue_json)
+            if layer_data.get("objets"):  # ✅ Ajout
+                render_layer_content(doc, layer_data, layer_key, catalogue_json)
 
     # Intégration automatique du PPRI PM1
     try:
@@ -345,7 +402,8 @@ def build_cua_docx(
     
     if layers_by_article.get("5"):
         for layer_key, layer_data in layers_by_article["5"]:
-            render_layer_content(doc, layer_data, layer_key, catalogue_json)
+            if layer_data.get("objets"):  # ✅ Ajout
+                render_layer_content(doc, layer_data, layer_key, catalogue_json)
     else:
         add_paragraph(doc, "Aucune donnée pertinente détectée.", italic=True)
 
@@ -355,7 +413,8 @@ def build_cua_docx(
     
     if layers_by_article.get("6"):
         for layer_key, layer_data in layers_by_article["6"]:
-            render_layer_content(doc, layer_data, layer_key, catalogue_json)
+            if layer_data.get("objets"):  # ✅ Ajout
+                render_layer_content(doc, layer_data, layer_key, catalogue_json)
     else:
         add_paragraph(doc, "Aucune donnée d'équipement disponible.", italic=True)
 
@@ -365,7 +424,8 @@ def build_cua_docx(
     
     if layers_by_article.get("7"):
         for layer_key, layer_data in layers_by_article["7"]:
-            render_layer_content(doc, layer_data, layer_key, catalogue_json)
+            if layer_data.get("objets"):  # ✅ Ajout
+                render_layer_content(doc, layer_data, layer_key, catalogue_json)
     else:
         add_paragraph(doc, "Aucune information complémentaire détectée.", italic=True)
 

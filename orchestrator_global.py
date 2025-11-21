@@ -125,24 +125,28 @@ def _analyse_intersections_depuis_wkt(wkt_path: str, out_dir: Path):
     # Analyse pour chaque table du catalogue
     for table, config in CATALOGUE.items():
         logger.info(f"→ {table}")
-        objets = calculate_intersection(parcelle_wkt, table)
-        surface_totale_sig = sum(obj['surface_inter_m2'] for obj in objets)
+        # Nouveau format intersections v10
+        objets, surface_totale_sig, metadata = calculate_intersection(parcelle_wkt, table)
         
         if objets:
             logger.info(f"  ✅ {len(objets)} objet(s) | {surface_totale_sig:.2f} m²")
+            # Calcul du pourcentage SIG
+            pct_sig = 0.0
+            if area_parcelle_sig > 0:
+                pct_sig = round(surface_totale_sig / area_parcelle_sig * 100, 4)
+            
+            # Nouveau JSON conforme à intersections v10
             rapport["intersections"][table] = {
-                "nom": config['nom'],
-                "type": config['type'],
-                "surface_inter_sig_m2": round(surface_totale_sig, 2),
-                "pct_sig": round(surface_totale_sig / area_parcelle_sig * 100, 4),
+                "nom": config["nom"],
+                "type": config["type"],
+                "pct_sig": pct_sig,
                 "objets": objets
             }
         else:
             logger.info(f"  ❌ Aucune intersection")
             rapport["intersections"][table] = {
-                "nom": config['nom'],
-                "type": config['type'],
-                "surface_inter_sig_m2": 0.0,
+                "nom": config["nom"],
+                "type": config["type"],
                 "pct_sig": 0.0,
                 "objets": []
             }
@@ -220,21 +224,28 @@ th {{ background: #f5f5f5; }}
                 html += f"""
 <div class="couche">
 <h3>✓ {data['nom']}</h3>
-<p><strong>Surface:</strong> {data['surface_inter_sig_m2']:,.2f} m² ({data['pct_sig']:.4f}%)</p>
-<table>
-<tr>
+<p><strong>Part concernée:</strong> {data['pct_sig']:.4f}% de la surface cadastrale indicative</p>
 """
-                # Headers
-                for key in data['objets'][0].keys():
-                    html += f"<th>{key}</th>"
-                html += "</tr>\n"
+                # Headers (exclure les colonnes de surfaces)
+                obj_keys = [k for k in data['objets'][0].keys() 
+                           if not k.lower().startswith("surface") 
+                           and not k.lower().endswith("_m2")]
                 
-                # Rows
-                for obj in data['objets']:
-                    html += "<tr>"
-                    for val in obj.values():
-                        html += f"<td>{val}</td>"
+                # Afficher le tableau seulement s'il y a des colonnes après filtrage
+                if obj_keys:
+                    html += "<table>\n<tr>\n"
+                    for key in obj_keys:
+                        html += f"<th>{key}</th>"
                     html += "</tr>\n"
+                    
+                    # Rows (exclure les colonnes de surfaces)
+                    for obj in data['objets']:
+                        html += "<tr>"
+                        for key in obj_keys:
+                            html += f"<td>{obj.get(key, '')}</td>"
+                        html += "</tr>\n"
+                    
+                    html += "</table>\n"
                 
                 html += "</table></div>\n"
             else:

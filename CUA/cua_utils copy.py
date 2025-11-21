@@ -223,10 +223,33 @@ def add_reglementation_block(doc: Document, texte: str):
 def add_objects_table(doc: Document, objets: List[Dict[str, Any]]):
     """
     Ajoute un tableau d'objets au document avec labels améliorés.
+    Si tous les objets ont une surface nulle, ajoute une note explicative.
     """
     if not objets:
         return
     
+    # Vérifie si tous les objets sont à surface nulle
+    all_zero_surface = all(
+        float(o.get("surface_inter_m2") or 0) == 0 for o in objets
+    )
+
+    # ✅ Cas 1 : uniquement des entités linéaires / ponctuelles (surface = 0)
+    if all_zero_surface:
+        add_paragraph(
+            doc,
+            "Étant donné qu'il s'agit d'entités linéaires ou ponctuelles, "
+            "cet élément n'a pas de surface d'intersection mesurable, "
+            "mais il est présent sur l'unité foncière.",
+            italic=True,
+        )
+        # S'il existe des réglementations associées, on les affiche ensuite
+        for o in objets:
+            if o.get("reglementation"):
+                add_reglementation_block(doc, o["reglementation"])
+        doc.add_paragraph("")
+        return
+
+    # ✅ Cas 2 : entités surfaciques classiques (au moins une surface > 0)
     COLUMN_LABELS = {
         "surface_inter_m2": "Surface (m²)",
         "pourcentage_inter": "Pourcentage (%)",
@@ -292,78 +315,51 @@ def filter_intersections(
     - surfacique  → filtrage par pourcentage (>= min_pct)
     - lineaire    → toujours conserver (pct toujours 0)
     - ponctuelle  → toujours conserver
-    
-    ✅ CORRECTION : Les objets sont TOUJOURS préservés, même si la couche est filtrée
     """
     result = {}
 
     for key, layer in intersections_raw.items():
         pct = float(layer.get("pct_sig", 0))
         geom_type = catalogue.get(key, {}).get("geom_type")
-        
-        # ✅ TOUJOURS préserver les objets bruts
-        objets_originaux = list(layer.get("objets", []))
 
         # --------------------------
         # 1) Surfacique → filtrage
         # --------------------------
         if geom_type == "surfacique":
-            # ✅ On conserve la couche si pct >= min_pct
             if pct >= min_pct:
-                new_layer = {
-                    "nom": layer.get("nom"),
-                    "type": layer.get("type"),
-                    "pct_sig": pct,
-                    "pourcentage": pct,
-                    "surface_m2": round(surface_indicative * pct / 100.0, 2),
-                    "objets": objets_originaux  # ✅ Préserver les objets
-                }
-                result[key] = new_layer
-            # Si pct < min_pct, on ignore la couche (mais les objets existent toujours dans intersections_raw)
+                layer["pourcentage"] = pct
+                layer["surface_m2"] = round(surface_indicative * pct / 100.0, 2)
+                layer["objets"] = layer.get("objets", [])  # Préserver les objets
+                result[key] = layer
             continue
 
         # --------------------------
         # 2) Linéaire → toujours garder
         # --------------------------
         if geom_type == "lineaire":
-            new_layer = {
-                "nom": layer.get("nom"),
-                "type": layer.get("type"),
-                "pct_sig": pct,
-                "pourcentage": None,  # Pas de pourcentage pour linéaire
-                "surface_m2": None,   # Pas de surface pour linéaire
-                "objets": objets_originaux  # ✅ Préserver les objets
-            }
-            result[key] = new_layer
+            layer["pourcentage"] = None
+            layer["surface_m2"] = None
+            layer["objets"] = layer.get("objets", [])  # Préserver les objets
+            result[key] = layer
             continue
 
         # --------------------------
         # 3) Ponctuel → toujours garder
         # --------------------------
         if geom_type == "ponctuelle":
-            new_layer = {
-                "nom": layer.get("nom"),
-                "type": layer.get("type"),
-                "pct_sig": pct,
-                "pourcentage": None,  # Pas de pourcentage pour ponctuel
-                "surface_m2": None,   # Pas de surface pour ponctuel
-                "objets": objets_originaux  # ✅ Préserver les objets
-            }
-            result[key] = new_layer
+            layer["pourcentage"] = None
+            layer["surface_m2"] = None
+            layer["objets"] = layer.get("objets", [])  # Préserver les objets
+            result[key] = layer
             continue
 
         # --------------------------
-        # 4) Par défaut (geom_type non défini) → comportement legacy
+        # 4) Par défaut → garder
         # --------------------------
-        new_layer = {
-            "nom": layer.get("nom"),
-            "type": layer.get("type"),
-            "pct_sig": pct,
-            "pourcentage": pct,
-            "surface_m2": round(surface_indicative * pct / 100.0, 2),
-            "objets": objets_originaux  # ✅ Préserver les objets
-        }
-        result[key] = new_layer
+        layer["pourcentage"] = pct
+        layer["surface_m2"] = round(surface_indicative * pct / 100.0, 2)
+        layer["objets"] = layer.get("objets", [])  # Préserver les objets
+        result[key] = layer
 
     return result
 
@@ -505,3 +501,6 @@ def ensure_page_space_for_article(doc, threshold_ratio: float = 0.5):
             doc.add_page_break()
     except Exception as e:
         print(f"⚠️ Erreur lors de la vérification d'espace page : {e}")
+
+
+
