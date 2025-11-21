@@ -148,11 +148,24 @@ def build_cua_docx(
     ncu = meta.get("numero_cu") or "—"
 
     inters = intersections_json or {}
-    parcelle_surface = inters.get("surface_m2") or surface_total
+    # ✅ Surface indicative = surface du CERFA (pas la surface SIG)
+    surface_indicative = surface_total
+    if not surface_indicative:
+        raise ValueError("surface_indicative (superficie_totale_m2) manquante dans le CERFA")
+    
     intersections_raw = inters.get("intersections") or {}
+    
+    # ✅ Recalcul des surfaces finales indicatives à partir des pourcentages SIG
+    for key, layer in intersections_raw.items():
+        pct_sig = layer.get("pct_sig", 0)
+        # Surface indicative = pourcentage SIG * surface indicative CERFA
+        layer["surface_m2"] = round((pct_sig / 100.0) * surface_indicative, 2)
+        # Pourcentage final = pourcentage SIG (on le conserve tel quel)
+        layer["pourcentage"] = pct_sig
 
     # Normalisation des surfaces et pourcentages (sans filtrage par seuil)
-    intersections = filter_intersections(intersections_raw, parcelle_surface, min_pct=0.5)
+    # Utiliser surface_indicative pour les calculs
+    intersections = filter_intersections(intersections_raw, surface_indicative, min_pct=0.5)
 
     # Initialisation du regroupement par article
     layers_by_article: Dict[str, List] = {}
@@ -178,7 +191,7 @@ def build_cua_docx(
     if layers_by_article.get("3"):
         filtered_zonage = []
         for layer_key, layer_data in layers_by_article["3"]:
-            filtered_layer = filter_zonage_plu(layer_data, parcelle_surface, min_pct=1.0)
+            filtered_layer = filter_zonage_plu(layer_data, surface_indicative, min_pct=1.0)
             if filtered_layer:  # Garder seulement si non vide après filtrage
                 filtered_zonage.append((layer_key, filtered_layer))
         layers_by_article["3"] = filtered_zonage

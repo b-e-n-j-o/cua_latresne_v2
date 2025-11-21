@@ -109,16 +109,16 @@ def _analyse_intersections_depuis_wkt(wkt_path: str, out_dir: Path):
     
     logger.info(f"📐 Analyse des intersections depuis : {wkt_path}")
     
-    # Calcul de la surface
+    # Calcul de la surface SIG
     with engine.connect() as conn:
-        area_parcelle = float(conn.execute(
+        area_parcelle_sig = float(conn.execute(
             text("SELECT ST_Area(ST_GeomFromText(:wkt, 2154))"),
             {"wkt": parcelle_wkt}
         ).scalar())
     
     rapport = {
         "parcelle": "UF 0000",
-        "surface_m2": round(area_parcelle, 2),
+        "surface_m2": round(area_parcelle_sig, 2),
         "intersections": {}
     }
     
@@ -126,15 +126,15 @@ def _analyse_intersections_depuis_wkt(wkt_path: str, out_dir: Path):
     for table, config in CATALOGUE.items():
         logger.info(f"→ {table}")
         objets = calculate_intersection(parcelle_wkt, table)
-        surface_totale = sum(obj['surface_inter_m2'] for obj in objets)
+        surface_totale_sig = sum(obj['surface_inter_m2'] for obj in objets)
         
         if objets:
-            logger.info(f"  ✅ {len(objets)} objet(s) | {surface_totale:.2f} m²")
+            logger.info(f"  ✅ {len(objets)} objet(s) | {surface_totale_sig:.2f} m²")
             rapport["intersections"][table] = {
                 "nom": config['nom'],
                 "type": config['type'],
-                "surface_m2": round(surface_totale, 2),
-                "pourcentage": round(surface_totale / area_parcelle * 100, 2),
+                "surface_inter_sig_m2": round(surface_totale_sig, 2),
+                "pct_sig": round(surface_totale_sig / area_parcelle_sig * 100, 4),
                 "objets": objets
             }
         else:
@@ -142,8 +142,8 @@ def _analyse_intersections_depuis_wkt(wkt_path: str, out_dir: Path):
             rapport["intersections"][table] = {
                 "nom": config['nom'],
                 "type": config['type'],
-                "surface_m2": 0.0,
-                "pourcentage": 0.0,
+                "surface_inter_sig_m2": 0.0,
+                "pct_sig": 0.0,
                 "objets": []
             }
     
@@ -220,7 +220,7 @@ th {{ background: #f5f5f5; }}
                 html += f"""
 <div class="couche">
 <h3>✓ {data['nom']}</h3>
-<p><strong>Surface:</strong> {data['surface_m2']:,.2f} m² ({data['pourcentage']:.1f}%)</p>
+<p><strong>Surface:</strong> {data['surface_inter_sig_m2']:,.2f} m² ({data['pct_sig']:.4f}%)</p>
 <table>
 <tr>
 """

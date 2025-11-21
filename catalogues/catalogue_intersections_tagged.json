@@ -34,7 +34,8 @@
       ],
       "origine": "wfs",
       "article": "4",
-      "geom_type": "surfacique"
+      "geom_type": "surfacique",
+      "group_by": "nom"
     },
     "aoc_viticoles": {
       "nom": "AOC viticoles",
@@ -363,15 +364,18 @@
       "article": "4",
       "geom_type": "surfacique"
     },
-    "buffers_seveso": {
-      "nom": "Zones tampon Seveso",
+    "seveso_buffers": {
+      "nom": "RISQUES TECHNOLOGIQUES - SEVESO",
       "type": "information",
       "keep": [
         "nom_ets",
         "lib_seveso",
-        "zone"
+        "adresse",
+        "lib_naf",
+        "num_siret",
+        "url_fiche"
       ],
-      "origine": "shp",
+      "origine": "kerelia",
       "article": "5",
       "geom_type": "surfacique"
     },
