@@ -22,7 +22,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from supabase import create_client
 
-from CUA.map_2d import generate_map_from_wkt
+from CUA.carte2d.carte2d_rendu import generer_carte_2d_depuis_wkt
 from CUA.map_3d import exporter_visualisation_3d_plotly_from_wkt
 from CUA.cua_builder import run_builder
 
@@ -100,12 +100,12 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     logger.info(f"🚀 Lancement du pipeline global pour le WKT : {wkt_path}")
 
     # --------------------------------------------------------
-    # ÉTAPE 1 : CARTE 2D
+    # ÉTAPE 1 : CARTE 2D (NOUVEAU MOTEUR)
     # --------------------------------------------------------
-    logger.info("\n📦 ÉTAPE 1/5 : Génération de la carte 2D Folium")
+    logger.info("\n📦 ÉTAPE 1/5 : Génération de la carte 2D (nouvelle version)")
 
-    html_2d, metadata_2d = generate_map_from_wkt(
-        wkt_path=wkt_path,
+    html_2d, metadata_2d = generer_carte_2d_depuis_wkt(
+        wkt_path=str(wkt_path),
         code_insee=code_insee,
         inclure_ppri=True,
         ppri_table=f"{commune}.pm1_detaillee_gironde"
@@ -114,7 +114,7 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     html_2d_path = os.path.join(OUT_DIR, "carte_2d_unite_fonciere.html")
     with open(html_2d_path, "w", encoding="utf-8") as f:
         f.write(html_2d)
-    logger.info(f"✅ Carte 2D sauvegardée : {html_2d_path}")
+    logger.info(f"✅ Carte 2D (nouvelle version) sauvegardée : {html_2d_path}")
 
     # --------------------------------------------------------
     # ÉTAPE 2 : CARTE 3D
@@ -230,6 +230,15 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     # ============================================================
     # 📋 RÉSULTAT UNIFIÉ (pour l'API et le front)
     # ============================================================
+    # Récupération des métadonnées CERFA depuis l'environnement
+    cerfa_data = None
+    cerfa_data_json = os.getenv("CERFA_DATA_JSON")
+    if cerfa_data_json:
+        try:
+            cerfa_data = json.loads(cerfa_data_json)
+        except Exception as e:
+            logger.warning(f"⚠️ Erreur lors du parsing de CERFA_DATA_JSON : {e}")
+
     result = {
         "slug": slug,
         "commune": commune,
@@ -244,6 +253,7 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
         "pipeline_result_url": result_url,
         "metadata_2d": metadata_2d,
         "metadata_3d": res3d["metadata"],
+        "cerfa_data": cerfa_data,  # Métadonnées CERFA
         "status": "success",
     }
 
@@ -276,6 +286,7 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
             "pipeline_result_url": result_url,
             "user_id": user_id,
             "user_email": user_email,
+            "cerfa_data": cerfa_data,  # Métadonnées CERFA
             "metadata": result,
         }).execute()
         logger.info(f"✅ Pipeline enregistré dans latresne.pipelines (status={getattr(response, 'status_code', '?')})")

@@ -314,6 +314,22 @@ def run_global_pipeline(
 
     emit("analyse_cerfa:done", cerfa_json)
 
+    # ============================================================
+    # EXTRACTION MÉTADONNÉES CERFA
+    # ============================================================
+    cerfa_meta = cerfa_json.get("data", {})
+
+    cerfa_data = {
+        "numero_cu": cerfa_meta.get("numero_cu"),
+        "date_depot": cerfa_meta.get("date_depot"),
+        "demandeur": cerfa_meta.get("demandeur", {}).get("denomination"),
+        "parcelles": cerfa_meta.get("references_cadastrales"),
+        "superficie": cerfa_meta.get("superficie_totale_m2"),
+        "adresse_terrain": cerfa_meta.get("adresse_terrain"),
+        "commune_nom": cerfa_meta.get("commune_nom"),
+        "commune_insee": cerfa_meta.get("commune_insee"),
+    }
+
     insee = cerfa_json["data"].get("commune_insee") or code_insee
     if not insee:
         raise RuntimeError("Code INSEE introuvable")
@@ -349,6 +365,8 @@ def run_global_pipeline(
     # 4️⃣ Génération cartes + CUA
     logger.info("=== Génération CUA ===")
     emit("cua:start")
+    # Passer les métadonnées CERFA au sous-orchestrateur via variable d'environnement
+    os.environ["CERFA_DATA_JSON"] = json.dumps(cerfa_data, ensure_ascii=False)
     cua_result = generer_visualisations_et_cua_depuis_wkt(
         wkt_path=wkt_path,
         out_dir=str(OUT_DIR),
@@ -462,6 +480,7 @@ def run_global_pipeline(
 
     return {
         "cerfa": cerfa_json,
+        "cerfa_data": cerfa_data,
         "uf": uf_json,
         "cua": cua_result
     }

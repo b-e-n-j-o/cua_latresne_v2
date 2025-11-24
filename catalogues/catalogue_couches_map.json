@@ -150,14 +150,14 @@
     },
     "patrimoine_naturel_latresne": {
       "nom": "Patrimoine naturel",
-      "type": "Informations ou Prescriptions",
+      "type": "Informations",
       "keep": [
         "nom",
         "type_patrimoine",
         "reglementation"
       ],
       "origine": "wfs",
-      "article": "7, 5",
+      "article": "7",
       "attribut_map": "type_patrimoine",
       "nom_attribut_map": "Type de patrimoine"
     },
@@ -344,13 +344,13 @@
       "attribut_map": "nom_captage",
       "nom_attribut_map": "Nom du captage"
     },
-    "buffers_seveso": {
+    "seveso_buffers": {
       "nom": "Zones tampon Seveso",
       "type": "Informations",
       "keep": [
         "nom_ets",
         "lib_seveso",
-        "zone"
+        "reglementation"
       ],
       "origine": "shp",
       "article": "5",

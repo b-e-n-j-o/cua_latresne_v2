@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 from pathlib import Path
 from datetime import datetime
+from typing import List, Dict, Optional
 import uuid
 import json
 import os
@@ -302,6 +303,208 @@ async def analyze_cerfa(
 
     return {"success": True, "job_id": job_id}
 
+
+# ============================================================
+# 🚀 Endpoint : analyse depuis une liste de parcelles
+# ============================================================
+
+class ParcelleRequest(BaseModel):
+    parcelles: List[Dict[str, str]]  # [{"section": "AC", "numero": "0242"}, ...]
+    code_insee: str
+    commune_nom: Optional[str] = None
+    user_id: Optional[str] = None
+    user_email: Optional[str] = None
+
+
+async def run_pipeline_from_parcelles_async(
+    job_id: str,
+    parcelles: list,
+    code_insee: str,
+    commune_nom: str | None,
+    env: dict | None = None,
+    out_dir: str | None = None
+):
+    """Exécute le pipeline depuis les parcelles et met à jour JOBS pour suivi via polling."""
+    try:
+        print(f"🟢 [run_pipeline_from_parcelles] START job_id={job_id}, parcelles={len(parcelles)}, insee={code_insee}, out_dir={out_dir}")
+        
+        BASE_DIR = Path(__file__).resolve().parent
+        PIPELINE_SCRIPT = BASE_DIR / "pipeline_from_parcelles.py"
+
+        JOBS[job_id] = {
+            "status": "running",
+            "start_time": datetime.now().isoformat(),
+            "filename": f"{len(parcelles)} parcelle(s)",
+            "current_step": "queued",
+            "logs": []
+        }
+
+        JOBS[job_id]["status"] = "running"
+        JOBS[job_id]["current_step"] = "unite_fonciere"
+        JOBS[job_id]["logs"] = []
+
+        if env is None:
+            env = os.environ.copy()
+
+        # Construire la commande
+        parcelles_json = json.dumps(parcelles)
+        cmd = [
+            "python3",
+            str(PIPELINE_SCRIPT),
+            "--parcelles", parcelles_json,
+            "--code-insee", code_insee,
+        ]
+        if commune_nom:
+            cmd += ["--commune-nom", commune_nom]
+        if out_dir:
+            cmd += ["--out-dir", out_dir]
+        if env.get("USER_ID"):
+            cmd += ["--user-id", env["USER_ID"]]
+        if env.get("USER_EMAIL"):
+            cmd += ["--user-email", env["USER_EMAIL"]]
+
+        print(f"🚀 [JOB {job_id}] Lancement du pipeline parcelles : {' '.join(cmd[:5])}...")
+        print(f"🔥 Pipeline démarré pour job {job_id}")
+
+        # 📌 On lance le pipeline en mode asyncio
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            cwd=str(BASE_DIR),
+            env=env
+        )
+
+        # 📌 Lecture ligne par ligne
+        while True:
+            if process.stdout.at_eof():
+                break
+
+            line_bytes = await process.stdout.readline()
+            if not line_bytes:
+                break
+
+            line = line_bytes.decode().rstrip()
+            print(f"[{job_id}] {line}")
+
+            JOBS[job_id]["logs"].append(line)
+
+            # 🟦 Détection d'étapes
+            if "Vérification unité foncière" in line or "unite_fonciere" in line:
+                JOBS[job_id]["current_step"] = "unite_fonciere"
+            elif "Analyse des intersections" in line or "intersections" in line:
+                JOBS[job_id]["current_step"] = "intersections"
+            elif "Génération cartes" in line or "Génération CUA" in line:
+                JOBS[job_id]["current_step"] = "generation_cua"
+            elif "CUA DOCX généré" in line:
+                JOBS[job_id]["current_step"] = "cua_pret"
+
+            # 🔥 Détection des erreurs
+            if "❌" in line or "💥" in line or "Erreur" in line:
+                if "non autorisé" not in line:  # On ignore les erreurs d'autorisation déjà gérées
+                    JOBS[job_id]["status"] = "error"
+                    JOBS[job_id]["error"] = line
+                    JOBS[job_id]["current_step"] = "error"
+
+        # 📌 Fin du pipeline
+        returncode = await process.wait()
+        print(f"🔥 Pipeline terminé pour job {job_id} (returncode={returncode})")
+        JOBS[job_id]["returncode"] = returncode
+        JOBS[job_id]["end_time"] = datetime.now().isoformat()
+
+        # Vérification du returncode
+        if returncode == 0:
+            JOBS[job_id]["status"] = "success"
+            JOBS[job_id]["current_step"] = "done"
+            
+            # Récupération du résultat depuis le dossier de sortie
+            out_dirs = list((BASE_DIR / "out_pipeline").glob("*"))
+            if out_dirs:
+                latest_out = max(out_dirs, key=os.path.getmtime)
+                sub_result_file = latest_out / "sub_orchestrator_result.json"
+                if sub_result_file.exists():
+                    sub_result = json.loads(sub_result_file.read_text(encoding="utf-8"))
+                    JOBS[job_id]["result_enhanced"] = sub_result
+                    print(f"✅ [JOB {job_id}] Résultat enrichi avec sub_orchestrator_result.json")
+        else:
+            JOBS[job_id]["status"] = "error"
+            JOBS[job_id]["current_step"] = "error"
+
+        print(f"🏁 [JOB {job_id}] Terminé avec statut : {JOBS[job_id]['status']}")
+    
+    except Exception as e:
+        print(f"❌ Exception non bloquante: {e}")
+        JOBS[job_id]["status"] = "error"
+        JOBS[job_id]["error"] = str(e)
+        JOBS[job_id]["current_step"] = "error"
+        JOBS[job_id]["end_time"] = datetime.now().isoformat()
+        return
+
+
+@app.post("/analyze-parcelles")
+async def analyze_parcelles(req: ParcelleRequest):
+    """Lance le pipeline complet depuis une liste de parcelles (sans CERFA)."""
+    print(f"Appel à analyze-parcelles")
+    
+    # Validation
+    if not req.parcelles or len(req.parcelles) == 0:
+        raise HTTPException(status_code=400, detail="Liste de parcelles vide")
+    
+    if len(req.parcelles) > 20:
+        raise HTTPException(status_code=400, detail="Trop de parcelles (max 20)")
+    
+    # Validation format parcelles
+    for p in req.parcelles:
+        if not isinstance(p, dict) or "section" not in p or "numero" not in p:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Format de parcelle invalide. Attendu: {{'section': 'AC', 'numero': '0242'}}"
+            )
+    
+    job_id = str(uuid.uuid4())
+    
+    JOBS[job_id] = {
+        "status": "queued",
+        "created_at": datetime.now().isoformat(),
+        "filename": f"{len(req.parcelles)} parcelle(s)",
+        "user_id": req.user_id,
+        "user_email": req.user_email,
+    }
+    
+    # ============================================================
+    # 🔐 Vérification des droits utilisateur
+    # ============================================================
+    user_insee_list = get_user_insee_list(req.user_id) if req.user_id else []
+    print(f"👤 Droits utilisateur {req.user_email}: {user_insee_list or 'toutes communes'}")
+    
+    if user_insee_list and req.code_insee and req.code_insee not in user_insee_list:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Accès refusé : vous n'êtes autorisé qu'à analyser "
+                f"les communes suivantes : {', '.join(user_insee_list)}"
+            )
+        )
+    
+    # 🧠 Transmission au sous-processus (via variables d'environnement)
+    env = os.environ.copy()
+    if req.user_id:
+        env["USER_ID"] = req.user_id
+    if req.user_email:
+        env["USER_EMAIL"] = req.user_email
+    
+    # 🔥 Lancement du pipeline en tâche asynchrone
+    asyncio.create_task(
+        run_pipeline_from_parcelles_async(
+            job_id,
+            req.parcelles,
+            req.code_insee,
+            req.commune_nom,
+            env
+        )
+    )
+    
+    return {"success": True, "job_id": job_id}
 
 
 # ============================================================
@@ -678,7 +881,7 @@ async def ai_summary(req: AISummaryRequest):
             return {"success": False, "error": "GEMINI_API_KEY manquante dans les variables d'environnement"}
         
         genai.configure(api_key=gemini_api_key)
-        model = genai.GenerativeModel("gemini-2.5-flash")
+        model = genai.GenerativeModel("gemini-2.5-flash-lite")
         response = model.generate_content(prompt)
         
         summary = response.text
