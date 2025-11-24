@@ -21,6 +21,8 @@ from admin_routes import router as admin_router
 from cua_routes import router as cua_router
 import tempfile
 import pypandoc
+import requests
+import google.generativeai as genai
 
 
 
@@ -189,6 +191,37 @@ async def run_pipeline(job_id: str, pdf_path: Path, code_insee: str | None, env:
                     sub_result = json.loads(sub_result_file.read_text(encoding="utf-8"))
                     JOBS[job_id]["result_enhanced"] = sub_result
                     print(f"✅ [JOB {job_id}] Résultat enrichi avec sub_orchestrator_result.json")
+                
+                # 🔥 PATCH — Reconstruction automatique du result_enhanced si absent
+                if "result_enhanced" not in JOBS[job_id]:
+                    print(f"🔎 PATCH: result_enhanced manquant → reconstruction via Supabase…")
+
+                    try:
+                        resp = (
+                            supabase
+                            .schema("latresne")
+                            .table("pipelines")
+                            .select("slug, output_cua, carte_2d_url, carte_3d_url")
+                            .order("created_at", desc=True)
+                            .limit(1)
+                            .execute()
+                        )
+
+                        rows = resp.data or []
+                        if rows:
+                            row = rows[0]
+                            JOBS[job_id]["result_enhanced"] = {
+                                "slug": row.get("slug"),
+                                "output_cua": row.get("output_cua"),
+                                "carte_2d_url": row.get("carte_2d_url"),
+                                "carte_3d_url": row.get("carte_3d_url"),
+                            }
+                            print(f"🔄 PATCH: result_enhanced reconstruit pour job {job_id}")
+                        else:
+                            print(f"⚠️ PATCH: aucun pipeline trouvé dans Supabase")
+
+                    except Exception as e:
+                        print(f"⚠️ PATCH ERROR: {e}")
             else:
                 # On ajoute un warning mais on ne change pas le statut basé sur returncode
                 if JOBS[job_id]["status"] == "success":
@@ -277,8 +310,9 @@ async def analyze_cerfa(
 
 @app.get("/status/{job_id}")
 async def get_status(job_id: str):
-    """Retourne l’état d’un job et ses résultats éventuels."""
+    """Retourne l'état d'un job et ses résultats éventuels."""
     job = JOBS.get(job_id)
+    print(f"🟣 DEBUG /status/{job_id} → job =", json.dumps(job, indent=2, default=str) if job else None)
     if not job:
         return {"success": False, "error": "Job introuvable"}
     return job
@@ -553,3 +587,103 @@ async def receive_lead(payload: dict):
         raise HTTPException(status_code=500, detail="Erreur serveur")
 
 
+
+
+# ============================================================
+# 🧠 Fonctions utilitaires pour l'analyse IA
+# ============================================================
+
+def get_dossier_from_slug(slug: str):
+    """
+    Récupère un pipeline (dossier CUA) depuis Supabase via son slug.
+    Retourne l'objet JSON ou None si introuvable.
+    """
+    resp = (
+        supabase
+        .schema("latresne")
+        .table("pipelines")
+        .select("*")
+        .eq("slug", slug)
+        .limit(1)
+        .execute()
+    )
+
+    rows = resp.data or []
+    if not rows:
+        return None
+    return rows[0]
+
+
+def extract_docx_text(docx_bytes: bytes) -> str:
+    """
+    Extrait le texte brut d'un fichier DOCX.
+    Utilise mammoth pour convertir le DOCX en texte.
+    """
+    try:
+        result = mammoth.extract_raw_text(BytesIO(docx_bytes))
+        return result.value
+    except Exception as e:
+        print(f"⚠️ Erreur extraction DOCX: {e}")
+        return ""
+
+
+class AISummaryRequest(BaseModel):
+    slug: str
+
+
+@app.post("/cua/ai_summary")
+async def ai_summary(req: AISummaryRequest):
+    try:
+        slug = req.slug
+
+        # 1️⃣ Charger le dossier depuis Supabase
+        dossier = get_dossier_from_slug(slug)
+        if not dossier:
+            return {"success": False, "error": "Dossier introuvable"}
+
+        docx_url = dossier.get("output_cua")
+        intersections_json = dossier.get("intersections")
+
+        if not docx_url:
+            return {"success": False, "error": "Le CUA n'est pas encore généré"}
+
+        # 2️⃣ Télécharger le DOCX
+        data = requests.get(docx_url).content
+        text = extract_docx_text(data)
+
+        # 3️⃣ Construire prompt IA
+        prompt = f"""
+        Tu es un expert en urbanisme et en relecture de documents.
+        Voici un certificat d'urbanisme généré automatiquement.
+
+        === CONTENU DOCX ===
+        {text}
+
+        === COUCHES INTERSECTÉES ===
+        {json.dumps(intersections_json, indent=2)}
+
+        Tâches :
+        1) Détecte incohérences, erreurs, duplications, typos ou défauts de génération. Sois le plus exhaustif possible.
+        2) Signale tout élément étrange ou potentiellement faux.
+        3) Fais un résumé des réglementations impactant l'unité foncière (uniquement celles intersectées).
+        4) Enfin fais des propositions de modifications pour améliorer le CUA en fonction des incohérences et erreurs détectées.
+        Réponds de façon structurée, concise et fiable.
+        Réponds directement l'analyse, sans préambule.
+        N'ecris pas de ** ou * dans la réponse.
+        """
+
+        # 4️⃣ Appel Gemini Flash Lite
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        if not gemini_api_key:
+            return {"success": False, "error": "GEMINI_API_KEY manquante dans les variables d'environnement"}
+        
+        genai.configure(api_key=gemini_api_key)
+        model = genai.GenerativeModel("gemini-2.5-flash")
+        response = model.generate_content(prompt)
+        
+        summary = response.text
+
+        return {"success": True, "summary": summary}
+
+    except Exception as e:
+        return {"success": False, "error": str(e)}

@@ -7,7 +7,7 @@ Nouveautés v6 :
 - Labels explicites : "Surface d'intersection" et "Pourcentage d'intersection"
 """
 
-import argparse, os, logging
+import argparse, os, logging, re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -148,8 +148,20 @@ def render_layer_content(
             if "reglementation" in obj and obj["reglementation"]:
                 reglementations.append(str(obj["reglementation"]).strip())
         
-        if reglementations:
-            for reglement in reglementations:
+        # ✅ Dédupliquer les réglementations avant affichage
+        # Normaliser et garder uniquement les réglementations uniques
+        reglementations_uniques = []
+        reglementations_vues = set()
+        
+        for regl in reglementations:
+            # Normaliser pour la comparaison (espaces multiples → espace unique)
+            normalized = re.sub(r'\s+', ' ', regl.strip()) if regl else ""
+            if normalized and normalized not in reglementations_vues:
+                reglementations_vues.add(normalized)
+                reglementations_uniques.append(regl)  # Garder le texte original
+        
+        if reglementations_uniques:
+            for reglement in reglementations_uniques:
                 add_paragraph(doc, reglement)
         else:
             add_paragraph(doc, "Aucune réglementation spécifique disponible.", italic=True)

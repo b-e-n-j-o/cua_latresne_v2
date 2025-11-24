@@ -144,12 +144,90 @@ def merge_zbrs_legendes(intersections: Dict[str, Any], layers_by_article: Dict[s
 
 
 # ==============================================================
+# 🟦 Cas 3 : Fossés Latresne (déduplication des réglementations)
+# ==============================================================
+
+def deduplicate_fosses_reglementations(intersections: Dict[str, Any], layers_by_article: Dict[str, list]):
+    """
+    Cas particulier : pour la couche troncons_et_fosses_latresne,
+    regroupe les objets par réglementation unique pour éviter les répétitions.
+    
+    Objectif : ne garder qu'une seule occurrence de chaque réglementation distincte.
+    """
+    
+    key = "troncons_et_fosses_latresne"
+    if key not in intersections:
+        return
+    
+    layer = intersections[key]
+    objs = layer.get("objets") or []
+    if not objs:
+        return
+    
+    def normalize_reglementation(regl: str) -> str:
+        """Normalise une réglementation pour la comparaison."""
+        if not regl:
+            return ""
+        # Normaliser : enlever espaces multiples, retours à la ligne multiples, tabulations
+        # Remplacer tous les espaces multiples (y compris \n, \t, \r) par un seul espace
+        normalized = re.sub(r'\s+', ' ', str(regl).strip())
+        # Enlever les espaces en début/fin de chaque ligne virtuelle
+        normalized = normalized.strip()
+        return normalized
+    
+    # Regrouper les objets par réglementation normalisée
+    reglementations_map = {}  # {réglementation_normalisée: premier_objet}
+    
+    for obj in objs:
+        regl = obj.get("reglementation") or ""
+        regl_normalized = normalize_reglementation(regl)
+        
+        # Si réglementation vide, garder quand même l'objet
+        if not regl_normalized:
+            # Pour les objets sans réglementation, on les garde tels quels
+            # On crée une clé unique pour éviter de les fusionner
+            if "_sans_reglementation" not in reglementations_map:
+                reglementations_map["_sans_reglementation"] = []
+            reglementations_map["_sans_reglementation"].append(obj)
+            continue
+        
+        # Si cette réglementation n'existe pas encore, on l'ajoute
+        if regl_normalized not in reglementations_map:
+            # Créer un nouvel objet avec cette réglementation unique
+            unique_obj = obj.copy()
+            reglementations_map[regl_normalized] = unique_obj
+        # Sinon, on ignore cet objet (déjà une réglementation identique)
+    
+    # Reconstruire la liste des objets uniques
+    unique_objs = []
+    
+    # D'abord, ajouter toutes les réglementations uniques
+    for regl_norm, obj in reglementations_map.items():
+        if regl_norm != "_sans_reglementation":
+            unique_objs.append(obj)
+    
+    # Ensuite, ajouter les objets sans réglementation (si il y en a)
+    if "_sans_reglementation" in reglementations_map:
+        unique_objs.extend(reglementations_map["_sans_reglementation"])
+    
+    # Mettre à jour la couche avec les objets dédupliqués
+    if unique_objs:
+        layer["objets"] = unique_objs
+        layer["nom"] = layer.get("nom", "Fossés Latresne")  # Garder le nom original
+        intersections[key] = layer
+    else:
+        # Si plus aucun objet après déduplication → supprimer la couche
+        del intersections[key]
+
+
+# ==============================================================
 # 🧩 Entrée principale : appliquer toutes les règles spéciales
 # ==============================================================
 
 def appliquer_cas_speciaux(intersections: Dict[str, Any], layers_by_article: Dict[str, list]):
     """
-    Point d’entrée : applique toutes les règles spécifiques.
+    Point d'entrée : applique toutes les règles spécifiques.
     """
     split_patrimoine_znieff(intersections, layers_by_article)
     merge_zbrs_legendes(intersections, layers_by_article)
+    deduplicate_fosses_reglementations(intersections, layers_by_article)

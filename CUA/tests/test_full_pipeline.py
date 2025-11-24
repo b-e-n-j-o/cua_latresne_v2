@@ -41,12 +41,86 @@ from CUA.cua_builder import run_builder
 from sqlalchemy import create_engine, text
 
 # -------------------------------------------------------------
+# 🔧 HELPER : Génération JSON CERFA minimal depuis référence parcelle
+# -------------------------------------------------------------
+
+def create_minimal_cerfa_json(
+    section: str,
+    numero: str,
+    commune_insee: str = "33234",
+    commune_nom: str = "Latresne",
+    departement_code: str = "33",
+    superficie_totale_m2: float = None,
+) -> dict:
+    """
+    Crée un JSON CERFA minimal à partir d'une référence de parcelle.
+    Utile pour court-circuiter l'analyse CERFA lors des tests.
+    
+    Args:
+        section: Section cadastrale (ex: "AC")
+        numero: Numéro de parcelle (ex: "0242")
+        commune_insee: Code INSEE de la commune (défaut: 33234)
+        commune_nom: Nom de la commune (défaut: "Latresne")
+        departement_code: Code département (défaut: "33")
+        superficie_totale_m2: Surface indicative (optionnel)
+    
+    Returns:
+        dict: JSON CERFA minimal compatible avec le pipeline
+    """
+    return {
+        "data": {
+            "cerfa_reference": "13410*11",
+            "commune_nom": commune_nom,
+            "commune_insee": commune_insee,
+            "departement_code": departement_code,
+            "numero_cu": f"{departement_code}-{commune_insee}-2024-TEST",
+            "type_cu": "information",
+            "date_depot": datetime.now().strftime("%Y-%m-%d"),
+            "demandeur": {
+                "type": "personne physique",
+                "nom": "TEST",
+                "prenom": "Test"
+            },
+            "coord_demandeur": {},
+            "mandataire": {},
+            "adresse_terrain": {
+                "numero": None,
+                "voie": None,
+                "lieu_dit": None,
+                "commune": commune_nom,
+                "code_postal": None
+            },
+            "references_cadastrales": [
+                {"section": section, "numero": numero}
+            ],
+            "superficie_totale_m2": superficie_totale_m2,
+            "header_cu": {
+                "dept": departement_code,
+                "commune_code": commune_insee[-3:],  # 3 derniers chiffres
+                "annee": datetime.now().strftime("%y"),
+                "numero_dossier": "TEST"
+            }
+        }
+    }
+
+
+# -------------------------------------------------------------
 # 📌 PARAMÈTRES
 # -------------------------------------------------------------
 
 BASE_DIR = PROJECT_ROOT
 
-CERFA_PDF = BASE_DIR / "CUA/tests/cerfa_CU_13410-2024-07-19.pdf"
+# ✅ Option 1 : Utiliser un PDF CERFA (comportement par défaut)
+# CERFA_PDF = BASE_DIR / "CUA/tests/cerfa_CU_13410-2024-07-19.pdf"
+
+# ✅ Option 2 : Court-circuiter avec une référence de parcelle
+USE_PARCEL_REF = True  # Mettre à False pour utiliser le PDF
+PARCEL_SECTION = "AL"
+PARCEL_NUMERO = "0102"
+PARCEL_INSEE = "33234"
+PARCEL_COMMUNE = "Latresne"
+PARCEL_SURFACE = None  # Sera calculée depuis le WKT si None
+
 CATALOGUE_PATH = BASE_DIR / "catalogues/catalogue_intersections_tagged.json"
 
 OUT_DIR = BASE_DIR / "local_test_pipeline"
@@ -55,28 +129,52 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 print(f"📁 OUT_DIR = {OUT_DIR}")
 
 # -------------------------------------------------------------
-# 1️⃣ Analyse CERFA
+# 1️⃣ Analyse CERFA (ou génération minimale)
 # -------------------------------------------------------------
 
 cerfa_json_path = OUT_DIR / "cerfa_result.json"
 
-print("\n=== 1️⃣ Analyse du CERFA ===")
-print(f"📄 PDF : {CERFA_PDF}")
-
-cerfa_json = analyse_cerfa(
-    str(CERFA_PDF),
-    out_json=str(cerfa_json_path)
-)
-
-print(f"✅ CERFA analysé → {cerfa_json_path}")
+if USE_PARCEL_REF:
+    print("\n=== 1️⃣ Génération JSON CERFA minimal depuis référence parcelle ===")
+    print(f"📍 Parcelle : {PARCEL_SECTION} {PARCEL_NUMERO} ({PARCEL_COMMUNE})")
+    
+    cerfa_json = create_minimal_cerfa_json(
+        section=PARCEL_SECTION,
+        numero=PARCEL_NUMERO,
+        commune_insee=PARCEL_INSEE,
+        commune_nom=PARCEL_COMMUNE,
+        superficie_totale_m2=PARCEL_SURFACE,
+    )
+    
+    cerfa_json_path.write_text(
+        json.dumps(cerfa_json, indent=2, ensure_ascii=False),
+        encoding="utf-8"
+    )
+    
+    print(f"✅ JSON CERFA minimal généré → {cerfa_json_path}")
+else:
+    print("\n=== 1️⃣ Analyse du CERFA ===")
+    CERFA_PDF = BASE_DIR / "CUA/tests/cerfa_CU_13410-2024-07-19.pdf"
+    print(f"📄 PDF : {CERFA_PDF}")
+    
+    cerfa_json = analyse_cerfa(
+        str(CERFA_PDF),
+        out_json=str(cerfa_json_path)
+    )
+    
+    print(f"✅ CERFA analysé → {cerfa_json_path}")
 
 # -------------------------------------------------------------
-# 2️⃣ Vérification de l’unité foncière
+# 2️⃣ Vérification de l'unité foncière
 # -------------------------------------------------------------
 
 print("\n=== 2️⃣ Vérification unité foncière ===")
 
-INSEE = cerfa_json["data"].get("commune_insee") or "33234"
+# Utiliser INSEE depuis le JSON ou depuis la référence parcelle
+if USE_PARCEL_REF:
+    INSEE = PARCEL_INSEE
+else:
+    INSEE = cerfa_json["data"].get("commune_insee") or "33234"
 
 # On suit exactement la signature utilisée dans orchestrator_global.py
 uf_json = verifier_unite_fonciere(
@@ -130,6 +228,15 @@ with engine.connect() as conn:
     )
 
 print(f"📏 Surface UF (SIG) : {area_sig:.2f} m²")
+
+# ✅ Mettre à jour la surface dans le JSON CERFA si elle n'était pas fournie
+if USE_PARCEL_REF and (PARCEL_SURFACE is None or cerfa_json["data"].get("superficie_totale_m2") is None):
+    cerfa_json["data"]["superficie_totale_m2"] = round(area_sig, 2)
+    cerfa_json_path.write_text(
+        json.dumps(cerfa_json, indent=2, ensure_ascii=False),
+        encoding="utf-8"
+    )
+    print(f"✅ Surface mise à jour dans CERFA : {area_sig:.2f} m²")
 
 rapport_inter = {
     "parcelle": "UF_TEST",

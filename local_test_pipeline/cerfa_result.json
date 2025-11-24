@@ -1,67 +1,38 @@
 {
-  "success": false,
   "data": {
     "cerfa_reference": "13410*11",
     "commune_nom": "Latresne",
     "commune_insee": "33234",
     "departement_code": "33",
-    "numero_cu": "033-234-2024-X0052",
-    "type_cu": "CUa",
-    "date_depot": "2024-07-19",
+    "numero_cu": "33-33234-2024-TEST",
+    "type_cu": "information",
+    "date_depot": "2025-11-24",
     "demandeur": {
-      "type": "personne_morale",
-      "nom": null,
-      "prenom": null,
-      "denomination": "DAVID MIRIEU DE LABARRE ET DELPHINE FEIGNAN",
-      "representant_nom": "FEIGNA",
-      "representant_prenom": "Delphine",
-      "siret": "30491458300022",
-      "adresse": {
-        "numero": "1",
-        "voie": "allées de Chartres",
-        "lieu_dit": null,
-        "code_postal": "33000",
-        "ville": "Bordeaux",
-        "email": "delabarre-feigna@33012.notaires.fr",
-        "telephone": "0556481111"
-      }
+      "type": "personne physique",
+      "nom": "TEST",
+      "prenom": "Test"
     },
+    "coord_demandeur": {},
+    "mandataire": {},
     "adresse_terrain": {
-      "numero": "11",
-      "voie": "Allee du Bastard",
+      "numero": null,
+      "voie": null,
       "lieu_dit": null,
-      "code_postal": "33360",
-      "ville": "Latresne"
+      "commune": "Latresne",
+      "code_postal": null
     },
     "references_cadastrales": [
       {
-        "section": "AC",
-        "numero": "0494",
-        "surface_m2": null
-      },
-      {
-        "section": "AC",
-        "numero": "0496",
-        "surface_m2": null
-      },
-      {
-        "section": "AC",
-        "numero": "0497",
-        "surface_m2": null
+        "section": "AL",
+        "numero": "0102"
       }
     ],
-    "superficie_totale_m2": 1649,
+    "superficie_totale_m2": 938.75,
     "header_cu": {
-      "dept": "033",
+      "dept": "33",
       "commune_code": "234",
-      "annee": "24",
-      "numero_dossier": "X0052"
-    },
-    "source_file": "cerfa_CU_13410-2024-07-19.pdf"
-  },
-  "errors": [
-    "demandeur.nom"
-  ],
-  "model_used": "gemini-2.5-pro",
-  "timestamp": "2025-11-21 20:15:54"
+      "annee": "25",
+      "numero_dossier": "TEST"
+    }
+  }
 }
