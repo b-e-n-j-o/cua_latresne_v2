@@ -945,3 +945,48 @@ async def ai_summary(req: AISummaryRequest):
 
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+@app.post("/auth/send-password-reset")
+def send_password_reset(req: PasswordResetRequest):
+    """
+    Endpoint appelé par le FRONT pour envoyer un email
+    de réinitialisation custom Kerelia.
+    """
+
+    email = req.email
+
+    # 1) Générer le lien Supabase de récupération
+    url = f"{SUPABASE_URL}/auth/v1/admin/generate_link"
+    headers = {
+        "apikey": SUPABASE_SERVICE_ROLE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "type": "recovery",
+        "email": email,
+        "redirect_to": "https://kerelia.fr/update-password"
+    }
+
+    r = requests.post(url, headers=headers, json=payload)
+    data = r.json()
+
+    if "action_link" not in data:
+        print("❌ Erreur generate_link :", data)
+        raise HTTPException(500, "Impossible de générer un lien de réinitialisation")
+
+    reset_url = data["action_link"]
+
+    # 2) Envoyer l’email custom Kerelia
+    try:
+        send_password_reset_email(email, reset_url)
+    except Exception as e:
+        print("❌ Erreur envoi email custom :", e)
+        raise HTTPException(status_code=500, detail="Erreur durant l’envoi email")
+
+    return {"success": True}
