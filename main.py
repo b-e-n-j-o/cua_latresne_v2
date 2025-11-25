@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client
 from dotenv import load_dotenv
 from CERFA_ANALYSE.auth_utils import get_user_insee_list
-from utils.email_utils import send_internal_email
+from utils.email_utils import send_internal_email, send_password_reset_email
 
 from admin_routes import router as admin_router
 from cua_routes import router as cua_router
