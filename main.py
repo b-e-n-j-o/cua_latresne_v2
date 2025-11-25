@@ -82,18 +82,16 @@ async def run_pipeline(job_id: str, pdf_path: Path, code_insee: str | None, env:
         BASE_DIR = Path(__file__).resolve().parent
         ORCHESTRATOR = BASE_DIR / "orchestrator_global.py"
 
-        JOBS[job_id] = {
+        # 🔴 NE PLUS RÉÉCRIRE ENTIÈREMENT JOBS[job_id] (préserve out_dir, user_id, etc.)
+        job = JOBS.get(job_id, {})
+        job.update({
             "status": "running",
             "start_time": datetime.now().isoformat(),
             "filename": pdf_path.name,
-            "current_step": "queued",
-            "logs": []
-        }
-
-        # Pipeline started
-        JOBS[job_id]["status"] = "running"
-        JOBS[job_id]["current_step"] = "analyse_cerfa"
-        JOBS[job_id]["logs"] = []
+            "current_step": "analyse_cerfa",
+            "logs": [],
+        })
+        JOBS[job_id] = job
 
         if env is None:
             env = os.environ.copy()
@@ -176,65 +174,59 @@ async def run_pipeline(job_id: str, pdf_path: Path, code_insee: str | None, env:
             JOBS[job_id]["current_step"] = "error"
 
         # On vérifie la sortie pipeline pour enrichir les résultats (sans écraser le statut)
-        out_dirs = list((BASE_DIR / "out_pipeline").glob("*"))
-        if out_dirs:
-            latest_out = max(out_dirs, key=os.path.getmtime)
-            result_file = latest_out / "pipeline_result.json"
+        out_dir = JOBS[job_id].get("out_dir")
+        
+        if out_dir:
+            result_file = Path(out_dir) / "pipeline_result.json"
+            sub_result_file = Path(out_dir) / "sub_orchestrator_result.json"
 
             if result_file.exists():
                 result_json = json.loads(result_file.read_text(encoding="utf-8"))
                 JOBS[job_id]["result"] = result_json
                 
-                # ✅ Intégration du résultat du sous-orchestrateur (cartes + CUA)
-                sub_result_file = latest_out / "sub_orchestrator_result.json"
-                if sub_result_file.exists():
-                    print(f"🧾 [JOB {job_id}] Étape : génération du certificat CUA")
-                    sub_result = json.loads(sub_result_file.read_text(encoding="utf-8"))
-                    JOBS[job_id]["result_enhanced"] = sub_result
-                    print(f"✅ [JOB {job_id}] Résultat enrichi avec sub_orchestrator_result.json")
-                
-                # 🔥 PATCH — Reconstruction automatique du result_enhanced si absent
-                if "result_enhanced" not in JOBS[job_id]:
-                    print(f"🔎 PATCH: result_enhanced manquant → reconstruction via Supabase…")
+            # ✅ Intégration du résultat du sous-orchestrateur (cartes + CUA)
+            if sub_result_file.exists():
+                print(f"🧾 [JOB {job_id}] Étape : génération du certificat CUA")
+                sub_result = json.loads(sub_result_file.read_text(encoding="utf-8"))
+                JOBS[job_id]["result_enhanced"] = sub_result
+                print(f"✅ [JOB {job_id}] Résultat enrichi avec sub_orchestrator_result.json")
 
-                    try:
-                        resp = (
-                            supabase
-                            .schema("latresne")
-                            .table("pipelines")
-                            .select("slug, output_cua, carte_2d_url, carte_3d_url")
-                            .order("created_at", desc=True)
-                            .limit(1)
-                            .execute()
-                        )
-
-                        rows = resp.data or []
-                        if rows:
-                            row = rows[0]
-                            JOBS[job_id]["result_enhanced"] = {
-                                "slug": row.get("slug"),
-                                "output_cua": row.get("output_cua"),
-                                "carte_2d_url": row.get("carte_2d_url"),
-                                "carte_3d_url": row.get("carte_3d_url"),
-                            }
-                            print(f"🔄 PATCH: result_enhanced reconstruit pour job {job_id}")
-                        else:
-                            print(f"⚠️ PATCH: aucun pipeline trouvé dans Supabase")
-
-                    except Exception as e:
-                        print(f"⚠️ PATCH ERROR: {e}")
+                # 🎯 PATCH : injecter le slug dans le suivi du job
+                slug = sub_result.get("slug")
+                if slug:
+                    JOBS[job_id]["slug"] = slug
+                    print(f"🎯 PATCH: slug injecté → {slug}")
+                else:
+                    print("⚠️ PATCH: slug absent dans sub_orchestrator_result.json")
             else:
                 # On ajoute un warning mais on ne change pas le statut basé sur returncode
                 if JOBS[job_id]["status"] == "success":
-                    print(f"⚠️ [JOB {job_id}] Pipeline réussi mais aucun résultat trouvé.")
-                else:
-                    JOBS[job_id]["error"] = "Pipeline terminé mais aucun résultat trouvé."
+                    print(f"⚠️ [JOB {job_id}] Pipeline réussi mais sub_orchestrator_result.json introuvable.")
         else:
-            # On ajoute un warning mais on ne change pas le statut basé sur returncode
-            if JOBS[job_id]["status"] == "success":
-                print(f"⚠️ [JOB {job_id}] Pipeline réussi mais aucun dossier out_pipeline trouvé.")
+            # Fallback : chercher dans out_pipeline (ancien comportement)
+            print(f"⚠️ Aucun out_dir trouvé pour job {job_id}, fallback vers out_pipeline/")
+            out_dirs = list((BASE_DIR / "out_pipeline").glob("*"))
+            if out_dirs:
+                latest_out = max(out_dirs, key=os.path.getmtime)
+                result_file = latest_out / "pipeline_result.json"
+                sub_result_file = latest_out / "sub_orchestrator_result.json"
+
+                if result_file.exists():
+                    result_json = json.loads(result_file.read_text(encoding="utf-8"))
+                    JOBS[job_id]["result"] = result_json
+                
+                if sub_result_file.exists():
+                    sub_result = json.loads(sub_result_file.read_text(encoding="utf-8"))
+                    JOBS[job_id]["result_enhanced"] = sub_result
+                    slug = sub_result.get("slug")
+                    if slug:
+                        JOBS[job_id]["slug"] = slug
             else:
-                JOBS[job_id]["error"] = "Aucun dossier out_pipeline trouvé."
+                # On ajoute un warning mais on ne change pas le statut basé sur returncode
+                if JOBS[job_id]["status"] == "success":
+                    print(f"⚠️ [JOB {job_id}] Pipeline réussi mais aucun dossier out_pipeline trouvé.")
+                else:
+                    JOBS[job_id]["error"] = "Aucun dossier out_pipeline trouvé."
 
         # Nettoyage
         if pdf_path.exists():
@@ -298,8 +290,14 @@ async def analyze_cerfa(
     if user_email:
         env["USER_EMAIL"] = user_email
 
+    # 📁 Dossier unique pour ce job
+    out_dir = f"/tmp/out_pipeline_{job_id}"
+    JOBS[job_id]["out_dir"] = out_dir
+
     # 🔥 Lancement du pipeline en tâche asynchrone
-    asyncio.create_task(run_pipeline(job_id, temp_pdf, code_insee, env))
+    asyncio.create_task(
+        run_pipeline(job_id, temp_pdf, code_insee, env, out_dir=out_dir)
+    )
 
     return {"success": True, "job_id": job_id}
 
@@ -331,17 +329,16 @@ async def run_pipeline_from_parcelles_async(
         BASE_DIR = Path(__file__).resolve().parent
         PIPELINE_SCRIPT = BASE_DIR / "pipeline_from_parcelles.py"
 
-        JOBS[job_id] = {
+        # 🔴 NE PLUS RÉÉCRIRE ENTIÈREMENT JOBS[job_id] (préserve out_dir, user_id, etc.)
+        job = JOBS.get(job_id, {})
+        job.update({
             "status": "running",
             "start_time": datetime.now().isoformat(),
             "filename": f"{len(parcelles)} parcelle(s)",
-            "current_step": "queued",
-            "logs": []
-        }
-
-        JOBS[job_id]["status"] = "running"
-        JOBS[job_id]["current_step"] = "unite_fonciere"
-        JOBS[job_id]["logs"] = []
+            "current_step": "unite_fonciere",
+            "logs": [],
+        })
+        JOBS[job_id] = job
 
         if env is None:
             env = os.environ.copy()
@@ -418,14 +415,35 @@ async def run_pipeline_from_parcelles_async(
             JOBS[job_id]["current_step"] = "done"
             
             # Récupération du résultat depuis le dossier de sortie
-            out_dirs = list((BASE_DIR / "out_pipeline").glob("*"))
-            if out_dirs:
-                latest_out = max(out_dirs, key=os.path.getmtime)
-                sub_result_file = latest_out / "sub_orchestrator_result.json"
+            out_dir = JOBS[job_id].get("out_dir")
+            
+            if out_dir:
+                sub_result_file = Path(out_dir) / "sub_orchestrator_result.json"
                 if sub_result_file.exists():
                     sub_result = json.loads(sub_result_file.read_text(encoding="utf-8"))
                     JOBS[job_id]["result_enhanced"] = sub_result
                     print(f"✅ [JOB {job_id}] Résultat enrichi avec sub_orchestrator_result.json")
+
+                    # 🎯 PATCH : injecter le slug dans le suivi du job
+                    slug = sub_result.get("slug")
+                    if slug:
+                        JOBS[job_id]["slug"] = slug
+                        print(f"🎯 PATCH: slug injecté → {slug}")
+                    else:
+                        print("⚠️ PATCH: slug absent dans sub_orchestrator_result.json")
+            else:
+                # Fallback : chercher dans out_pipeline (ancien comportement)
+                print(f"⚠️ Aucun out_dir trouvé pour job {job_id}, fallback vers out_pipeline/")
+                out_dirs = list((BASE_DIR / "out_pipeline").glob("*"))
+                if out_dirs:
+                    latest_out = max(out_dirs, key=os.path.getmtime)
+                    sub_result_file = latest_out / "sub_orchestrator_result.json"
+                    if sub_result_file.exists():
+                        sub_result = json.loads(sub_result_file.read_text(encoding="utf-8"))
+                        JOBS[job_id]["result_enhanced"] = sub_result
+                        slug = sub_result.get("slug")
+                        if slug:
+                            JOBS[job_id]["slug"] = slug
         else:
             JOBS[job_id]["status"] = "error"
             JOBS[job_id]["current_step"] = "error"
@@ -493,6 +511,10 @@ async def analyze_parcelles(req: ParcelleRequest):
     if req.user_email:
         env["USER_EMAIL"] = req.user_email
     
+    # 📁 Dossier unique pour ce job
+    out_dir = f"/tmp/out_pipeline_{job_id}"
+    JOBS[job_id]["out_dir"] = out_dir
+    
     # 🔥 Lancement du pipeline en tâche asynchrone
     asyncio.create_task(
         run_pipeline_from_parcelles_async(
@@ -500,7 +522,8 @@ async def analyze_parcelles(req: ParcelleRequest):
             req.parcelles,
             req.code_insee,
             req.commune_nom,
-            env
+            env,
+            out_dir=out_dir
         )
     )
     
@@ -518,6 +541,39 @@ async def get_status(job_id: str):
     print(f"🟣 DEBUG /status/{job_id} → job =", json.dumps(job, indent=2, default=str) if job else None)
     if not job:
         return {"success": False, "error": "Job introuvable"}
+    
+    # 🎯 PATCH : Charger les résultats depuis le out_dir du job si pas encore chargés
+    out_dir = job.get("out_dir")
+    if out_dir and "result_enhanced" not in job:
+        result_file = Path(out_dir) / "pipeline_result.json"
+        sub_result_file = Path(out_dir) / "sub_orchestrator_result.json"
+        
+        if result_file.exists():
+            try:
+                job["result"] = json.loads(result_file.read_text(encoding="utf-8"))
+            except Exception as e:
+                print(f"⚠️ Erreur lecture pipeline_result.json : {e}")
+        
+        if sub_result_file.exists():
+            try:
+                sub_result = json.loads(sub_result_file.read_text(encoding="utf-8"))
+                job["result_enhanced"] = sub_result
+                # Extraire le slug si disponible
+                slug = sub_result.get("slug")
+                if slug:
+                    job["slug"] = slug
+            except Exception as e:
+                print(f"⚠️ Erreur lecture sub_orchestrator_result.json : {e}")
+    
+    # 🎯 PATCH : si slug absent mais présent dans result_enhanced → on le remonte
+    if "slug" not in job:
+        try:
+            slug = job.get("result_enhanced", {}).get("slug")
+            if slug:
+                job["slug"] = slug
+        except:
+            pass
+    
     return job
 
 
@@ -866,10 +922,9 @@ async def ai_summary(req: AISummaryRequest):
         {json.dumps(intersections_json, indent=2)}
 
         Tâches :
-        1) Détecte incohérences, erreurs, duplications, typos ou défauts de génération. Sois le plus exhaustif possible.
+        1) Détecte incohérences, erreurs, duplications, typos ou défauts de génération, ou encore éléments pas cohérents ou clair avec la réglementaiton. Sois le plus exhaustif possible.
         2) Signale tout élément étrange ou potentiellement faux.
-        3) Fais un résumé des réglementations impactant l'unité foncière (uniquement celles intersectées).
-        4) Enfin fais des propositions de modifications pour améliorer le CUA en fonction des incohérences et erreurs détectées.
+        3) Fais des propositions de modifications pour améliorer le CUA en fonction des incohérences et erreurs détectées.
         Réponds de façon structurée, concise et fiable.
         Réponds directement l'analyse, sans préambule.
         N'ecris pas de ** ou * dans la réponse.

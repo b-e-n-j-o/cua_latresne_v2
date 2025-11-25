@@ -474,6 +474,18 @@ def run_global_pipeline(
                     logger.info(f"✅ pipeline_result_url mis à jour : {result_url}")
             except Exception as e:
                 logger.error(f"💥 Erreur lors de la mise à jour du pipeline_result_url : {e}")
+            
+            # ============================================================
+            # 🔥 MISE À JOUR FINALE : statut du pipeline
+            # ============================================================
+            try:
+                logger.info("🔄 Mise à jour finale du status du pipeline...")
+                supabase.schema("latresne").table("pipelines").update({
+                    "status": "success"
+                }).eq("slug", slug).execute()
+                logger.info("✅ Status final mis à jour : success")
+            except Exception as e:
+                logger.error(f"💥 Erreur lors de la mise à jour finale du status: {e}")
     
     except Exception as e:
         logger.error(f"💥 Erreur lors de l'upload final : {e}")

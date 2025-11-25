@@ -348,7 +348,7 @@ window.addEventListener('load', function() {{
                 map_folium=m,
                 geom_wkt=parcelle_wkt,
                 code_insee=code_insee,
-                ppri_table=f"{SCHEMA}.{ppri_table}",
+                ppri_table=ppri_table,
                 engine=ENGINE,
                 show=False,
                 registry=registry,

@@ -25,6 +25,8 @@ from supabase import create_client
 from CUA.carte2d.carte2d_rendu import generer_carte_2d_depuis_wkt
 from CUA.map_3d import exporter_visualisation_3d_plotly_from_wkt
 from CUA.cua_builder import run_builder
+from INTERSECTIONS.export_gpkg_intersections import export_gpkg_from_wkt
+
 
 # ============================================================
 # 🔧 CONFIGURATION
@@ -179,6 +181,27 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     else:
         raise FileNotFoundError(f"❌ Aucun rapport d'intersections trouvé dans {OUT_DIR}")
 
+    # Récupération des métadonnées CERFA
+    cerfa_data = None
+    cerfa_data_json = os.getenv("CERFA_DATA_JSON")
+    if cerfa_data_json:
+        try:
+            cerfa_data = json.loads(cerfa_data_json)
+        except Exception as e:
+            logger.warning(f"⚠️ Erreur lors du parsing de CERFA_DATA_JSON : {e}")
+
+    # ============================================================
+    # 📦 Export GPKG intersections
+    # ============================================================
+    logger.info("\n📦 Export GPKG intersections...")
+    gpkg_path = os.path.join(OUT_DIR, "intersections.gpkg")
+
+    export_gpkg_from_wkt(str(wkt_path), gpkg_path)
+
+    remote_gpkg = f"{remote_dir}/intersections.gpkg"
+    intersections_gpkg_url = upload_to_supabase(gpkg_path, remote_gpkg)
+    logger.info(f"🌐 URL publique GPKG : {intersections_gpkg_url}")
+
     # Utiliser le catalogue avec geom_type
     catalogue_path = os.path.join(BASE_DIR, "..", "catalogues", "catalogue_intersections_tagged.json")
     output_docx_path = os.path.join(OUT_DIR, "CUA_unite_fonciere.docx")
@@ -230,15 +253,6 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     # ============================================================
     # 📋 RÉSULTAT UNIFIÉ (pour l'API et le front)
     # ============================================================
-    # Récupération des métadonnées CERFA depuis l'environnement
-    cerfa_data = None
-    cerfa_data_json = os.getenv("CERFA_DATA_JSON")
-    if cerfa_data_json:
-        try:
-            cerfa_data = json.loads(cerfa_data_json)
-        except Exception as e:
-            logger.warning(f"⚠️ Erreur lors du parsing de CERFA_DATA_JSON : {e}")
-
     result = {
         "slug": slug,
         "commune": commune,
@@ -247,6 +261,7 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
         "qr_url": qr_url,
         "carte_2d_url": url_2d,
         "carte_3d_url": url_3d,
+        "intersections_gpkg_url": intersections_gpkg_url,
         "output_cua": cua_url,
         "cua_viewer_url": cua_viewer_url,  # URL pour afficher le CUA en HTML
         "bucket_path": remote_dir,
@@ -286,7 +301,8 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
             "pipeline_result_url": result_url,
             "user_id": user_id,
             "user_email": user_email,
-            "cerfa_data": cerfa_data,  # Métadonnées CERFA
+            "cerfa_data": cerfa_data,
+            "intersections_gpkg_url": intersections_gpkg_url,
             "metadata": result,
         }).execute()
         logger.info(f"✅ Pipeline enregistré dans latresne.pipelines (status={getattr(response, 'status_code', '?')})")
