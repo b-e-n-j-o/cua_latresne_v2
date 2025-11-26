@@ -294,7 +294,7 @@ def calculate_intersection(parcelle_wkt, table_name):
             return objects, sum(surfaces), metadata
 
         except Exception as e:
-            logger.error(f"❌ {table_name}: {e}")
+            logger.error(f"💥 {table_name}: {e}")
             return [], 0.0, {"nb_raw": 0, "nb_grouped": 0, "items": []}
 
 def analyse_parcelle(section, numero):
@@ -393,7 +393,7 @@ def analyse_parcelle(section, numero):
                 "objets": objets
             }
         else:
-            logger.info(f"  ❌ Aucune intersection")
+            logger.info(f"  ⚠️ Aucune intersection")
             rapport["intersections"][table] = {
                 "nom": config['nom'],
                 "type": config['type'],
