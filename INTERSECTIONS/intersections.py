@@ -510,7 +510,7 @@ if __name__ == "__main__":
         section, numero = args.section, args.numero
         parcelle_wkt = get_parcelle_geometry(section, numero)
     else:
-        raise SystemExit("❌ Fournir soit (--section & --numero) soit --geom-wkt")
+        raise SystemExit("Fournir soit (--section & --numero) soit --geom-wkt")
 
     # Calcul surface
     with engine.connect() as conn:
@@ -604,6 +604,7 @@ if __name__ == "__main__":
                 "objets": objets
             }
         else:
+            logger.info(f"  ⚠️ Aucune intersection")
             rapport["intersections"][table] = {
                 "nom": config['nom'],
                 "type": config['type'],
