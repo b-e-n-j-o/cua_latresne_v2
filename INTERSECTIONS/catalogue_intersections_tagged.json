@@ -318,7 +318,7 @@
     "type": "information",
     "keep": [
       "observation",
-      "type",
+      "type_ecoulement",
       "reglementation"
     ],
     "origine": "shp",
