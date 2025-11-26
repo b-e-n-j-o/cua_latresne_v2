@@ -298,8 +298,8 @@
       ],
       "origine": "shp",
       "article": "6",
-      "attribut_map": "type",
-      "nom_attribut_map": "Type"
+      "attribut_map": "type_ecoulement",
+      "nom_attribut_map": "type_ecoulement"
     },
     "zaenr_zones": {
       "nom": "Zones d'Acceleration des Energies Renouvelables (ZAEnR)",
