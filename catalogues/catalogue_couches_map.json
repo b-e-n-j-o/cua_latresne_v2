@@ -293,7 +293,7 @@
       "type": "Informations",
       "keep": [
         "observation",
-        "TYPE",
+        "type_ecoulement",
         "reglementation"
       ],
       "origine": "shp",
