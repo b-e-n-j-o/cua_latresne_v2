@@ -270,7 +270,7 @@ def export_gpkg_from_wkt(wkt_path: str, out_path: str):
         logger.info(f"   ✔ {len(gdf)} entité(s)")
 
     # 4) Appliquer les styles QGIS
-    template_gpkg = PROJECT_ROOT / "INTERSECTIONS" / "STYLES" / "modele.gpkg"
+    template_gpkg = PROJECT_ROOT / "INTERSECTIONS" / "STYLES" / "modele_styles.gpkg"
     apply_styles_from_template(template_gpkg, out_path)
 
     logger.info("🎉 GPKG généré avec succès !")

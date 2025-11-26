@@ -22,3 +22,9 @@ CUA/out_test/
 # IDE / éditeurs
 .vscode/
 .idea/
+
+# ignore la version full très lourde
+INTERSECTIONS/STYLES/modele_styles_full.gpkg
+INTERSECTIONS/STYLES/modele_styles_full.gpkg-shm
+INTERSECTIONS/STYLES/modele_styles_full.gpkg-wal
+
