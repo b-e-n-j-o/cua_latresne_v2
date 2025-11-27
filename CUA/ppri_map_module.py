@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-ppri_module.py
+ppri_map_module.py
 Module d'intégration PPRI pour cartes Folium externes,
 avec sous-couches :
  - Avant réglementation
@@ -80,14 +80,27 @@ def ajouter_ppri_a_carte(
     # ============================================================
     # 1️⃣ Lancer l'analyse PPRI complète
     # ============================================================
-    resultats = analyser_ppri_tolerance(
-        section=section,
-        numero=numero,
-        code_insee=code_insee,
-        ppri_table=ppri_table,
-        engine=engine,
-        geom_wkt=geom_wkt  # ✅ nouveau
-    )
+    try:
+        resultats = analyser_ppri_tolerance(
+            section=section,
+            numero=numero,
+            code_insee=code_insee,
+            ppri_table=ppri_table,
+            engine=engine,
+            geom_wkt=geom_wkt  # ✅ nouveau
+        )
+    except ValueError as e:
+        # Parcelle hors PPRI
+        print(f"   ℹ️ {e}")
+        return {
+            "success": True,
+            "zones_initiales": 0,
+            "zones_conservees": 0,
+            "zones_absorbees": 0,
+            "zones_remplacement": 0,
+            "cotes_seuil": 0,
+            "taux_absorption": 0.0,
+        }
 
     # Récupération des jeux intermédiaires
     ppri_initial = resultats["zones"]["ppri_initial"]          # zones brutes intersectées
@@ -147,8 +160,8 @@ def ajouter_ppri_a_carte(
     # ============================================================
     # 3️⃣ Passage en WGS84 de chaque couche géo
     # ============================================================
-    init_wgs = ppri_initial.to_crs("EPSG:4326") if not ppri_initial.empty else gpd.GeoDataFrame()
-    cons_wgs = cons.to_crs("EPSG:4326") if not cons.empty else gpd.GeoDataFrame()
+    init_wgs = ppri_initial.to_crs("EPSG:4326") if not ppri_initial.empty else gpd.GeoDataFrame(crs=4326, geometry=[])
+    cons_wgs = cons.to_crs("EPSG:4326") if not cons.empty else gpd.GeoDataFrame(crs=4326, geometry=[])
 
     if zones_remplacement:
         gdf_remplacement = gpd.GeoDataFrame(
@@ -158,7 +171,7 @@ def ajouter_ppri_a_carte(
         )
         remp_wgs = gdf_remplacement.to_crs("EPSG:4326")
     else:
-        remp_wgs = gpd.GeoDataFrame()
+        remp_wgs = gpd.GeoDataFrame(crs=4326, geometry=[])
 
     # Note: buf (les buffers 2.5m) existe, mais pour l’instant on ne l’affiche pas
     # comme couche séparée, car le besoin métier exprimé est:
@@ -187,92 +200,95 @@ def ajouter_ppri_a_carte(
     # ------------------------------------------------------------
     # (a) Couche AVANT : ppri_initial brut
     # ------------------------------------------------------------
-    for _, row in init_wgs.iterrows():
-        code = row["codezone"]
-        color = couleur_ppri(code)
-        reglement = row.get("reglementation", "").strip() if "reglementation" in row else ""
+    if not init_wgs.empty:
+        for _, row in init_wgs.iterrows():
+            code = row["codezone"]
+            color = couleur_ppri(code)
+            reglement = row.get("reglementation", "").strip() if "reglementation" in row else ""
 
-        popup_html = f"""
-        <div style="width:450px;max-height:400px;overflow-y:auto;padding:10px;">
-            <h4 style="margin-top:0;color:#003366;">Zone {code}</h4>
-            <p style="font-size:13px;color:#333;">
-                {reglement if reglement else '<em>Aucune réglementation associée.</em>'}
-            </p>
-        </div>
-        """
+            popup_html = f"""
+            <div style="width:450px;max-height:400px;overflow-y:auto;padding:10px;">
+                <h4 style="margin-top:0;color:#003366;">Zone {code}</h4>
+                <p style="font-size:13px;color:#333;">
+                    {reglement if reglement else '<em>Aucune réglementation associée.</em>'}
+                </p>
+            </div>
+            """
 
-        folium.GeoJson(
-            row.geometry,
-            style_function=lambda x, color=color: {
-                "fillColor": color,
-                "color": "#000000",
-                "weight": 0.8,
-                "fillOpacity": 0.45
-            },
-            tooltip=f"Zone {code} (avant réglementation)",
-            popup=folium.Popup(popup_html, max_width=480)
-        ).add_to(group_avant)
+            folium.GeoJson(
+                row.geometry,
+                style_function=lambda x, color=color: {
+                    "fillColor": color,
+                    "color": "#000000",
+                    "weight": 0.8,
+                    "fillOpacity": 0.45
+                },
+                tooltip=f"Zone {code} (avant réglementation)",
+                popup=folium.Popup(popup_html, max_width=480)
+            ).add_to(group_avant)
 
     # ------------------------------------------------------------
     # (b) Couche APRES : zones conservées
     # ------------------------------------------------------------
-    for _, row in cons_wgs.iterrows():
-        code = row["codezone"]
-        color = couleur_ppri(code)
-        reglement = row.get("reglementation", "").strip() if "reglementation" in row else ""
+    if not cons_wgs.empty:
+        for _, row in cons_wgs.iterrows():
+            code = row["codezone"]
+            color = couleur_ppri(code)
+            reglement = row.get("reglementation", "").strip() if "reglementation" in row else ""
 
-        popup_html = f"""
-        <div style="width:450px;max-height:400px;overflow-y:auto;padding:10px;">
-            <h4 style="margin-top:0;color:#003366;">Zone {code}</h4>
-            <p style="font-size:13px;color:#333;">
-                {reglement if reglement else '<em>Aucune réglementation associée.</em>'}
-            </p>
-        </div>
-        """
+            popup_html = f"""
+            <div style="width:450px;max-height:400px;overflow-y:auto;padding:10px;">
+                <h4 style="margin-top:0;color:#003366;">Zone {code}</h4>
+                <p style="font-size:13px;color:#333;">
+                    {reglement if reglement else '<em>Aucune réglementation associée.</em>'}
+                </p>
+            </div>
+            """
 
-        folium.GeoJson(
-            row.geometry,
-            style_function=lambda x, color=color: {
-                "fillColor": color,
-                "color": "#000000",
-                "weight": 1.2,
-                "fillOpacity": 0.6
-            },
-            tooltip=f"Zone {code} (après réglementation)",
-            popup=folium.Popup(popup_html, max_width=480)
-        ).add_to(group_apres)
+            folium.GeoJson(
+                row.geometry,
+                style_function=lambda x, color=color: {
+                    "fillColor": color,
+                    "color": "#000000",
+                    "weight": 1.2,
+                    "fillOpacity": 0.6
+                },
+                tooltip=f"Zone {code} (après réglementation)",
+                popup=folium.Popup(popup_html, max_width=480)
+            ).add_to(group_apres)
 
     # ------------------------------------------------------------
     # (c) Couche ABSORPTION : zones_remplacement
     #     (les morceaux absorbés/reclassés via buffers ±2.5 m)
     # ------------------------------------------------------------
-    for _, row in remp_wgs.iterrows():
-        code_abs = row["codezone"]
-        code_orig = row["codezone_origine"]
-        color = couleur_ppri(code_abs)
-        reglement = row.get("reglementation", "").strip() if "reglementation" in row else ""
+    if not remp_wgs.empty:
+        for _, row in remp_wgs.iterrows():
+            code_abs = row["codezone"]
+            code_orig = row["codezone_origine"]
+            color = couleur_ppri(code_abs)
+            reglement = row.get("reglementation", "").strip() if "reglementation" in row else ""
 
-        popup_html = f"""
-        <div style="width:450px;max-height:400px;overflow-y:auto;padding:10px;">
-            <h4 style="margin-top:0;color:#003366;">Zone absorbée {code_orig} → {code_abs}</h4>
-            <p style="font-size:13px;color:#333;">
-                {reglement if reglement else '<em>Aucune réglementation associée.</em>'}
-            </p>
-        </div>
-        """
+            popup_html = f"""
+            <div style="width:450px;max-height:400px;overflow-y:auto;padding:10px;">
+                <h4 style="margin-top:0;color:#003366;">Zone absorbée {code_orig} → {code_abs}</h4>
+                <p style="font-size:13px;color:#333;">
+                    {reglement if reglement else '<em>Aucune réglementation associée.</em>'}
+                </p>
+            </div>
+            """
 
-        folium.GeoJson(
-            row.geometry,
-            style_function=lambda x, color=color: {
-                "fillColor": color,
-                "color": "#000000",
-                "weight": 1,
-                "fillOpacity": 0.4,
-                "dashArray": "6,3"
-            },
-            tooltip=f"Zone absorbée {code_orig} → {code_abs}",
-            popup=folium.Popup(popup_html, max_width=480)
-        ).add_to(group_absorption)
+            folium.GeoJson(
+                row.geometry,
+                style_function=lambda x, color=color: {
+                    "fillColor": color,
+                    "color": "#000000",
+                    "weight": 1,
+                    "fillOpacity": 0.4,
+                    "dashArray": "6,3"
+                },
+                tooltip=f"Zone absorbée {code_orig} → {code_abs}",
+                popup=folium.Popup(popup_html, max_width=480)
+            ).add_to(group_absorption)
 
     # ============================================================
     # 4️⃣ bis : COTES DE SEUIL PPRI
