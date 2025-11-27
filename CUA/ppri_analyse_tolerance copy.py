@@ -161,10 +161,10 @@ def analyser_ppri_tolerance(section=None, numero=None, code_insee=None, ppri_tab
             rows.append({
                 "codezone": codezone,
                 "reglementation": reglementation,
-                "geom": wkb.loads(bytes(ewkb))
+                "geometry": wkb.loads(bytes(ewkb))
             })
     
-    ppri_initial = gpd.GeoDataFrame(rows, geometry="geom", crs=2154)
+    ppri_initial = gpd.GeoDataFrame(rows, geometry="geometry", crs=2154)
     
     if ppri_initial.empty:
         raise ValueError("❌ Aucune zone PPRI trouvée autour de la parcelle.")
@@ -186,12 +186,12 @@ def analyser_ppri_tolerance(section=None, numero=None, code_insee=None, ppri_tab
     print("-" * 80)
     
     ppri = ppri_initial.copy()
-    ppri["geom"] = ppri.geom.intersection(geom_parcelle)
+    ppri["geometry"] = ppri.geometry.intersection(geom_parcelle)
     
     nb_zones_initiales = len(ppri)
     
     # Filtrage surface nulle
-    ppri = ppri[ppri.geom.area > 0.01].copy()
+    ppri = ppri[ppri.geometry.area > 0.01].copy()
     nb_filtrees_surface = nb_zones_initiales - len(ppri)
     print(f"   🗑️ {nb_filtrees_surface} zones de surface < 100 cm² supprimées")
     
@@ -201,7 +201,7 @@ def analyser_ppri_tolerance(section=None, numero=None, code_insee=None, ppri_tab
     zones_exclues = []
     
     for idx, row in ppri.iterrows():
-        zone_geom = row.geom
+        zone_geom = row.geometry
         zone_centroid = zone_geom.centroid
         is_centroid_inside = zone_centroid.within(geom_parcelle)
         is_zone_significant = zone_geom.area > 0.5
@@ -215,7 +215,7 @@ def analyser_ppri_tolerance(section=None, numero=None, code_insee=None, ppri_tab
                 "raison": "Centroïde hors parcelle"
             })
     
-    ppri = gpd.GeoDataFrame(zones_valides, geometry="geom", crs=2154)
+    ppri = gpd.GeoDataFrame(zones_valides, crs=2154)
     
     if zones_exclues:
         print(f"   🗑️ {len(zones_exclues)} zones marginales exclues")
@@ -227,46 +227,45 @@ def analyser_ppri_tolerance(section=None, numero=None, code_insee=None, ppri_tab
     print("-" * 80)
     
     nb_avant_eclatement = len(ppri)
-    nb_multipolygons = len(ppri[ppri.geom.geom_type == 'MultiPolygon'])
+    nb_multipolygons = len(ppri[ppri.geometry.geom_type == 'MultiPolygon'])
     
     ppri_exploded = []
     for idx, row in ppri.iterrows():
-        geom_zone = row.geom
+        geom = row.geometry
         
-        if geom_zone.geom_type == 'MultiPolygon':
-            nb_parties = len(geom_zone.geoms)
-            for i, poly in enumerate(geom_zone.geoms, 1):
+        if geom.geom_type == 'MultiPolygon':
+            nb_parties = len(geom.geoms)
+            for i, poly in enumerate(geom.geoms, 1):
                 if poly.area > 0.001:
                     ppri_exploded.append({
                         "codezone": row.codezone,
                         "reglementation": row.get("reglementation", ""),
-                        "geom": poly,
+                        "geometry": poly,
                         "zone_originale_idx": idx,
                         "partie_numero": i
                     })
-        elif geom_zone.geom_type == 'Polygon':
+        elif geom.geom_type == 'Polygon':
             ppri_exploded.append({
                 "codezone": row.codezone,
                 "reglementation": row.get("reglementation", ""),
-                "geom": geom_zone,
+                "geometry": geom,
                 "zone_originale_idx": idx,
                 "partie_numero": 1
             })
     
-    ppri = gpd.GeoDataFrame(ppri_exploded, geometry="geom", crs=2154).reset_index(drop=True)
+    ppri = gpd.GeoDataFrame(ppri_exploded, geometry="geometry", crs=2154).reset_index(drop=True)
     
     # ⭐ NOUVEAU FILTRE : Suppression des fragments < 1m²
     nb_avant_filtre = len(ppri)
-    ppri = ppri[ppri.geom.area >= 1.0].copy().reset_index(drop=True)
+    ppri = ppri[ppri.geometry.area >= 1.0].copy().reset_index(drop=True)
     nb_filtrees_petites = nb_avant_filtre - len(ppri)
     
-    surface_totale_zones = ppri.geom.area.sum()
+    surface_totale_zones = ppri.geometry.area.sum()
     print(f"   ✅ Éclatement terminé: {len(ppri)} fragment(s) conservé(s) ({surface_totale_zones:.2f} m², {surface_totale_zones/surface_parcelle*100:.1f}% de la parcelle)")
     
     # Créer les buffers
     ppri_buffer = ppri.copy()
-    ppri_buffer = ppri_buffer.set_geometry("geom")
-    ppri_buffer["geom"] = ppri_buffer.geom.buffer(TOLERANCE_M).intersection(geom_parcelle)
+    ppri_buffer["geometry"] = ppri_buffer.geometry.buffer(TOLERANCE_M).intersection(geom_parcelle)
 
     # =========================================================
     # 5️⃣ Analyse d'absorption
@@ -289,18 +288,18 @@ def analyser_ppri_tolerance(section=None, numero=None, code_insee=None, ppri_tab
             conservées.append({
                 "codezone": z.codezone,
                 "reglementation": z.get("reglementation", ""),
-                "geom": z.geom
+                "geometry": z.geometry
             })
             continue
         
-        union_others = unary_union(other_buffers.geom)
+        union_others = unary_union(other_buffers.geometry)
         
         # Tests géométriques
-        is_within = z.geom.within(union_others)
-        is_covered = z.geom.covered_by(union_others)
-        difference = z.geom.difference(union_others)
+        is_within = z.geometry.within(union_others)
+        is_covered = z.geometry.covered_by(union_others)
+        difference = z.geometry.difference(union_others)
         surface_residuelle = difference.area
-        surface_totale = z.geom.area
+        surface_totale = z.geometry.area
         pct_couverture = ((surface_totale - surface_residuelle) / surface_totale * 100) if surface_totale > 0 else 0
         
         # Décision géométrique
@@ -314,7 +313,7 @@ def analyser_ppri_tolerance(section=None, numero=None, code_insee=None, ppri_tab
             conservées.append({
                 "codezone": z.codezone,
                 "reglementation": z.get("reglementation", ""),
-                "geom": z.geom
+                "geometry": z.geometry
             })
             continue
         
@@ -325,11 +324,11 @@ def analyser_ppri_tolerance(section=None, numero=None, code_insee=None, ppri_tab
         
         for j, z_other in ppri.iterrows():
             if i != j:
-                buffer_j = ppri_buffer.loc[j, "geom"]
-                overlap = z.geom.intersection(buffer_j)
+                buffer_j = ppri_buffer.loc[j, "geometry"]
+                overlap = z.geometry.intersection(buffer_j)
                 
                 if not overlap.is_empty:
-                    overlap_pct = (overlap.area / z.geom.area * 100) if z.geom.area > 0 else 0
+                    overlap_pct = (overlap.area / z.geometry.area * 100) if z.geometry.area > 0 else 0
                     if overlap_pct > 1:
                         if peut_absorber(z_other.codezone, z.codezone):
                             absorbeurs_autorises.append(z_other.codezone)
@@ -342,7 +341,7 @@ def analyser_ppri_tolerance(section=None, numero=None, code_insee=None, ppri_tab
             conservées.append({
                 "codezone": z.codezone,
                 "reglementation": z.get("reglementation", ""),
-                "geom": z.geom
+                "geometry": z.geometry
             })
             zones_conservees_force.append({
                 "codezone": z.codezone,
@@ -354,7 +353,7 @@ def analyser_ppri_tolerance(section=None, numero=None, code_insee=None, ppri_tab
             absorbées.append({
                 "codezone": z.codezone,
                 "reglementation": z.get("reglementation", ""),
-                "geom": z.geom,
+                "geometry": z.geometry,
                 "absorbeurs": list(set(absorbeurs_autorises)),
                 "contributions": contributions
             })
@@ -366,9 +365,9 @@ def analyser_ppri_tolerance(section=None, numero=None, code_insee=None, ppri_tab
                 "pct_couverture": pct_couverture,
                 "surface_residuelle": surface_residuelle
             })
-            
-    ppri_abs = gpd.GeoDataFrame(absorbées, geometry="geom", crs=ppri.crs) if absorbées else gpd.GeoDataFrame()
-    ppri_cons = gpd.GeoDataFrame(conservées, geometry="geom", crs=ppri.crs)
+
+    ppri_abs = gpd.GeoDataFrame(absorbées, geometry="geometry", crs=ppri.crs) if absorbées else gpd.GeoDataFrame()
+    ppri_cons = gpd.GeoDataFrame(conservées, geometry="geometry", crs=ppri.crs)
 
     # =========================================================
     # 6️⃣ Rapport final
@@ -397,8 +396,8 @@ def analyser_ppri_tolerance(section=None, numero=None, code_insee=None, ppri_tab
             print(f"     Rejetées: {', '.join(zcf['zones_interdites'])}")
     
     print(f"\n📏 Surfaces:")
-    surface_conservees = ppri_cons.geom.area.sum()
-    surface_absorbees = ppri_abs.geom.area.sum() if not ppri_abs.empty else 0
+    surface_conservees = ppri_cons.geometry.area.sum()
+    surface_absorbees = ppri_abs.geometry.area.sum() if not ppri_abs.empty else 0
     
     print(f"   • Surface zones conservées: {surface_conservees:.2f} m²")
     print(f"   • Surface zones absorbées: {surface_absorbees:.2f} m²")
