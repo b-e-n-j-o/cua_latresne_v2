@@ -181,6 +181,22 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     else:
         raise FileNotFoundError(f"❌ Aucun rapport d'intersections trouvé dans {OUT_DIR}")
 
+    # ------------------------------------------------------------
+    # 📤 Upload du JSON d'intersections sur Supabase
+    # ------------------------------------------------------------
+    logger.info("📤 Upload du JSON d'intersections...")
+    
+    intersections_filename = Path(intersections_path).name
+    remote_intersections_json = f"{remote_dir}/{intersections_filename}"
+    
+    intersections_json_url = upload_to_supabase(
+        intersections_path,
+        remote_intersections_json,
+        bucket=SUPABASE_BUCKET
+    )
+    
+    logger.info(f"🌐 URL publique JSON intersections : {intersections_json_url}")
+
     # Récupération des métadonnées CERFA
     cerfa_data = None
     cerfa_data_json = os.getenv("CERFA_DATA_JSON")
@@ -262,6 +278,7 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
         "carte_2d_url": url_2d,
         "carte_3d_url": url_3d,
         "intersections_gpkg_url": intersections_gpkg_url,
+        "intersections_json": intersections_json_url,
         "output_cua": cua_url,
         "cua_viewer_url": cua_viewer_url,  # URL pour afficher le CUA en HTML
         "bucket_path": remote_dir,
@@ -303,6 +320,7 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
             "user_email": user_email,
             "cerfa_data": cerfa_data,
             "intersections_gpkg_url": intersections_gpkg_url,
+            "intersections_json_url": intersections_json_url,
             "metadata": result,
         }).execute()
         logger.info(f"✅ Pipeline enregistré dans latresne.pipelines (status={getattr(response, 'status_code', '?')})")
