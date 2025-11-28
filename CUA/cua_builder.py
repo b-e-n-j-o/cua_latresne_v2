@@ -395,10 +395,13 @@ def build_cua_docx(
 
     # Article 4 : Servitudes d'utilité publique
     ensure_page_space_for_article(doc)
-    add_article_title(doc, "Article 4 – Servitudes d’utilité publique et autres limitations administratives au droit de propriété (dont emplacements réservés)")
+    add_article_title(doc, "Article 4 – Servitudes d'utilité publique et autres limitations administratives au droit de propriété (dont emplacements réservés)")
     
     if layers_by_article.get("4"):
         for layer_key, layer_data in layers_by_article["4"]:
+            # ✅ Ignorer la couche pm1_detaillee_gironde (gérée par un autre module)
+            if layer_key == "pm1_detaillee_gironde":
+                continue
             if layer_data.get("objets"):  # ✅ Ajout
                 render_layer_content(doc, layer_data, layer_key, catalogue_json)
 
