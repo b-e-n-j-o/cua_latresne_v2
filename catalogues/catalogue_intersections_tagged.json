@@ -216,7 +216,7 @@
         "reglementation"
       ],
       "origine": "shp",
-      "article": "5",
+      "article": "4",
       "geom_type": "surfacique"
     },
     "pt3": {
@@ -429,7 +429,7 @@
       "keep": [
         "etiquette",
         "niveau_max",
-        "texte_cu"
+        "reglementation"
       ],
       "article": "5",
       "geom_type": "surfacique"

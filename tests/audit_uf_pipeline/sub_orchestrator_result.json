@@ -1,0 +1,67 @@
+{
+  "slug": "WDeNcmrfmpZEE5PVUY5tHiJMJY",
+  "commune": "latresne",
+  "code_insee": "33234",
+  "maps_page": "https://kerelia.fr/maps?t=eyJjYXJ0ZTJkIjogImh0dHBzOi8vb2Rsa2FnZmVxa2JycnVhamxjeG0uc3VwYWJhc2UuY28vc3RvcmFnZS92MS9vYmplY3QvcHVibGljL3Zpc3VhbGlzYXRpb24vV0RlTmNtcmZtcFpFRTVQVlVZNXRIaUpNSlkvY2FydGVfMmQuaHRtbCIsICJjYXJ0ZTNkIjogImh0dHBzOi8vb2Rsa2FnZmVxa2JycnVhamxjeG0uc3VwYWJhc2UuY28vc3RvcmFnZS92MS9vYmplY3QvcHVibGljL3Zpc3VhbGlzYXRpb24vV0RlTmNtcmZtcFpFRTVQVlVZNXRIaUpNSlkvY2FydGVfM2QuaHRtbCIsICJjb21tdW5lIjogImxhdHJlc25lIn0=",
+  "qr_url": "https://kerelia.fr/m/WDeNcmrfmpZEE5PVUY5tHiJMJY",
+  "carte_2d_url": "https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/WDeNcmrfmpZEE5PVUY5tHiJMJY/carte_2d.html",
+  "carte_3d_url": "https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/WDeNcmrfmpZEE5PVUY5tHiJMJY/carte_3d.html",
+  "intersections_gpkg_url": "https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/WDeNcmrfmpZEE5PVUY5tHiJMJY/intersections.gpkg",
+  "intersections_json": "https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/WDeNcmrfmpZEE5PVUY5tHiJMJY/rapport_intersections_20251127_144852.json",
+  "output_cua": "https://odlkagfeqkbrruajlcxm.supabase.co/storage/v1/object/public/visualisation/WDeNcmrfmpZEE5PVUY5tHiJMJY/CUA_unite_fonciere.docx",
+  "cua_viewer_url": "https://kerelia.fr/cua?t=eyJkb2N4IjogIldEZU5jbXJmbXBaRUU1UFZVWTV0SGlKTUpZL0NVQV91bml0ZV9mb25jaWVyZS5kb2N4In0=",
+  "bucket_path": "WDeNcmrfmpZEE5PVUY5tHiJMJY",
+  "pipeline_result_url": null,
+  "metadata_2d": {
+    "label": "Unité foncière",
+    "nb_couches": 9,
+    "nb_groupes": 11,
+    "nb_entites": 12,
+    "ppri": {
+      "success": true,
+      "zones_initiales": 0,
+      "zones_conservees": 0,
+      "zones_absorbees": 0,
+      "zones_remplacement": 0,
+      "cotes_seuil": 0,
+      "taux_absorption": 0.0
+    }
+  },
+  "metadata_3d": {
+    "resolution": 0.5,
+    "rows": 149,
+    "cols": 92,
+    "exaggeration": 1.5,
+    "surface_m2": 2090.0543988074046
+  },
+  "cerfa_data": {
+    "numero_cu": "33-33234-2025-PARCEL",
+    "date_depot": "2025-11-27",
+    "demandeur": "DEMANDEUR",
+    "parcelles": [
+      {
+        "section": "AL",
+        "numero": "0417"
+      },
+      {
+        "section": "AL",
+        "numero": "0418"
+      },
+      {
+        "section": "AL",
+        "numero": "0074"
+      }
+    ],
+    "superficie": 2090.05,
+    "adresse_terrain": {
+      "numero": null,
+      "voie": null,
+      "lieu_dit": null,
+      "commune": "Latresne",
+      "code_postal": null
+    },
+    "commune_nom": "Latresne",
+    "commune_insee": "33234"
+  },
+  "status": "success"
+}

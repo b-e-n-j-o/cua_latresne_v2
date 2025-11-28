@@ -116,9 +116,21 @@ def _analyse_intersections_depuis_wkt(wkt_path: str, out_dir: Path):
             {"wkt": parcelle_wkt}
         ).scalar())
     
+    # Récupérer superficie indicative depuis uf_json (transmise par verification_unite_fonciere)
+    superficie_indicative = None
+    uf_json_global = None
+    try:
+        uf_json_path = out_dir / "rapport_unite_fonciere.json"
+        if uf_json_path.exists():
+            uf_json_global = json.loads(uf_json_path.read_text(encoding="utf-8"))
+            superficie_indicative = uf_json_global.get("superficie_indicative")
+    except Exception:
+        pass
+    
     rapport = {
         "parcelle": "UF 0000",
         "surface_m2": round(area_parcelle_sig, 2),
+        "surface_indicative": superficie_indicative or round(area_parcelle_sig, 2),
         "intersections": {}
     }
     
@@ -126,7 +138,7 @@ def _analyse_intersections_depuis_wkt(wkt_path: str, out_dir: Path):
     for table, config in CATALOGUE.items():
         logger.info(f"→ {table}")
         # Nouveau format intersections v10
-        objets, surface_totale_sig, metadata = calculate_intersection(parcelle_wkt, table)
+        objets, surface_totale_sig, metadata = calculate_intersection(parcelle_wkt, table, area_parcelle_sig)
         
         if objets:
             logger.info(f"  ✅ {len(objets)} objet(s) | {surface_totale_sig:.2f} m²")

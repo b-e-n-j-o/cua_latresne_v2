@@ -61,6 +61,31 @@ def verifier_unite_fonciere(cerfa_json_path: str, code_insee: str, out_dir: str 
         gdf = gdf.to_crs(SRS)
 
     gdf = gdf.rename(columns={"geometry": "geom_2154"}).set_geometry("geom_2154")
+    
+    # === Récupération superficie indicative (contenance) ===
+    superficie_indicative = None
+    try:
+        contenance_col = None
+        for col in gdf.columns:
+            if 'contenance' in col.lower() or 'contain' in col.lower():
+                contenance_col = col
+                break
+        
+        if contenance_col:
+            superficie_indicative = 0.0
+            for _, row in gdf.iterrows():
+                val = row.get(contenance_col)
+                if val:
+                    try:
+                        if isinstance(val, str):
+                            val = float(val.replace(',', '.').replace(' ', ''))
+                        superficie_indicative += float(val)
+                    except (ValueError, TypeError):
+                        pass
+            superficie_indicative = round(superficie_indicative, 2)
+            print(f"✅ Superficie indicative (contenance IGN) : {superficie_indicative} m²")
+    except Exception as e:
+        print(f"⚠️ Erreur récupération contenance : {e}")
 
     # Fusion des géométries
     union_geom = gdf["geom_2154"].unary_union
@@ -79,7 +104,8 @@ def verifier_unite_fonciere(cerfa_json_path: str, code_insee: str, out_dir: str 
                 "success": True,
                 "message": msg,
                 "groupes": [[f"{p['section']} {p['numero']}" for p in parcelles]],
-                "geom_wkt_path": str(wkt_path)
+                "geom_wkt_path": str(wkt_path),
+                "superficie_indicative": superficie_indicative
             }
         else:
             # Trop de parcelles contiguës → suggérer des regroupements par 5 max
@@ -93,7 +119,8 @@ def verifier_unite_fonciere(cerfa_json_path: str, code_insee: str, out_dir: str 
                 "success": False,
                 "message": msg,
                 "groupes": groupes,
-                "geom_wkt_path": str(wkt_path)
+                "geom_wkt_path": str(wkt_path),
+                "superficie_indicative": superficie_indicative
             }
 
     # ============================================================

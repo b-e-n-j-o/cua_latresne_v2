@@ -1,0 +1,12 @@
+{
+  "success": true,
+  "message": "✅ Une seule unité foncière détectée (3 parcelle(s) contiguë(s)).",
+  "groupes": [
+    [
+      "AL 0417",
+      "AL 0418",
+      "AL 0074"
+    ]
+  ],
+  "geom_wkt_path": "/Volumes/T7/Travaux_Freelance/KERELIA/CUAs/INTERSECTION_PIPELINE/LATRESNE/cua_latresne_v4/tests/audit_uf_pipeline/geom_unite_fonciere.wkt"
+}

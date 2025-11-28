@@ -216,34 +216,27 @@ def build_cua_docx(
 
     # --- Surface indicative : sécurisation / cast en float ---
     raw_surface_total = meta.get("superficie_totale_m2")
-    
-    # Utiliser surface_indicative du JSON d'intersections si disponible
-    inters = intersections_json or {}
-    superficie_indicative_json = inters.get("surface_indicative")
-    
-    logger = logging.getLogger("cua_builder")
-    
-    if superficie_indicative_json:
-        surface_total = superficie_indicative_json
-        logger.info(f"✅ Utilisation surface indicative juridique : {surface_total} m²")
-    elif raw_surface_total not in (None, "", " "):
-        # Fallback sur CERFA
+
+    surface_total = None
+    if raw_surface_total not in (None, "", " "):
         try:
             # Support format européen (ex: "1 649,5")
             cleaned = str(raw_surface_total).replace(" ", "").replace("\u202f", "").replace(",", ".")
             surface_total = float(cleaned)
-            logger.info(f"✅ Utilisation surface indicative CERFA : {surface_total} m²")
         except (TypeError, ValueError):
-            raise ValueError(f"[CUA] superficie_totale_m2 invalide : {raw_surface_total!r}")
-    else:
-        raise ValueError("[CUA] surface_indicative manquante")
-    
-    # ✅ Surface indicative = surface juridique (contenance ou CERFA)
+            raise ValueError(f"[CUA] superficie_totale_m2 invalide dans le CERFA: {raw_surface_total!r}")
+
+    if surface_total is None:
+        raise ValueError("[CUA] surface_indicative manquante ou invalide dans le CERFA.")
+
+    inters = intersections_json or {}
+    # ✅ Surface indicative = surface du CERFA (pas la surface SIG)
     surface_indicative = surface_total
     
-    # 🔎 Log : on plaque toutes les intersections sur la surface cadastrale indicative
+    # 🔎 Log : on plaque toutes les intersections sur la surface cadastrale CERFA
+    logger = logging.getLogger("cua_builder")
     logger.info(
-        f"📏 Surface indicative utilisée pour normaliser les intersections : {surface_indicative} m²"
+        f"📏 Surface indicative CERFA utilisée pour normaliser les intersections : {surface_indicative} m²"
     )
     
     intersections_raw = inters.get("intersections") or {}
@@ -395,7 +388,7 @@ def build_cua_docx(
 
     # Article 4 : Servitudes d'utilité publique
     ensure_page_space_for_article(doc)
-    add_article_title(doc, "Article 4 – Servitudes d’utilité publique et autres limitations administratives au droit de propriété (dont emplacements réservés)")
+    add_article_title(doc, "Article QUATRE - Servitudes d'utilité publique (SUP)")
     
     if layers_by_article.get("4"):
         for layer_key, layer_data in layers_by_article["4"]:

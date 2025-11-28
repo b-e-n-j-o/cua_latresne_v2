@@ -9,16 +9,10 @@ Analyse les intersections entre une parcelle et les couches du catalogue.
 import os
 import json
 import logging
-import io
-import requests
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
-try:
-    import geopandas as gpd
-except ImportError:
-    gpd = None
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
@@ -42,69 +36,6 @@ CATALOGUE_PATH = PROJECT_ROOT / "catalogues" / "catalogue_intersections_tagged.j
 with open(CATALOGUE_PATH, 'r', encoding='utf-8') as f:
     CATALOGUE = json.load(f)
 
-def fetch_superficie_indicative(parcelles: list, code_insee: str) -> float:
-    """Récupère la superficie indicative (contenance) depuis l'IGN."""
-    if gpd is None:
-        logger.warning("⚠️ geopandas non disponible, impossible de récupérer la contenance IGN")
-        return None
-    
-    try:
-        ENDPOINT = "https://data.geopf.fr/wfs/ows"
-        LAYER = "CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle"
-        SRS = "EPSG:2154"
-        
-        parcelle_conditions = [
-            f"(section='{p['section']}' AND numero='{p['numero']}')" 
-            for p in parcelles
-        ]
-        cql_filter = f"code_insee='{code_insee}' AND ({' OR '.join(parcelle_conditions)})"
-        
-        params = {
-            "service": "WFS",
-            "version": "2.0.0",
-            "request": "GetFeature",
-            "typeNames": LAYER,
-            "srsName": SRS,
-            "outputFormat": "application/json",
-            "CQL_FILTER": cql_filter,
-        }
-        
-        r = requests.get(ENDPOINT, params=params, timeout=30)
-        r.raise_for_status()
-        
-        gdf = gpd.read_file(io.BytesIO(r.content))
-        if gdf.empty:
-            logger.warning("⚠️ Aucune parcelle IGN trouvée")
-            return None
-        
-        # Trouver colonne contenance
-        contenance_col = None
-        for col in gdf.columns:
-            if 'contenance' in col.lower() or 'contain' in col.lower():
-                contenance_col = col
-                break
-        
-        if not contenance_col:
-            logger.warning("⚠️ Colonne contenance non trouvée")
-            return None
-        
-        superficie = 0.0
-        for _, row in gdf.iterrows():
-            val = row.get(contenance_col)
-            if val:
-                try:
-                    if isinstance(val, str):
-                        val = float(val.replace(',', '.').replace(' ', ''))
-                    superficie += float(val)
-                except (ValueError, TypeError):
-                    pass
-        
-        return round(superficie, 2)
-    
-    except Exception as e:
-        logger.warning(f"⚠️ Erreur récupération contenance IGN : {e}")
-        return None
-
 def get_parcelle_geometry(section, numero):
     query = text("SELECT ST_AsText(geom_2154) FROM latresne.parcelles_latresne WHERE section = :s AND numero = :n")
     with engine.connect() as conn:
@@ -114,13 +45,12 @@ def get_parcelle_geometry(section, numero):
             return row[0]
         raise ValueError(f"Parcelle {section} {numero} introuvable")
 
-def calculate_intersection(parcelle_wkt, table_name, area_parcelle_sig):
+def calculate_intersection(parcelle_wkt, table_name):
     """
     Version alignée EXACTEMENT sur test_intersections_standalone.py
     - Dissolve par group_by (ST_UnaryUnion + ST_Collect)
     - Surfaces brutes + surfaces après union
     - Détection chevauchements
-    - Calcule pct_uf et supprime les surfaces des objets
     """
 
     config = CATALOGUE.get(table_name)
@@ -179,10 +109,7 @@ def calculate_intersection(parcelle_wkt, table_name, area_parcelle_sig):
                 for row in rows:
                     d = dict(zip(cols, row))
                     surf = float(d.get("surface_inter_m2", 0) or 0)
-                    # Calculer pct_uf et supprimer la surface
-                    pct_uf = round((surf / area_parcelle_sig * 100), 4) if area_parcelle_sig > 0 else 0
-                    d["pct_uf"] = pct_uf
-                    d.pop("surface_inter_m2", None)  # Retirer la surface
+                    d["surface_inter_m2"] = surf  # Conserver la valeur
                     total_surface += surf
                     objects.append(d)
 
@@ -312,11 +239,7 @@ def calculate_intersection(parcelle_wkt, table_name, area_parcelle_sig):
             for row in rows:
                 d = dict(zip(cols, row))
                 surf_union = float(d.get("union_area", 0) or 0)
-                # Calculer pct_uf et supprimer les surfaces
-                pct_uf = round((surf_union / area_parcelle_sig * 100), 4) if area_parcelle_sig > 0 else 0
-                d["pct_uf"] = pct_uf
-                d.pop("union_area", None)  # Retirer la surface brute
-                d.pop("surface_inter_m2", None)  # Retirer si présente
+                d["surface_inter_m2"] = surf_union
 
                 key = tuple(d[c] for c in group_by)
                 label = " / ".join(str(v) for v in key)
@@ -396,7 +319,7 @@ def analyse_parcelle(section, numero):
     for table, config in CATALOGUE.items():
         logger.info(f"→ {table}")
         
-        objets, surface_totale_sig, metadata = calculate_intersection(parcelle_wkt, table, area_parcelle_sig)
+        objets, surface_totale_sig, metadata = calculate_intersection(parcelle_wkt, table)
         
         if objets:
             logger.info(f"  ✅ {len(objets)} objet(s) | {surface_totale_sig:.2f} m²")
@@ -464,6 +387,13 @@ def analyse_parcelle(section, numero):
                 logger.info(f"   ⚠️ Pourcentage réel {pct_real:.2f}% > 100% "
                             f"→ corrigé à 100%.")
                 pct_sig = 100.0
+            
+            # === Pourcentage par sous-zone du PLU (calcul par rapport à l'UF) ===
+            if table == "plu_latresne":
+                for obj, meta in zip(objets, metadata.get("items", [])):
+                    surf_union = meta.get("surface", 0)
+                    pct_obj = round((surf_union / area_parcelle_sig) * 100, 4)
+                    obj["pct_uf"] = pct_obj
             
             rapport["intersections"][table] = {
                 "nom": config['nom'],
@@ -607,7 +537,7 @@ if __name__ == "__main__":
     # Lancer l'analyse
     for table, config in CATALOGUE.items():
         logger.info(f"→ {table}")
-        objets, surface_totale_sig, metadata = calculate_intersection(parcelle_wkt, table, area_parcelle_sig)
+        objets, surface_totale_sig, metadata = calculate_intersection(parcelle_wkt, table)
 
         if objets:
             logger.info(f"  ✅ {len(objets)} objet(s) | {surface_totale_sig:.2f} m²")
@@ -676,6 +606,13 @@ if __name__ == "__main__":
                             f"→ corrigé à 100%.")
                 pct_sig = 100.0
             
+            # === Pourcentage par sous-zone du PLU (calcul par rapport à l'UF) ===
+            if table == "plu_latresne":
+                for obj, meta in zip(objets, metadata.get("items", [])):
+                    surf_union = meta.get("surface", 0)
+                    pct_obj = round((surf_union / area_parcelle_sig) * 100, 4)
+                    obj["pct_uf"] = pct_obj
+            
             rapport["intersections"][table] = {
                 "nom": config['nom'],
                 "type": config['type'],
@@ -701,7 +638,9 @@ if __name__ == "__main__":
 
         # Nettoyage des objets
         for obj in layer.get("objets", []):
-            # Plus besoin de nettoyer surface_inter_m2 car déjà supprimé dans calculate_intersection
+            # Retirer surface_inter_m2 (remplacé par pct_uf pour le PLU)
+            if "surface_inter_m2" in obj:
+                del obj["surface_inter_m2"]
             obj.pop("surface_zone_m2", None)
             obj.pop("surface_parcelle_m2", None)
 

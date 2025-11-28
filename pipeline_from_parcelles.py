@@ -21,7 +21,7 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
 from CERFA_ANALYSE.verification_unite_fonciere import verifier_unite_fonciere
-from INTERSECTIONS.intersections import calculate_intersection, CATALOGUE
+from INTERSECTIONS.intersections import calculate_intersection, CATALOGUE, fetch_superficie_indicative
 from CUA.sub_orchestrator_cua import generer_visualisations_et_cua_depuis_wkt
 from CERFA_ANALYSE.auth_utils import is_authorized_for_insee
 
@@ -199,24 +199,33 @@ def run_pipeline_from_parcelles(
             {"wkt": parcelle_wkt}
         ).scalar())
     
-    # Mise à jour de la surface dans le JSON CERFA
+    # Mise à jour de la surface dans le JSON CERFA (temporaire, sera remplacée par superficie indicative)
     cerfa_json["data"]["superficie_totale_m2"] = round(area_parcelle_sig, 2)
     cerfa_out.write_text(
         json.dumps(cerfa_json, indent=2, ensure_ascii=False),
         encoding="utf-8"
     )
     
+    # Récupération superficie indicative (contenance IGN)
+    superficie_indicative = fetch_superficie_indicative(parcelles, code_insee)
+    
+    if not superficie_indicative:
+        superficie_indicative = round(area_parcelle_sig, 2)
+        logger.warning("⚠️ Utilisation surface SIG comme fallback")
+    else:
+        logger.info(f"✅ Superficie indicative (contenance) : {superficie_indicative} m²")
+    
     rapport = {
         "parcelle": "UF",
-        "surface_m2": round(area_parcelle_sig, 2),
+        "surface_m2": round(area_parcelle_sig, 2),  # Surface SIG calculée
+        "surface_indicative": superficie_indicative,  # Surface juridique (contenance)
         "intersections": {}
     }
     
     # Analyse pour chaque table du catalogue
     for table, config in CATALOGUE.items():
         logger.info(f"→ {table}")
-        objets, surface_totale_sig, metadata = calculate_intersection(parcelle_wkt, table)
-        
+        objets, surface_totale_sig, metadata = calculate_intersection(parcelle_wkt, table, area_parcelle_sig)        
         if objets:
             logger.info(f"  ✅ {len(objets)} objet(s) | {surface_totale_sig:.2f} m²")
             pct_sig = 0.0

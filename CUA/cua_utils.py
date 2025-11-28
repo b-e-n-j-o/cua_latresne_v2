@@ -230,6 +230,7 @@ def add_objects_table(doc: Document, objets: List[Dict[str, Any]]):
     COLUMN_LABELS = {
         "surface_inter_m2": "Surface (m²)",
         "pourcentage_inter": "Pourcentage (%)",
+        "pct_uf": "Part de l'unité foncière (%)",
         "zonage_reglement": "Zonage",
         "libelle": "Libellé",
         "categorie": "Catégorie",
@@ -241,7 +242,10 @@ def add_objects_table(doc: Document, objets: List[Dict[str, Any]]):
     for obj in objets:
         all_keys.update(obj.keys())
     
-    ignore_patterns = ["id", "uuid", "gid", "fid", "globalid", "geom", "reglementation"]
+    ignore_patterns = [
+        "id", "uuid", "gid", "fid", "globalid", "geom", "reglementation",
+        "surface",   # supprime TOUTES les colonnes surface* (mais uniquement si elles existent)
+    ]
     keys = [k for k in sorted(all_keys) 
             if not any(pat in k.lower() for pat in ignore_patterns)]
     
@@ -266,6 +270,8 @@ def add_objects_table(doc: Document, objets: List[Dict[str, Any]]):
             elif "pourcentage" in key.lower():
                 pct_val = round(float(val), 2)
                 display_val = "100.00 %" if pct_val >= 99.0 else f"{pct_val:.2f} %"
+            elif key == "pct_uf":
+                display_val = f"{float(val):.2f} %"
             else:
                 display_val = str(val)
             table.cell(row_idx, col_idx).text = display_val

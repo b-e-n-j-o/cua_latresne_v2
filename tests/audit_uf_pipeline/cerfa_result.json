@@ -1,0 +1,46 @@
+{
+  "data": {
+    "cerfa_reference": "13410*11",
+    "commune_nom": "Latresne",
+    "commune_insee": "33234",
+    "departement_code": "33",
+    "numero_cu": "33-33234-2025-PARCEL",
+    "type_cu": "information",
+    "date_depot": "2025-11-27",
+    "demandeur": {
+      "type": "personne physique",
+      "nom": "DEMANDEUR",
+      "prenom": "Parcelle"
+    },
+    "coord_demandeur": {},
+    "mandataire": {},
+    "adresse_terrain": {
+      "numero": null,
+      "voie": null,
+      "lieu_dit": null,
+      "commune": "Latresne",
+      "code_postal": null
+    },
+    "references_cadastrales": [
+      {
+        "section": "AL",
+        "numero": "0417"
+      },
+      {
+        "section": "AL",
+        "numero": "0418"
+      },
+      {
+        "section": "AL",
+        "numero": "0074"
+      }
+    ],
+    "superficie_totale_m2": 2090.05,
+    "header_cu": {
+      "dept": "33",
+      "commune_code": "234",
+      "annee": "25",
+      "numero_dossier": "PARCEL"
+    }
+  }
+}
