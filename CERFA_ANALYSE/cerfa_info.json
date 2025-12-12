@@ -1,18 +1,18 @@
 {
-  "success": false,
+  "success": true,
   "data": {
     "cerfa_reference": "13410*12",
     "commune_nom": "Latresne",
     "commune_insee": "33234",
     "departement_code": "33",
-    "numero_cu": "033-234-2024-X0052",
+    "numero_cu": "033-234-2025-X00052",
     "type_cu": "CUa",
-    "date_depot": "19/07/2024",
+    "date_depot": "2024-07-19",
     "demandeur": {
       "type": "personne_morale",
       "nom": null,
       "prenom": null,
-      "denomination": "DAVID MIRIEU DE LABARRE ET DELPHINE FEIGNA N",
+      "denomination": "DAVID MIRIEU DE LABARRE ET DELPHINE FEIGNA N DAVID MIRIEU DE LABARRE ET DELPHINE FEIGNA N",
       "representant_nom": "FEIGNA",
       "representant_prenom": "Delphine",
       "siret": "30491458300022",
@@ -28,31 +28,25 @@
     },
     "adresse_terrain": {
       "numero": "11",
-      "voie": "Alee du Bastard",
+      "voie": "Allee du Bastard",
       "lieu_dit": null,
       "code_postal": "33360",
       "ville": "Latresne"
     },
-    "references_cadastrales": [
-      {
-        "section": "AC",
-        "numero": "0494",
-        "surface_m2": null
-      }
-    ],
-    "superficie_totale_m2": null,
     "header_cu": {
       "dept": "033",
       "commune_code": "234",
-      "annee": "24",
-      "numero_dossier": "0052"
-    },
-    "source_file": "cerfa_CU_13410-2024-07-19.pdf"
+      "annee": "25",
+      "numero_dossier": "00052"
+    }
   },
-  "errors": [
-    "superficie_totale_m2",
-    "demandeur.nom"
-  ],
-  "model_used": "mistral-small-latest",
-  "timestamp": "2025-12-08 11:35:06"
+  "usage": {
+    "prompt_tokens": 9833,
+    "completion_tokens": 432,
+    "total_tokens": 10265,
+    "cost_input_usd": 0.0049165,
+    "cost_output_usd": 0.0006479999999999999,
+    "cost_total_usd": 0.0055645
+  },
+  "model": "mistral-large-2512"
 }

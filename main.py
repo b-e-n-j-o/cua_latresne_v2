@@ -26,6 +26,8 @@ import requests
 import google.generativeai as genai
 
 
+from rag.rag_routes import router as rag_router
+
 
 
 
@@ -49,7 +51,6 @@ app = FastAPI(title="Kerelia CUA API", version="2.1")
 # ============================================================
 
 
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -70,6 +71,8 @@ JOBS = {}
 
 app.include_router(admin_router)
 app.include_router(cua_router)
+app.include_router(rag_router)
+
 # ============================================================
 # 🔧 Fonction d'exécution du pipeline (tâche asynchrone)
 # ============================================================

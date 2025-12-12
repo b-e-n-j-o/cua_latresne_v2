@@ -1,0 +1,20 @@
+{
+  "references_cadastrales": [
+    {
+      "section": "AC",
+      "numero": "0494",
+      "surface_m2": null
+    },
+    {
+      "section": "AC",
+      "numero": "0496",
+      "surface_m2": null
+    },
+    {
+      "section": "AC",
+      "numero": "0497",
+      "surface_m2": null
+    }
+  ],
+  "superficie_totale_m2": 1649
+}
