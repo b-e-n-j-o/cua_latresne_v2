@@ -24,4 +24,10 @@ sendgrid==6.11.0
 email-validator
 mammoth
 pypandoc_binary
+react-markdown
+langchain>=0.2.0
+langchain-openai>=0.1.7
+langchain-core>=0.2.0
+openai>=1.30.0
+tiktoken>=0.7.0
 
