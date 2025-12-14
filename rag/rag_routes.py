@@ -28,9 +28,14 @@ async def chat_urba(payload: ChatRequest):
         raise HTTPException(status_code=400, detail="Query vide")
 
     try:
+        # Gérer le cas ["all"] → None pour interroger tous les codes
+        codes_to_use = None
+        if payload.codes and "all" not in payload.codes:
+            codes_to_use = payload.codes
+        
         result = rag_engine.ask(
             question=payload.query,
-            codes=payload.codes,
+            codes=codes_to_use,
             top_k=payload.top_k or 5
         )
         return result

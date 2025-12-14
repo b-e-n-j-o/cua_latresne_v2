@@ -161,7 +161,15 @@ Réponds UNIQUEMENT avec les mots-clés."""),
             embed_time = time.time() - embed_start
             print(f"   ✅ Embedding généré ({len(query_embedding)} dims) en {embed_time:.2f}s")
         
-        target_codes = codes or list(self.TABLES.keys())
+        # Gérer les codes : None = tous, sinon filtrer les codes valides
+        if codes is None:
+            target_codes = list(self.TABLES.keys())
+        else:
+            # Filtrer uniquement les codes valides
+            target_codes = [c for c in codes if c in self.TABLES]
+            if not target_codes:
+                # Si aucun code valide, utiliser tous les codes par défaut
+                target_codes = list(self.TABLES.keys())
         
         if self.verbose:
             print(f"   📚 Codes à interroger: {', '.join(target_codes)}")
@@ -292,17 +300,16 @@ Réponds UNIQUEMENT avec les mots-clés."""),
             print(f"   📝 Réponse: {response[:150]}{'...' if len(response) > 150 else ''}")
             print()
         
-        # 3. Format sources
+        # 3. Format sources (avec text_clean pour affichage frontend)
         sources = []
-        for idx, article in enumerate(articles, 1):
+        for article in articles:
             sources.append({
-                "id": idx,
                 "article_id": article["article_id"],
                 "code": article["code"],
                 "title": article["title"],
-                "path": article["path_title"],
-                "resume": article["resume"],
-                "score": round(article["similarity"], 3)
+                "path_title": article["path_title"],
+                "resume": article.get("resume", ""),
+                "text_clean": article["text_clean"]
             })
         
         if self.verbose:
