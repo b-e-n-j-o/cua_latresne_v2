@@ -242,28 +242,41 @@
       "article": "7",
       "geom_type": "surfacique"
     },
-    "reseaux_aep_eu_lin": {
-      "nom": "Réseaux AEP EU (linéaires)",
-      "type": "carte",
+    "eaux_potables_lin": {
+      "nom": "Réseaux eaux potables (linéaires)",
+      "type": "Informations",
       "keep": [
-        "id",
-        "type",
-        "diametre",
-        "materiau",
-        "diametre"
-      ],
+        "libelle"
+            ],
       "origine": "shp",
       "article": "6",
       "geom_type": "lineaire"
     },
-    "reseaux_aep_eu_pct": {
-      "nom": "Réseaux AEP EU (ponctuels)",
-      "type": "carte",
+    "eaux_potables_pct": {
+      "nom": "Réseaux eaux potables (ponctuels)",
+      "type": "Informations",
       "keep": [
-        "id",
-        "profondeur",
-        "type",
-        "type_noeud"
+        "libelle"
+      ],
+      "origine": "shp",
+      "article": "6",
+      "geom_type": "ponctuel"
+    },
+    "eaux_usees_lin": {
+      "nom": "Réseaux eaux usées (linéaires)",
+      "type": "Informations",
+      "keep": [
+        "libelle"
+            ],
+      "origine": "shp",
+      "article": "6",
+      "geom_type": "lineaire"
+    },
+    "eaux_usees_pct": {
+      "nom": "Réseaux eaux usées (ponctuels)",
+      "type": "Informations",
+      "keep": [
+        "libelle"
       ],
       "origine": "shp",
       "article": "6",

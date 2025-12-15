@@ -38,17 +38,6 @@
       "attribut_map": "denom",
       "nom_attribut_map": "Domaine"
     },
-    "oap_linas": {
-    "nom": "OAP – Secteur de Linas",
-    "type": "prescription",
-    "keep": [
-      "reglementation"
-    ],
-    "origine": "kerelia",
-    "article": "5",
-    "attribut_map": "None",
-    "nom_attribut_map": "OAP"
-  },
     "debroussaillement": {
       "nom": "Zones de débroussaillement",
       "type": "Prescriptions",
@@ -225,32 +214,49 @@
       "article": "4",
       "attribut_map": "None"
     },
-    "reseaux_aep_eu_lin": {
-      "nom": "Réseaux AEP EU (linéaires)",
+    "eaux_usees_lin": {
+      "nom": "Réseaux eaux usées (linéaires)",
       "type": "Informations",
       "keep": [
-        "id",
-        "type",
-        "diametre",
-        "materiau",
-        "diametre"
-      ],
+        "libelle"
+            ],
       "origine": "shp",
       "article": "6",
-      "attribut_map": "None"
+      "attribut_map": "libelle",
+      "nom_attribut_map": "Réseau eaux usées"
     },
-    "reseaux_aep_eu_pct": {
-      "nom": "Réseaux AEP EU (ponctuels)",
-      "type": "carte",
+    "eaux_usees_pct": {
+      "nom": "Réseaux eaux usées (ponctuels)",
+      "type": "Informations",
       "keep": [
-        "id",
-        "profondeur",
-        "type",
-        "type_noeud"
+        "libelle"
       ],
       "origine": "shp",
       "article": "6",
-      "attribut_map": "None"
+      "attribut_map": "libelle",
+      "nom_attribut_map": "Réseau eaux usées"
+    },
+    "eaux_potables_lin": {
+      "nom": "Réseaux eaux potables (linéaires)",
+      "type": "Informations",
+      "keep": [
+        "libelle"
+            ],
+      "origine": "shp",
+      "article": "6",
+      "attribut_map": "libelle",
+      "nom_attribut_map": "Réseau eaux potables"
+    },
+    "eaux_potables_pct": {
+      "nom": "Réseaux eaux potables (ponctuels)",
+      "type": "Informations",
+      "keep": [
+        "libelle"
+      ],
+      "origine": "shp",
+      "article": "6",
+      "attribut_map": "libelle",
+      "nom_attribut_map": "Réseau eaux potables"
     },
     "reseaux_hta": {
       "nom": "Réseaux Haute Tension ENEDIS",

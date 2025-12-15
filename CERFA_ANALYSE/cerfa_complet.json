@@ -7,7 +7,7 @@
     "departement_code": "33",
     "numero_cu": "033-234-2025-X00052",
     "type_cu": "CUa",
-    "date_depot": "2024-07-19",
+    "date_depot": "2024-09-19",
     "demandeur": {
       "type": "personne_morale",
       "nom": null,
@@ -30,7 +30,7 @@
       "numero": "11",
       "voie": "Allee du Bastard",
       "lieu_dit": null,
-      "code_postal": "33360",
+      "code_postal": "33670",
       "ville": "Latresne"
     },
     "references_cadastrales": [
@@ -52,7 +52,7 @@
     ],
     "superficie_totale_m2": 1649,
     "header_cu": {
-      "dept": "33",
+      "dept": "033",
       "commune_code": "234",
       "annee": "25",
       "numero_dossier": "00052"
@@ -61,10 +61,10 @@
   "metadata": {
     "source_file": "cerfa_CU_13410-2024-07-19.pdf",
     "usage": {
-      "info_tokens": 10263,
+      "info_tokens": 10265,
       "parcelles_tokens": 4858,
-      "total_tokens": 15121,
-      "total_cost_usd": 0.0055615
+      "total_tokens": 15123,
+      "total_cost_usd": 0.0055645
     },
     "parcelles_stats": {
       "nb_parcelles": 3,

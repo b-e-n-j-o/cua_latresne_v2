@@ -191,6 +191,7 @@ def construire_couche_metier(
 
         # Ajouter au registry
         registry["layers"].append({
+            "table": table,  # lien explicite avec la table SQL
             "name": nom,
             "color": color,
             "mode": "entire",
@@ -310,6 +311,7 @@ def construire_couche_metier(
         })
 
     registry["layers"].append({
+        "table": table,  # lien explicite avec la table SQL
         "name": nom,
         "color": color,
         "mode": "grouped",

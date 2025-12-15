@@ -19,7 +19,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
 
-from CUA.map_utils import get_layers_on_parcel_with_buffer
+from CUA.map_utils import get_layers_on_buffer
 
 logger = logging.getLogger("carte2d.extraction")
 logger.setLevel(logging.INFO)
@@ -93,18 +93,38 @@ def charger_catalogue(catalogue_path: str | None = None):
 def selectionner_couches_pour_parcelle(
     parcelle_wkt: str,
     schema: str = SCHEMA_PAR_DEFAUT,
-    buffer_dist: int = 200,
+    buffer_dist: int = 150,
     catalogue: dict | None = None,
     engine=ENGINE,
 ):
     if catalogue is None:
         catalogue = charger_catalogue()
 
-    logger.info("🔍 Sélection des couches intersectant la parcelle...")
-    layers = get_layers_on_parcel_with_buffer(
+    # 📚 Log complet du catalogue
+    logger.info("📚 Catalogue — liste complète des couches disponibles :")
+    for layer_name, cfg in catalogue.items():
+        table = cfg.get("table", layer_name)
+        layer_type = cfg.get("type", "inconnu")
+        geom_col = cfg.get("geom", "geom_2154")
+        logger.info(f"   • {table} (type={layer_type}, geom={geom_col})")
+
+    logger.info("🔍 Sélection des couches intersectant la parcelle (buffer-centroïde)...")
+    layers = get_layers_on_buffer(
         engine, schema, catalogue, parcelle_wkt, buffer_dist
     )
+
+    logger.info("🧭 Couches RETENUES pour intersection :")
+    for table in layers.keys():
+        logger.info(f"   ✅ {schema}.{table}")
+
+    rejected = set(catalogue.keys()) - set(layers.keys())
+    if rejected:
+        logger.warning("🚫 Couches IGNORÉES (non candidates à l’intersection) :")
+        for layer in sorted(rejected):
+            logger.warning(f"   ❌ {layer}")
+
     logger.info(f"   ✅ {len(layers)} couches retenues")
+
     return layers
 
 
@@ -138,33 +158,111 @@ def extraire_entites_pour_couche(
     else:
         select_cols = ", ".join(keep[:3]) if keep else "gml_id"
 
+    # 📏 Contexte spatial de l'intersection
+    logger.info(
+        f"🔎 [{table}] Intersection avec buffer {buffer_dist} m (centroïde UF)"
+    )
+    logger.debug(f"WKT UF (tronqué): {parcelle_wkt[:120]}...")
+
+    # ============================================================
+    # 🔎 DEBUG — comptage intersections buffer
+    # ============================================================
+    sql_debug = f"""
+        WITH
+          p AS (SELECT ST_GeomFromText(:wkt, 2154) AS g),
+          centroid AS (SELECT ST_Centroid(g) AS c FROM p),
+          buffer AS (SELECT ST_Buffer(c, :buffer) AS b FROM centroid)
+        SELECT
+          COUNT(*) AS total,
+          COUNT(*) FILTER (
+            WHERE ST_Intersects(ST_MakeValid(t.geom_2154), buffer.b)
+          ) AS intersect_buffer
+        FROM {schema}.{table} t, buffer;
+    """
+
+    try:
+        with engine.connect() as conn:
+            total, intersect_buffer = conn.execute(
+                text(sql_debug),
+                {"wkt": parcelle_wkt, "buffer": buffer_dist},
+            ).fetchone()
+
+        logger.info(
+            f"🧪 [{table}] {total} entités totales — "
+            f"{intersect_buffer} intersectent le buffer {buffer_dist} m"
+        )
+
+        if intersect_buffer == 0:
+            logger.warning(
+                f"⚠️ [{table}] AUCUNE intersection avec le buffer — couche ignorée"
+            )
+            return [], []
+    except Exception as e:
+        logger.warning(
+            f"⚠️ [{table}] Impossible de compter les entités / intersections : {e}"
+        )
+
+    # (Optionnel) — inspection des SRID détectés
+    try:
+        sql_srid = f"SELECT DISTINCT ST_SRID(geom_2154) FROM {schema}.{table} LIMIT 3;"
+        with engine.connect() as conn:
+            srids = [r[0] for r in conn.execute(text(sql_srid)).fetchall()]
+        logger.info(f"🧭 [{table}] SRID détecté(s): {srids}")
+    except Exception as e:
+        logger.warning(f"⚠️ [{table}] Impossible de lire les SRID : {e}")
+
+    # ⚙️ Extraction buffer uniquement (l'UF est incluse car contenue dans le buffer)
     sql = f"""
         WITH
-          p AS (SELECT ST_GeomFromText(:wkt,2154) AS g),
-          centroid AS (SELECT ST_Centroid(g) AS c FROM p),
-          buffer AS (SELECT ST_Buffer(c,:buffer) AS b FROM centroid)
+          p AS (
+            SELECT ST_GeomFromText(:wkt, 2154) AS g
+          ),
+          centroid AS (
+            SELECT ST_Centroid(g) AS c FROM p
+          ),
+          buffer AS (
+            SELECT ST_Buffer(c, :buffer) AS b FROM centroid
+          )
         SELECT
-          ST_AsGeoJSON(ST_Transform(ST_Intersection(ST_MakeValid(t.geom_2154), buffer.b),4326)) AS geom,
-          ROW_NUMBER() OVER() AS fid,
+          ST_AsGeoJSON(
+            ST_Transform(
+              ST_Intersection(ST_MakeValid(t.geom_2154), buffer.b),
+              4326
+            )
+          ) AS geom,
+          ROW_NUMBER() OVER () AS fid,
           {select_cols}
-        FROM {schema}.{table} t, p, buffer
+        FROM {schema}.{table} t, buffer
         WHERE t.geom_2154 IS NOT NULL
-          AND ST_Intersects(ST_MakeValid(t.geom_2154), p.g)
+          AND ST_Intersects(ST_MakeValid(t.geom_2154), buffer.b)
         LIMIT 300;
+
     """
 
     logger.debug(f"SQL ({table}):\n{sql}")
 
     try:
         with engine.connect() as conn:
-            rs = conn.execute(text(sql), {"wkt": parcelle_wkt, "buffer": buffer_dist})
+            rs = conn.execute(
+                text(sql),
+                {"wkt": parcelle_wkt, "buffer": buffer_dist},
+            )
             rows = rs.fetchall()
             keys = list(rs.keys())
     except Exception as e:
         logger.error(f"❌ ERREUR SQL ({table}): {e}")
         return [], []
 
-    logger.info(f"   📊 {table}: {len(rows)} entités brutes")
+    if not rows:
+        logger.warning(
+            f"⚠️ [{table}] 0 entité intersecte le buffer "
+            f"(geom={schema}.{table}.geom_2154)"
+        )
+    else:
+        logger.info(
+            f"✅ [{table}] {len(rows)} entité(s) intersectent le buffer"
+        )
+
     return rows, keys
 
 

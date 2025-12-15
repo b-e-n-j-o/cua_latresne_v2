@@ -24,7 +24,7 @@ from supabase import create_client
 from CERFA_ANALYSE.auth_utils import is_authorized_for_insee
 
 # ✨ Nouveau : imports directs des modules internes
-from CERFA_ANALYSE.analyse_gemini import analyse_cerfa
+from CERFA_ANALYSE.mistral_analyse_cerfa_complet import analyser_cerfa_complet
 from CERFA_ANALYSE.verification_unite_fonciere import verifier_unite_fonciere
 from INTERSECTIONS.intersections import calculate_intersection, CATALOGUE
 from CUA.sub_orchestrator_cua import generer_visualisations_et_cua_depuis_wkt
@@ -47,7 +47,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 SUPABASE_BUCKET = "visualisation"
 
-CERFA_ANALYSE_SCRIPT = "./CERFA_ANALYSE/analyse_gemini.py"
+# Anciennes constantes CLI (scripts appelés en subprocess) — conservées pour compatibilité éventuelle
 VERIF_UF_SCRIPT = "./CERFA_ANALYSE/verification_unite_fonciere.py"
 INTERSECTIONS_SCRIPT = "./INTERSECTIONS/intersections.py"
 SUB_ORCHESTRATOR_CUA = "./CUA/sub_orchestrator_cua.py"
@@ -321,8 +321,11 @@ def run_global_pipeline(
         with open(cerfa_out, "r", encoding="utf-8") as f:
             cerfa_json = json.load(f)
     else:
-        logger.info("📄 Analyse du CERFA en cours...")
-        cerfa_json = analyse_cerfa(str(pdf_path), out_json=str(cerfa_out))
+        logger.info("📄 Analyse du CERFA en cours (Mistral)...")
+        cerfa_json = analyser_cerfa_complet(
+            pdf_path=str(pdf_path),
+            output_path=str(cerfa_out),
+        )
 
     emit("analyse_cerfa:done", cerfa_json)
 

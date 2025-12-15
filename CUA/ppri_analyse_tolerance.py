@@ -145,6 +145,10 @@ def analyser_ppri_tolerance(section=None, numero=None, code_insee=None, ppri_tab
     # =========================================================
     print("\n📦 ÉTAPE 2/6 : Chargement des zones PPRI")
     print("-" * 80)
+
+    # 🔐 Forcer le schéma si absent
+    if ppri_table and "." not in ppri_table:
+        ppri_table = f"latresne.{ppri_table}"
     
     sql = f"""
     WITH p AS (SELECT ST_GeomFromText(:wkt, 2154) AS geom)
