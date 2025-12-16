@@ -167,8 +167,22 @@ Retourne UNIQUEMENT le JSON."""
             return {"success": False, "error": f"Fichier introuvable: {pdf_path}"}
         
         try:
+            # 🔍 Détection automatique des pages cadastrales
+            try:
+                from CERFA_ANALYSE.detection_pages_cadastrales import (
+                    detecter_pages_cadastrales,
+                )
+
+                pages_info = detecter_pages_cadastrales(pdf_path, debug=False)
+                pages = pages_info["pages_a_extraire"]
+                print(f"📄 Pages cadastrales détectées : {pages}")
+            except Exception as e:
+                # Fallback : comportement historique
+                pages = [2, 4]
+                print(f"⚠️ Détection pages cadastrales échouée ({e}) → fallback {pages}")
+
             # Conversion PDF → Images
-            images_b64 = self._pdf_pages_to_images(pdf_path, [2, 4], dpi)
+            images_b64 = self._pdf_pages_to_images(pdf_path, pages, dpi)
             
             # Construction message
             content = [{"type": "text", "text": self.PROMPT}]
