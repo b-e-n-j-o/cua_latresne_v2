@@ -34,6 +34,15 @@ from rag.rag_routes_parallel import router as rag_parallel_router
 
 
 
+from api.plui import router as plui_router
+from api.plui_tiles import router as plui_tiles_router
+from api.communes import router as communes_router
+from api.departements import router as departements_router
+
+
+
+
+
 import logging
 
 logging.basicConfig(
@@ -64,6 +73,16 @@ app = FastAPI(title="Kerelia CUA API", version="2.1")
 # ============================================================
 
 
+@app.on_event("startup")
+async def log_routes():
+    print("\n=== ROUTES DISPONIBLES ===")
+    for route in app.routes:
+        print(route.path, route.methods)
+    print("=========================\n")
+
+
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -89,6 +108,13 @@ app.include_router(rag_plu_router)
 app.include_router(rag_meta_router)
 app.include_router(cag_plu_router)
 app.include_router(rag_parallel_router)
+
+app.include_router(plui_router)
+app.include_router(plui_tiles_router)
+app.include_router(communes_router)
+app.include_router(departements_router)
+
+
 
 # ============================================================
 # 🔧 Fonction d'exécution du pipeline (tâche asynchrone)
