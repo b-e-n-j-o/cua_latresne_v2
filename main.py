@@ -27,6 +27,19 @@ import google.generativeai as genai
 
 
 from rag.rag_routes import router as rag_router
+from rag.rag_routes_plu import router as rag_plu_router
+from rag.rag_routes_meta import router as rag_meta_router
+from rag.cag_plu_routes import router as cag_plu_router
+from rag.rag_routes_parallel import router as rag_parallel_router
+
+
+
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+)
 
 
 
@@ -72,6 +85,10 @@ JOBS = {}
 app.include_router(admin_router)
 app.include_router(cua_router)
 app.include_router(rag_router)
+app.include_router(rag_plu_router)
+app.include_router(rag_meta_router)
+app.include_router(cag_plu_router)
+app.include_router(rag_parallel_router)
 
 # ============================================================
 # 🔧 Fonction d'exécution du pipeline (tâche asynchrone)

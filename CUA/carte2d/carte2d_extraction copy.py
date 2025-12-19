@@ -231,9 +231,8 @@ def extraire_entites_pour_couche(
             )
           ) AS geom,
           ROW_NUMBER() OVER () AS fid,
-          ST_Intersects(ST_MakeValid(t.geom_2154), p.g) AS is_inside_uf,
           {select_cols}
-        FROM {schema}.{table} t, buffer, p
+        FROM {schema}.{table} t, buffer
         WHERE t.geom_2154 IS NOT NULL
           AND ST_Intersects(ST_MakeValid(t.geom_2154), buffer.b)
         LIMIT 300;

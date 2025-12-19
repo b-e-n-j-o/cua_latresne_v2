@@ -28,22 +28,8 @@ logger.setLevel(logging.INFO)
 # 🔧 Construction d'un popup harmonisé (type PPRI + PLU)
 # ============================================================
 
-def construire_popup_html(nom_couche, props_full, couleur_bordure, reglement=None, is_inside_uf=True):
-    """Construit un popup cohérent, avec restriction si hors UF."""
-    if not is_inside_uf:
-        return f"""
-        <div style="width:350px;padding:10px;border-left:4px solid #7f8c8d;">
-            <h4 style="margin-top:0;color:#666;">{nom_couche}</h4>
-            <p style="font-size:13px;color:#e67e22;font-weight:bold;margin:8px 0;">
-                📍 Élément à proximité (hors unité foncière)
-            </p>
-            <p style="font-size:12px;color:#888;font-style:italic;line-height:1.4;">
-                Cet élément intersecte le périmètre proche autour de votre unité foncière mais ne la touche pas directmeent . 
-                La réglementation associée n'est donc pas affichée ici.
-            </p>
-        </div>
-        """
-
+def construire_popup_html(nom_couche, props_full, couleur_bordure, reglement=None):
+    """Construit un popup cohérent avec ton ancien système."""
     if reglement:
         contenu = f"""
         <div style="width:450px;max-height:400px;overflow-y:auto;
@@ -58,7 +44,7 @@ def construire_popup_html(nom_couche, props_full, couleur_bordure, reglement=Non
         # Construire un listing HTML propre
         liste = ""
         for k, v in props_full.items():
-            if k in ["__layer_name__", "is_inside_uf"]:
+            if k == "__layer_name__":
                 continue
             label = k.replace("_", " ").title()
             liste += f"<b>{label}:</b> {v}<br>"
@@ -79,33 +65,20 @@ def construire_popup_html(nom_couche, props_full, couleur_bordure, reglement=Non
 # 🔧 Tooltip (résumé)
 # ============================================================
 
-def construire_tooltip_html(props_clean, is_inside_uf=True):
+def construire_tooltip_html(props_clean):
     html = (
         '<div style="background:white;color:#111;font-size:12px;'
         'border-radius:4px;padding:8px;border:1px solid #ccc;">'
     )
-    
-    if not is_inside_uf:
-        html += '<div style="color:#e67e22;font-weight:bold;margin-bottom:5px;">📍 À proximité (hors UF)</div>'
-
     for k, v in props_clean.items():
-        if k in ["__layer_name__", "is_inside_uf"]:
+        if k == "__layer_name__":
             continue
-            
-        # Si hors UF, on limite les infos affichées au survol
-        if not is_inside_uf and k.lower() not in ["nom", "type", "libelle", "zone", "libtxt"]:
-            continue
-
         alias = f"{k}:"
         valeur = str(v)
         if len(valeur) > 50:
             valeur = valeur[:50] + "..."
         html += f"<div><strong>{alias}</strong> {valeur}</div>"
-    
-    if is_inside_uf:
-        html += '<div class="tooltip-footer">👆 Cliquer pour afficher le règlement</div></div>'
-    else:
-        html += '<div class="tooltip-footer">👆 Hors parcelle</div></div>'
+    html += '<div class="tooltip-footer">👆 Cliquer pour afficher plus</div></div>'
     return html
 
 
@@ -171,13 +144,10 @@ def construire_couche_metier(
             geom = json.loads(row[0])
             props_raw = {keys[j + 1]: str(row[j + 1]) for j in range(len(keys)-1)}
 
-            # Récupération du flag is_inside_uf
-            is_inside_uf = str(props_raw.get("is_inside_uf", "True")).lower() == "true"
-
             props_clean = clean_properties(props_raw, nom)
 
             # props_full sans IDs
-            ignore_patterns = ["id", "uuid", "gid", "fid", "globalid", "is_inside_uf"]
+            ignore_patterns = ["id", "uuid", "gid", "fid", "globalid"]
             props_full = {
                 k: v for k, v in props_raw.items()
                 if not any(p in k.lower() for p in ignore_patterns)
@@ -192,15 +162,14 @@ def construire_couche_metier(
                     break
 
             # Tooltip
-            tooltip_html = construire_tooltip_html(props_clean, is_inside_uf=is_inside_uf)
+            tooltip_html = construire_tooltip_html(props_clean)
 
             # Popup
             popup_html = construire_popup_html(
                 nom_couche=nom,
                 props_full=props_full,
                 couleur_bordure=couleur_bordure,
-                reglement=reglement,
-                is_inside_uf=is_inside_uf
+                reglement=reglement
             )
 
             # Feature Folium
@@ -252,12 +221,9 @@ def construire_couche_metier(
         geom = json.loads(row[0])
         props_raw = {keys[j + 1]: str(row[j + 1]) for j in range(len(keys)-1)}
 
-        # Récupération du flag is_inside_uf
-        is_inside_uf = str(props_raw.get("is_inside_uf", "True")).lower() == "true"
-
         props_clean = clean_properties(props_raw, nom)
 
-        ignore_patterns = ["id", "uuid", "gid", "fid", "globalid", "is_inside_uf"]
+        ignore_patterns = ["id", "uuid", "gid", "fid", "globalid"]
         props_full = {
             k: v for k, v in props_raw.items()
             if not any(p in k.lower() for p in ignore_patterns)
@@ -296,15 +262,14 @@ def construire_couche_metier(
                 split_value = "Autres"
 
         # Tooltip
-        tooltip_html = construire_tooltip_html(props_clean, is_inside_uf=is_inside_uf)
+        tooltip_html = construire_tooltip_html(props_clean)
 
         # Popup
         popup_html = construire_popup_html(
             nom_couche=nom,
             props_full=props_full,
             couleur_bordure=couleur_bordure,
-            reglement=reglement,
-            is_inside_uf=is_inside_uf
+            reglement=reglement
         )
 
         # Feature Folium

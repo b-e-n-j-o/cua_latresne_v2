@@ -1,0 +1,1 @@
+En zone N, est-il possible d’installer une clôture végétale de 1,80 m de hauteur, éventuellement doublée d’un grillage, et de créer un stationnement pour deux véhicules à proximité d’un espace boisé classé ? Merci d’indiquer précisément les règles applicables et les éventuelles interdictions.
