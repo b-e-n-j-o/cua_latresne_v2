@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 import psycopg2
 import json
 import os
@@ -16,20 +16,43 @@ def get_db_connection():
     )
 
 @router.get("/communes")
-def get_communes():
+def get_communes(departement: str | None = Query(default=None, min_length=2, max_length=3)):
+    """
+    Retourne les communes en GeoJSON.
+    
+    Args:
+        departement: Code département (2-3 caractères, requis).
+                    Filtre les communes par département.
+                    Ex: ?departement=33 pour la Gironde
+    
+    Returns:
+        FeatureCollection GeoJSON des communes
+    """
+    # Blocage si aucun département n'est fourni (sécurité prod)
+    if not departement:
+        return {
+            "type": "FeatureCollection",
+            "features": []
+        }
+    
     conn = None
     cur = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("""
+        
+        # Requête avec filtre département (toujours présent ici)
+        sql = """
             SELECT
               insee,
               nom,
               ST_AsGeoJSON(ST_Transform(geom_2154, 4326))
             FROM public.communes
             WHERE geom_2154 IS NOT NULL
-        """)
+            AND insee LIKE %s
+        """
+        
+        cur.execute(sql, (f"{departement}%",))
 
         features = []
         for insee, nom, geom in cur.fetchall():
