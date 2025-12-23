@@ -34,10 +34,12 @@ from rag.rag_routes_parallel import router as rag_parallel_router
 
 
 
-from api.plui import router as plui_router
-from api.plui_tiles import router as plui_tiles_router
+# from api.plui import router as plui_router
+# from api.plui_tiles import router as plui_tiles_router
 from api.communes import router as communes_router
 from api.departements import router as departements_router
+from api.tiles_generic import router as tiles_router
+
 
 
 
@@ -109,10 +111,11 @@ app.include_router(rag_meta_router)
 app.include_router(cag_plu_router)
 app.include_router(rag_parallel_router)
 
-app.include_router(plui_router)
-app.include_router(plui_tiles_router)
+# app.include_router(plui_router)
+# app.include_router(plui_tiles_router)
 app.include_router(communes_router)
 app.include_router(departements_router)
+app.include_router(tiles_router)
 
 
 
