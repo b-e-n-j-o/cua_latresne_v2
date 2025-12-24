@@ -39,6 +39,8 @@ from rag.rag_routes_parallel import router as rag_parallel_router
 from api.communes import router as communes_router
 from api.departements import router as departements_router
 from api.tiles_generic import router as tiles_router
+from api.parcelle_et_voisins import router as parcelle_router
+
 
 
 
@@ -87,18 +89,12 @@ async def log_routes():
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://kerelia.fr",
-        "https://*.vercel.app",
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "https://www.kerelia.fr",
-        "https://www.kerelia.fr/*"
-    ],
+    allow_origin_regex=r"https?://(localhost:5173|localhost:3000|.*\.vercel\.app|www\.kerelia\.fr|kerelia\.fr)",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # Dictionnaire global pour le suivi des jobs
 JOBS = {}
@@ -116,7 +112,7 @@ app.include_router(rag_parallel_router)
 app.include_router(communes_router)
 app.include_router(departements_router)
 app.include_router(tiles_router)
-
+app.include_router(parcelle_router)
 
 
 # ============================================================
