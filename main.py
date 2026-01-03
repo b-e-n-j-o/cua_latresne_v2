@@ -40,8 +40,7 @@ from api.communes import router as communes_router
 from api.departements import router as departements_router
 from api.tiles_generic import router as tiles_router
 from api.parcelle_et_voisins import router as parcelle_router
-
-
+from api.topography_consolidated import router as topo_router
 
 
 
@@ -113,6 +112,7 @@ app.include_router(communes_router)
 app.include_router(departements_router)
 app.include_router(tiles_router)
 app.include_router(parcelle_router)
+app.include_router(topo_router)
 
 
 # ============================================================
