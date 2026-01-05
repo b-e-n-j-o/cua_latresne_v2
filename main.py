@@ -41,8 +41,7 @@ from api.departements import router as departements_router
 from api.tiles_generic import router as tiles_router
 from api.parcelle_et_voisins import router as parcelle_router
 from api.topography_consolidated import router as topo_router
-
-
+from api.generate_dpe import router as dpe_router
 
 
 
@@ -113,6 +112,7 @@ app.include_router(departements_router)
 app.include_router(tiles_router)
 app.include_router(parcelle_router)
 app.include_router(topo_router)
+app.include_router(dpe_router)
 
 
 # ============================================================
