@@ -42,8 +42,9 @@ from api.tiles_generic import router as tiles_router
 from api.parcelle_et_voisins import router as parcelle_router
 from api.topography_consolidated import router as topo_router
 from api.generate_dpe import router as dpe_router
-from api.fetch_plu import router as plu_router
 
+from api.plu.fetch_plu import router as plu_router
+from api.plu.chat import router as chat_router
 
 
 import logging
@@ -115,6 +116,7 @@ app.include_router(parcelle_router)
 app.include_router(topo_router)
 app.include_router(dpe_router)
 app.include_router(plu_router)
+app.include_router(chat_router)
 
 
 # ============================================================
