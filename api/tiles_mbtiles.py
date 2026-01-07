@@ -7,7 +7,7 @@ router = APIRouter()
 
 @lru_cache(maxsize=1)
 def get_conn():
-    return sqlite3.connect("/mnt/tiles-cache/plui_bordeaux.mbtiles", check_same_thread=False)
+    return sqlite3.connect("plui_bordeaux.mbtiles", check_same_thread=False)
 
 @router.get("/tiles/plui-bordeaux/{z}/{x}/{y}.mvt")
 def get_tile(z: int, x: int, y: int):

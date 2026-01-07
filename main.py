@@ -112,13 +112,14 @@ app.include_router(rag_parallel_router)
 # app.include_router(plui_tiles_router)
 app.include_router(communes_router)
 app.include_router(departements_router)
+app.include_router(mbtiles_router)
 app.include_router(tiles_router)
 app.include_router(parcelle_router)
 app.include_router(topo_router)
 app.include_router(dpe_router)
 app.include_router(plu_router)
 app.include_router(chat_router)
-app.include_router(mbtiles_router)
+
 
 
 
