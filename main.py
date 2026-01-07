@@ -45,6 +45,7 @@ from api.generate_dpe import router as dpe_router
 
 from api.plu.fetch_plu import router as plu_router
 from api.plu.chat import router as chat_router
+from api.tiles_mbtiles import router as mbtiles_router
 
 
 import logging
@@ -117,6 +118,8 @@ app.include_router(topo_router)
 app.include_router(dpe_router)
 app.include_router(plu_router)
 app.include_router(chat_router)
+app.include_router(mbtiles_router)
+
 
 
 # ============================================================
@@ -446,11 +449,10 @@ async def run_pipeline_from_parcelles_async(
                 JOBS[job_id]["current_step"] = "cua_pret"
 
             # 🔥 Détection des erreurs
-            if "❌" in line or "💥" in line or "Erreur" in line:
-                if "non autorisé" not in line:  # On ignore les erreurs d'autorisation déjà gérées
-                    JOBS[job_id]["status"] = "error"
-                    JOBS[job_id]["error"] = line
-                    JOBS[job_id]["current_step"] = "error"
+            if "💥" in line:
+                JOBS[job_id]["status"] = "error"
+                JOBS[job_id]["error"] = line
+                JOBS[job_id]["current_step"] = "error"
 
         # 📌 Fin du pipeline
         returncode = await process.wait()
