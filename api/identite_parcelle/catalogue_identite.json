@@ -1,0 +1,34 @@
+{
+    "plui_bordeaux_prescriptions_surf": {
+      "nom_affiche": "Prescriptions surfaciques",
+      "attribut_disc": "libelle"
+    },
+    "plui_bordeaux_info_surf": {
+      "nom_affiche": "Informations surfaciques",
+      "attribut_disc": "libelle"
+    },
+    "ac1": {
+      "nom_affiche": "Monuments historiques classés",
+      "attribut_disc": "nom_monument"
+    },
+    "ac2": {
+      "nom_affiche": "Monuments historiques inscrits",
+      "attribut_disc": "nom_monument"
+    },
+    "ac4": {
+      "nom_affiche": "Patrimoine UNESCO",
+      "attribut_disc": "nom_monument"
+    },
+    "i1": {
+      "nom_affiche": "Canalisations",
+      "attribut_disc": "fluides_inclus"
+    },
+    "i4_servitudes": {
+      "nom_affiche": "Servitudes I4",
+      "attribut_disc": "type"
+    },
+    "plu": {
+      "nom_affiche": "Zonage PLU",
+      "attribut_disc": "libelle"
+    }
+  }
