@@ -32,3 +32,4 @@ pdf2image==1.17.0
 mistralai==1.2.4
 mammoth
 PyPDF2
+laspy
