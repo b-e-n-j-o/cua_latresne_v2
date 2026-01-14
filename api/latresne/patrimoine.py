@@ -99,6 +99,7 @@ def get_patrimoine(parcelle_i: str):
         # Projet
         "valable_projet": fields.get("Valable pour un projet"),
         "type_projet": fields.get("Type de projet"),
+        "etablissements_et_projets": fields.get("Etablissements et \"projets\""),
 
         # Documents
         "cua": fields.get("CUA"),
