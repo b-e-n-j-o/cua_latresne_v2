@@ -543,6 +543,37 @@ def generer_rapport_pdf_exhaustif(dpe_data, section, numero, code_insee, surface
     return buffer
 
 
+@router.get("/rapport-dpe/exists/{code_insee}/{section}/{numero}")
+async def check_dpe_exists(code_insee: str, section: str, numero: str):
+    """
+    Vérifie si un DPE existe pour une parcelle donnée.
+    Retourne un booléen sans générer le PDF.
+    """
+    try:
+        parcelle_geom, _ = get_parcelle_geometry(code_insee, section, numero)
+        dpe_list = fetch_dpe_commune(code_insee)
+        dpe_in_parcelle = spatial_intersection(dpe_list, parcelle_geom)
+        
+        return {
+            "exists": len(dpe_in_parcelle) > 0,
+            "count": len(dpe_in_parcelle),
+            "code_insee": code_insee,
+            "section": section,
+            "numero": numero
+        }
+        
+    except Exception as e:
+        # En cas d'erreur, on retourne False plutôt que de lever une exception
+        return {
+            "exists": False,
+            "count": 0,
+            "code_insee": code_insee,
+            "section": section,
+            "numero": numero,
+            "error": str(e)
+        }
+
+
 @router.post("/rapport-dpe")
 async def generer_rapport_dpe(data: dict):
     """Génère rapport DPE PDF exhaustif pour une parcelle"""

@@ -275,7 +275,7 @@ def get_mnt_data(code_insee, id_parcelle):
     return mnt_data, out_transform, resolution, parcelles
 
 
-def exporter_visualisation_3d_plotly_from_wkt(wkt_path, output_dir="./out_3d", exaggeration=1.5):
+def exporter_visualisation_3d_plotly_from_wkt(wkt_path, output_dir="./out_3d", exaggeration=1.0):
     """Exporte une visualisation Plotly 3D à partir d'un fichier WKT (unité foncière)."""
     os.makedirs(output_dir, exist_ok=True)
 
@@ -330,7 +330,7 @@ def exporter_visualisation_3d_plotly_from_wkt(wkt_path, output_dir="./out_3d", e
         return {"error": str(e), "path": None, "filename": None}
 
 
-def exporter_visualisation_3d_plotly(code_insee, id_parcelle, output_dir, exaggeration=1.5):
+def exporter_visualisation_3d_plotly(code_insee, id_parcelle, output_dir, exaggeration=1.0):
     """Méthode ancienne (parcelle simple, via WFS IGN)."""
     os.makedirs(output_dir, exist_ok=True)
     parcelle_id = id_parcelle.replace(" ", "_")
@@ -399,7 +399,7 @@ if __name__ == "__main__":
     parser.add_argument("--id_parcelle", help="Identifiant de la parcelle (ex: 'AC 0242')")
     parser.add_argument("--geom-wkt", help="Chemin vers un fichier WKT (mode unité foncière)")
     parser.add_argument("--output", default="./out_3d", help="Dossier de sortie")
-    parser.add_argument("--exaggeration", type=float, default=1.5, help="Facteur d'exagération verticale")
+    parser.add_argument("--exaggeration", type=float, default=1.0, help="Facteur d'exagération verticale")
     args = parser.parse_args()
 
     if args.geom_wkt:

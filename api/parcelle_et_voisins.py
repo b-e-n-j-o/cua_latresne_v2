@@ -41,8 +41,8 @@ class UFParcelle(BaseModel):
 
 
 class UFRequest(BaseModel):
-    commune: str
     parcelles: List[UFParcelle]
+    commune: str = "LATRESNE"
     buffer: int = 100
 
 
@@ -127,11 +127,15 @@ def get_parcelles_dans_buffer_2154(
 
 @router.get("/et-voisins")
 def parcelle_et_voisins(
-    commune: str,
     section: str,
     numero: str,
+    commune: str = "LATRESNE",
     buffer: int = 100
 ):
+    """
+    Retourne uniquement la parcelle cible (sans voisins).
+    Le fond cadastral est déjà affiché sur la carte.
+    """
     commune = commune.upper().strip()
     section = section.upper().strip()
     numero = numero.zfill(4)
@@ -160,17 +164,25 @@ def parcelle_et_voisins(
     if not target["features"]:
         raise HTTPException(404, "Parcelle introuvable")
 
-    target_geom = shape(target["features"][0]["geometry"])
-    center = target_geom.centroid
+    # Retourner uniquement la parcelle cible
+    feature = target["features"][0]
+    geom_2154 = shape(feature["geometry"])
+    geom_4326 = transform(to_4326, geom_2154)
 
-    return get_parcelles_dans_buffer_2154(
-        center_geom_2154=center,
-        buffer_m=buffer,
-        commune=commune,
-        insee=insee,
-        target_section=section,
-        target_numero=numero
-    )
+    return {
+        "type": "FeatureCollection",
+        "features": [{
+            "type": "Feature",
+            "geometry": mapping(geom_4326),
+            "properties": {
+                "section": feature["properties"].get("section", ""),
+                "numero": feature["properties"].get("numero", ""),
+                "insee": insee,
+                "commune": commune.title(),
+                "is_target": True
+            }
+        }]
+    }
 
 
 # ------------------------------------------------------------
@@ -272,6 +284,25 @@ def uf_et_voisins(payload: UFRequest):
         props["is_target"] = key in uf_keys
         f["properties"] = props
 
+    # Ajouter la géométrie de l'union de l'UF dans la réponse (pour les intersections)
+    union_geom_4326 = transform(to_4326, union_geom)
+    result["uf_union_geometry"] = mapping(union_geom_4326)
+    
+    # Ajouter aussi les références des parcelles de l'UF avec l'insee
+    result["uf_parcelles"] = [
+        {
+            "section": p.section.upper().strip(),
+            "numero": p.numero.zfill(4),
+            "commune": commune.title(),
+            "insee": insee
+        }
+        for p in payload.parcelles
+    ]
+    
+    # Ajouter aussi les métadonnées de l'UF
+    result["uf_commune"] = commune.title()
+    result["uf_insee"] = insee
+
     return result
 
 # ------------------------------------------------------------
@@ -283,6 +314,10 @@ def parcelle_et_voisins_adresse(
     adresse: str,
     buffer: int = 100
 ):
+    """
+    Retourne uniquement la parcelle à l'adresse (sans voisins).
+    Le fond cadastral est déjà affiché sur la carte.
+    """
     r = requests.get(
         BAN_URL,
         params={"q": adresse, "limit": 1},
@@ -301,15 +336,53 @@ def parcelle_et_voisins_adresse(
     point_4326 = Point(lon, lat)
     point_2154 = transform(to_2154, point_4326)
 
-    result = get_parcelles_dans_buffer_2154(
-        center_geom_2154=point_2154,
-        buffer_m=buffer,
-        commune=commune,
-        insee=insee
-    )
+    # Trouver la parcelle au point
+    delta = 0.00001
+    bbox = f"{lon-delta},{lat-delta},{lon+delta},{lat+delta}"
     
-    # Ajouter le point d'adresse dans la réponse
-    result["address_point"] = [lon, lat]
+    target = wfs_get({
+        "service": "WFS",
+        "version": "2.0.0",
+        "request": "GetFeature",
+        "typeNames": CAD_LAYER,
+        "outputFormat": "application/json",
+        "srsName": "EPSG:4326",
+        "bbox": f"{bbox},EPSG:4326"
+    })
+    
+    if not target["features"]:
+        raise HTTPException(404, "Aucune parcelle à cette adresse")
+    
+    # Prendre la parcelle qui contient le point
+    parcelle = None
+    for f in target["features"]:
+        geom = shape(f["geometry"])
+        if geom.contains(point_4326):
+            parcelle = f
+            break
+    
+    if not parcelle:
+        parcelle = target["features"][0]  # Fallback
+    
+    # Retourner uniquement la parcelle cible
+    geom_2154 = shape(parcelle["geometry"])
+    geom_4326 = transform(to_4326, geom_2154)
+    
+    result = {
+        "type": "FeatureCollection",
+        "features": [{
+            "type": "Feature",
+            "geometry": mapping(geom_4326),
+            "properties": {
+                "section": parcelle["properties"].get("section", ""),
+                "numero": parcelle["properties"].get("numero", ""),
+                "insee": insee,
+                "commune": commune,
+                "is_target": True
+            }
+        }],
+        "address_point": [lon, lat]
+    }
     
     return result
 
@@ -324,8 +397,8 @@ def parcelle_par_point(
     buffer: int = 100
 ):
     """
-    Trouve la parcelle au point cliqué et retourne cette parcelle
-    ainsi que ses voisines dans un buffer.
+    Trouve la parcelle au point cliqué et retourne uniquement cette parcelle.
+    Le fond cadastral est déjà affiché sur la carte.
     
     Utilise une micro-bbox au lieu d'un filtre CQL INTERSECTS
     (le WFS IGN n'accepte pas INTERSECTS avec POINT en EPSG:4326).
@@ -362,13 +435,20 @@ def parcelle_par_point(
     
     props = parcelle["properties"]
     geom_4326 = shape(parcelle["geometry"])
-    geom_2154 = transform(to_2154, geom_4326)
     
-    return get_parcelles_dans_buffer_2154(
-        center_geom_2154=geom_2154.centroid,
-        buffer_m=buffer,
-        commune=None,
-        insee=props.get("code_insee"),
-        target_section=props.get("section"),
-        target_numero=props.get("numero")
-    )
+    # Retourner uniquement la parcelle cible
+    return {
+        "type": "FeatureCollection",
+        "features": [{
+            "type": "Feature",
+            "geometry": mapping(geom_4326),
+            "properties": {
+                "section": props.get("section", ""),
+                "numero": props.get("numero", ""),
+                "insee": props.get("code_insee", ""),
+                "commune": "",  # Pas disponible dans le WFS
+                "is_target": True
+            }
+        }]
+    }
+

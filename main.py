@@ -40,6 +40,7 @@ from api.communes import router as communes_router
 from api.departements import router as departements_router
 from api.tiles_generic import router as tiles_router
 from api.parcelle_et_voisins import router as parcelle_router
+from api.parcelle_geometrie import router as parcelle_geometrie_router
 from api.topography_consolidated import router as topo_router
 from api.generate_dpe import router as dpe_router
 
@@ -48,8 +49,6 @@ from api.plu.chat import router as chat_router
 from api.tiles_mbtiles import router as mbtiles_router
 
 from api.identite_parcelle.route_identite_parcelle import router as identite_parcelle_router
-from api.nuage_de_points.route_nuage_de_points import router as lidar_router
-
 
 from api.latresne.tiles_latresne import router as latresne_router
 from api.latresne.tiles_mbtiles import router as latresne_mbtiles_router
@@ -140,12 +139,11 @@ app.include_router(plu_router)
 app.include_router(chat_router)
 app.include_router(identite_parcelle_router)
 
-app.include_router(lidar_router)
-
 # endpoint pour les couches latresne
 app.include_router(latresne_router)
 app.include_router(latresne_mbtiles_router)
 app.include_router(patrimoine_router)
+app.include_router(parcelle_geometrie_router)
 
 
 

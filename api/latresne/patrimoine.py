@@ -58,6 +58,22 @@ def fetch_airtable_record(normalized_pid: str) -> dict | None:
     return records[0]["fields"]
 
 
+@router.get("/patrimoine/{parcelle_i}/exists")
+def check_patrimoine_exists(parcelle_i: str):
+    """
+    Vérifie si des données patrimoine existent pour une parcelle donnée.
+    Retourne un booléen.
+    parcelle_i = 'AE380'
+    """
+    normalized = normalize_parcelle_id(parcelle_i)
+    fields = fetch_airtable_record(normalized)
+    
+    return {
+        "exists": fields is not None,
+        "parcelle_i": normalized
+    }
+
+
 @router.get("/patrimoine/{parcelle_i}")
 def get_patrimoine(parcelle_i: str):
     """

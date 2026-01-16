@@ -70,7 +70,7 @@ async def generate_topography_3d(request: TopographyRequest):
                 "--code_insee", request.code_insee,
                 "--id_parcelle", id_parcelle,
                 "--output", temp_dir,
-                "--exaggeration", "1.5"
+                "--exaggeration", "1.0"
             ]
             
             logger.info(f"🚀 Exécution commande: {' '.join(cmd)}")
