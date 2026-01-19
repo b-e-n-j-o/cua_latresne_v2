@@ -28,3 +28,6 @@ INTERSECTIONS/STYLES/modele_styles_full.gpkg
 INTERSECTIONS/STYLES/modele_styles_full.gpkg-shm
 INTERSECTIONS/STYLES/modele_styles_full.gpkg-wal
 
+cache_lidar/
+temp_lidar/
+out_pipeline/
