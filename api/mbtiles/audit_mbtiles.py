@@ -1,100 +1,49 @@
 import sqlite3
-import sys
-from collections import defaultdict
+import gzip
 
-if len(sys.argv) != 2:
-    print("Usage: python audit_mbtiles.py <file.mbtiles>")
-    sys.exit(1)
+conn = sqlite3.connect('plui_bordeaux.mbtiles')
 
-MBTILES = sys.argv[1]
+# Récupérer la première tuile (la plus lourde)
+row = conn.execute("""
+    SELECT tile_data FROM tiles 
+    WHERE zoom_level = 15 AND tile_column = 16333 AND tile_row = 20957
+    LIMIT 1
+""").fetchone()
 
-conn = sqlite3.connect(MBTILES)
-cur = conn.cursor()
+if not row:
+    print("❌ Tuile non trouvée")
+    exit(1)
 
-print("\n==============================")
-print("📦 AUDIT MBTILES :", MBTILES)
-print("==============================\n")
+tile_data = row[0]
 
-# --------------------------------------------------
-# 1. Metadata
-# --------------------------------------------------
-print("🔎 METADATA\n-----------")
-cur.execute("SELECT name, value FROM metadata")
-metadata = dict(cur.fetchall())
-for k in sorted(metadata):
-    print(f"{k:25} {metadata[k]}")
+# Décompresser si gzip
+if tile_data[:2] == b'\x1f\x8b':
+    tile_data = gzip.decompress(tile_data)
+    print("✅ Tuile décompressée")
 
-# --------------------------------------------------
-# 2. Global stats
-# --------------------------------------------------
-print("\n📊 STATS GLOBALES\n----------------")
-cur.execute("SELECT COUNT(*) FROM tiles")
-total_tiles = cur.fetchone()[0]
-print(f"Nombre total de tuiles : {total_tiles}")
+# Sauvegarder pour inspection avec mbview
+with open('sample_tile.mvt', 'wb') as f:
+    f.write(tile_data)
 
-cur.execute("SELECT SUM(length(tile_data)) FROM tiles")
-total_bytes = cur.fetchone()[0] or 0
-print(f"Taille totale brute    : {total_bytes / 1024 / 1024:.2f} MB")
+print(f"✅ Tuile extraite: {len(tile_data)} bytes")
+print("📁 Fichier: sample_tile.mvt")
 
-# --------------------------------------------------
-# 3. Stats par zoom
-# --------------------------------------------------
-print("\n🔍 PAR ZOOM\n----------")
-cur.execute("""
-    SELECT zoom_level,
-           COUNT(*) AS nb_tiles,
-           SUM(length(tile_data)) AS bytes
-    FROM tiles
-    GROUP BY zoom_level
-    ORDER BY zoom_level
-""")
-
-zoom_stats = cur.fetchall()
-for z, n, b in zoom_stats:
-    print(f"z{z:2} : {n:6} tuiles | {b/1024/1024:8.2f} MB")
-
-# --------------------------------------------------
-# 4. Tuiles les plus lourdes
-# --------------------------------------------------
-print("\n🚨 TOP 20 TUILES LES PLUS LOURDES\n--------------------------------")
-cur.execute("""
-    SELECT zoom_level, tile_column, tile_row,
-           length(tile_data) AS size
-    FROM tiles
-    ORDER BY size DESC
-    LIMIT 20
-""")
-
-for z, x, y, size in cur.fetchall():
-    print(f"z{z} x{x} y{y} → {size/1024:.1f} KB")
-
-# --------------------------------------------------
-# 5. Distribution des tailles
-# --------------------------------------------------
-print("\n📐 DISTRIBUTION DES TAILLES DE TUILES\n-----------------------------------")
-buckets = defaultdict(int)
-
-cur.execute("SELECT length(tile_data) FROM tiles")
-for (size,) in cur.fetchall():
-    if size < 50_000:
-        buckets["<50 KB"] += 1
-    elif size < 100_000:
-        buckets["50–100 KB"] += 1
-    elif size < 250_000:
-        buckets["100–250 KB"] += 1
-    elif size < 500_000:
-        buckets["250–500 KB"] += 1
-    else:
-        buckets[">500 KB"] += 1
-
-for k in ["<50 KB", "50–100 KB", "100–250 KB", "250–500 KB", ">500 KB"]:
-    print(f"{k:12} : {buckets[k]}")
-
-# --------------------------------------------------
-# 6. Couches vectorielles (si présentes)
-# --------------------------------------------------
-if "json" in metadata:
-    print("\n🧱 COUCHES VECTORIELLES\n---------------------")
-    print(metadata["json"])
+# Essayer de décoder avec mapbox-vector-tile
+try:
+    import mapbox_vector_tile
+    decoded = mapbox_vector_tile.decode(tile_data)
+    print("\n🧱 COUCHES TROUVÉES:")
+    for layer_name, layer_data in decoded.items():
+        print(f"\n  Source-layer: '{layer_name}'")
+        if layer_data['features']:
+            first_feature = layer_data['features'][0]
+            print(f"  Propriétés exemple:")
+            for key, value in first_feature['properties'].items():
+                print(f"    - {key}: {value}")
+            break
+except ImportError:
+    print("\n⚠️ Installez mapbox-vector-tile: pip install mapbox-vector-tile")
+except Exception as e:
+    print(f"\n❌ Erreur décodage: {e}")
 
 conn.close()

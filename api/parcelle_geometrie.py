@@ -1,3 +1,8 @@
+"""
+Endpoint pour récupérer la géométrie d'une parcelle cadastrale
+via WFS IGN.
+"""
+
 import csv
 import os
 from typing import List
@@ -37,6 +42,7 @@ class UFParcelle(BaseModel):
 class UFRequest(BaseModel):
     parcelles: List[UFParcelle]
     commune: str = "LATRESNE"
+    code_insee: str | None = None  # Code INSEE optionnel (prioritaire sur commune)
 
 # ------------------------------------------------------------
 # Utils
@@ -65,17 +71,30 @@ def wfs_get(params):
 def parcelle_geometrie(
     section: str,
     numero: str,
-    commune: str = "LATRESNE"
+    commune: str = "LATRESNE",
+    code_insee: str | None = None  # Code INSEE optionnel (prioritaire sur commune)
 ):
-    """Retourne la géométrie d'une parcelle (sans voisins)."""
-    commune = commune.upper().strip()
+    """Retourne la géométrie d'une parcelle (sans voisins) avec sa contenance."""
     section = section.upper().strip()
     numero = numero.zfill(4)
 
-    if commune not in COMMUNE_TO_INSEE:
-        raise HTTPException(404, f"Commune inconnue : {commune}")
-
-    insee = COMMUNE_TO_INSEE[commune]
+    # Priorité au code INSEE si fourni, sinon utiliser le nom de commune
+    if code_insee:
+        insee = code_insee.strip()
+        # Récupérer le nom de commune depuis le code INSEE (pour la réponse)
+        commune_name = None
+        for nom, code in COMMUNE_TO_INSEE.items():
+            if code == insee:
+                commune_name = nom.title()
+                break
+        if not commune_name:
+            commune_name = commune.title()  # Fallback si pas trouvé
+    else:
+        commune_upper = commune.upper().strip()
+        if commune_upper not in COMMUNE_TO_INSEE:
+            raise HTTPException(404, f"Commune inconnue : {commune}")
+        insee = COMMUNE_TO_INSEE[commune_upper]
+        commune_name = commune.title()
 
     cql = (
         f"code_insee='{insee}' AND "
@@ -97,35 +116,68 @@ def parcelle_geometrie(
         raise HTTPException(404, "Parcelle introuvable")
 
     feature = target["features"][0]
+    props = feature["properties"]
     geom_2154 = shape(feature["geometry"])
     geom_4326 = transform(to_4326, geom_2154)
+
+    # Récupérer la contenance depuis le WFS (peut avoir différents noms)
+    contenance = None
+    for key in props.keys():
+        if 'contenance' in key.lower() or 'contain' in key.lower():
+            val = props.get(key)
+            if val is not None:
+                try:
+                    # Convertir en nombre si c'est une chaîne
+                    if isinstance(val, str):
+                        val = float(val.replace(',', '.').replace(' ', ''))
+                    contenance = float(val)
+                    break
+                except (ValueError, TypeError):
+                    continue
 
     return {
         "type": "Feature",
         "geometry": mapping(geom_4326),
         "properties": {
-            "section": feature["properties"].get("section", ""),
-            "numero": feature["properties"].get("numero", ""),
+            "section": props.get("section", ""),
+            "numero": props.get("numero", ""),
             "insee": insee,
-            "commune": commune.title()
+            "commune": commune_name,
+            "contenance": contenance  # Surface cadastrale indicative en m²
         }
     }
 
 @router.post("/uf-geometrie")
 def uf_geometrie(payload: UFRequest):
     """Retourne la géométrie de l'union d'une unité foncière (sans voisins)."""
-    commune = payload.commune.upper().strip()
-
-    if commune not in COMMUNE_TO_INSEE:
-        raise HTTPException(404, f"Commune inconnue : {commune}")
-
     if not payload.parcelles:
         raise HTTPException(400, "Aucune parcelle fournie pour l'unité foncière")
 
     if len(payload.parcelles) > 5:
         raise HTTPException(400, "Une unité foncière ne peut pas dépasser 5 parcelles.")
 
-    insee = COMMUNE_TO_INSEE[commune]
+    # Priorité au code INSEE si fourni, sinon utiliser le nom de commune
+    if payload.code_insee:
+        insee = payload.code_insee.strip()
+        print(f"[uf-geometrie] Utilisation du code INSEE fourni: {insee}")
+        # Récupérer le nom de commune depuis le code INSEE (pour la réponse)
+        commune = None
+        for nom, code in COMMUNE_TO_INSEE.items():
+            if code == insee:
+                commune = nom.title()
+                break
+        if not commune:
+            commune = f"Commune {insee}"  # Fallback si pas trouvé
+        print(f"[uf-geometrie] Commune trouvée: {commune}")
+    else:
+        commune = payload.commune.upper().strip()
+        print(f"[uf-geometrie] Utilisation du nom de commune: {commune}")
+        if commune not in COMMUNE_TO_INSEE:
+            raise HTTPException(404, f"Commune inconnue : {commune}")
+        insee = COMMUNE_TO_INSEE[commune]
+        print(f"[uf-geometrie] Code INSEE résolu: {insee}")
+    
+    print(f"[uf-geometrie] Traitement de {len(payload.parcelles)} parcelles avec INSEE={insee}")
     uf_geoms = []
     uf_keys = set()
 
@@ -154,10 +206,13 @@ def uf_geometrie(payload: UFRequest):
         })
 
         if not target["features"]:
+            print(f"[uf-geometrie] ❌ Parcelle introuvable: INSEE={insee}, section={section}, numero={numero}")
             raise HTTPException(
                 404,
-                f"Parcelle introuvable pour l'UF : {commune} {section} {numero}"
+                f"Parcelle introuvable pour l'UF : {commune} {section} {numero} (INSEE: {insee})"
             )
+        
+        print(f"[uf-geometrie] ✅ Parcelle trouvée: {section} {numero}")
 
         geom = shape(target["features"][0]["geometry"])
         uf_geoms.append(geom)

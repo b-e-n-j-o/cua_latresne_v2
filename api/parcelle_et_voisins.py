@@ -437,6 +437,8 @@ def parcelle_par_point(
     geom_4326 = shape(parcelle["geometry"])
     
     # Retourner uniquement la parcelle cible
+    # ⚠️ On propage aussi la contenance cadastrale (surface indicative) si disponible
+    #    dans le WFS (champ généralement nommé 'contenance').
     return {
         "type": "FeatureCollection",
         "features": [{
@@ -447,6 +449,7 @@ def parcelle_par_point(
                 "numero": props.get("numero", ""),
                 "insee": props.get("code_insee", ""),
                 "commune": "",  # Pas disponible dans le WFS
+                "contenance": props.get("contenance"),  # Surface cadastrale indicative
                 "is_target": True
             }
         }]

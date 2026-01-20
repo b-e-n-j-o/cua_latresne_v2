@@ -47,6 +47,10 @@ from api.generate_dpe import router as dpe_router
 from api.plu.fetch_plu import router as plu_router
 from api.plu.chat import router as chat_router
 from api.tiles_mbtiles import router as mbtiles_router
+from api.tiles_mbtiles_parcelles import router as tiles_parcelles
+from api.identite_parcelle.zonage_plui import router as zonage_plui_router
+
+
 
 from api.identite_parcelle.route_identite_parcelle import router as identite_parcelle_router
 
@@ -138,12 +142,14 @@ app.include_router(dpe_router)
 app.include_router(plu_router)
 app.include_router(chat_router)
 app.include_router(identite_parcelle_router)
+app.include_router(zonage_plui_router)
 
 # endpoint pour les couches latresne
 app.include_router(latresne_router)
 app.include_router(latresne_mbtiles_router)
 app.include_router(patrimoine_router)
 app.include_router(parcelle_geometrie_router)
+app.include_router(tiles_parcelles)
 
 
 
