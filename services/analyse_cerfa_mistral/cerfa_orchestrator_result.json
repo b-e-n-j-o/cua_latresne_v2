@@ -1,0 +1,78 @@
+{
+  "success": true,
+  "data": {
+    "info_generales": {
+      "cerfa_reference": "13410*12",
+      "commune_nom": "Latresne",
+      "commune_insee": "33234",
+      "departement_code": "33",
+      "numero_cu": "033-234-2024-X00052",
+      "type_cu": "CUa",
+      "date_depot": "2024-09-19",
+      "demandeur": {
+        "type": "personne_morale",
+        "nom": null,
+        "prenom": null,
+        "denomination": "DAVID MIRIEU DE LABARRE ET DELPHINE FEIGNAN",
+        "representant_nom": "FEIGNA",
+        "representant_prenom": "Delphine",
+        "siret": "30491458300022",
+        "adresse": {
+          "numero": "1",
+          "voie": "allées de Chartres",
+          "lieu_dit": null,
+          "code_postal": "33000",
+          "ville": "Bordeaux",
+          "email": "delabarre-feigna@33012notaires.fr",
+          "telephone": "0556481111"
+        }
+      },
+      "adresse_terrain": {
+        "numero": "11",
+        "voie": "Allee du Bastard",
+        "lieu_dit": null,
+        "code_postal": "33610",
+        "ville": "Latresne"
+      },
+      "header_cu": {
+        "dept": "033",
+        "commune_code": "234",
+        "annee": "24",
+        "numero_dossier": "0052"
+      }
+    },
+    "parcelles_detectees": {
+      "references_cadastrales": [
+        {
+          "section": "AC",
+          "numero": "0494",
+          "surface_m2": null
+        },
+        {
+          "section": "AC",
+          "numero": "0496",
+          "surface_m2": null
+        },
+        {
+          "section": "AC",
+          "numero": "0497",
+          "surface_m2": null
+        }
+      ],
+      "superficie_totale_m2": 1649
+    }
+  },
+  "alerts": [],
+  "metadata": {
+    "source_file": "cerfa_CU_13410-2024-07-19.pdf",
+    "stats": {
+      "nb_parcelles": 3,
+      "somme_surfaces": 0,
+      "ecart_total": 1649,
+      "tokens": 10721,
+      "info_tokens": 5842,
+      "parcelles_tokens": 4879,
+      "duration_s": 12.68
+    }
+  }
+}

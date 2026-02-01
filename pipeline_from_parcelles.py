@@ -40,6 +40,7 @@ def create_minimal_cerfa_json(
     code_insee: str,
     commune_nom: str = None,
     departement_code: str = None,
+    demandeur: dict = None,
 ) -> dict:
     """
     Crée un JSON CERFA minimal à partir d'une liste de parcelles.
@@ -60,6 +61,52 @@ def create_minimal_cerfa_json(
     if not commune_nom:
         commune_nom = "Commune"
     
+    # Utiliser les données du demandeur fournies, sinon valeurs par défaut
+    if demandeur:
+        demandeur_data: dict = {
+            "type": demandeur.get("type", "particulier"),
+        }
+        
+        # Ajouter nom et prénom si disponibles
+        nom = demandeur.get("nom", "").strip()
+        prenom = demandeur.get("prenom", "").strip()
+        
+        if nom:
+            demandeur_data["nom"] = nom
+        if prenom:
+            demandeur_data["prenom"] = prenom
+        
+        # Ajouter l'adresse si disponible
+        adresse = demandeur.get("adresse", {})
+        if adresse and isinstance(adresse, dict):
+            adresse_data: dict = {}
+            code_postal = adresse.get("code_postal", "").strip() if adresse.get("code_postal") else ""
+            ville = adresse.get("ville", "").strip() if adresse.get("ville") else ""
+            
+            if code_postal:
+                adresse_data["code_postal"] = code_postal
+            if ville:
+                adresse_data["ville"] = ville
+            
+            # Ajouter email et téléphone si présents
+            if adresse.get("email"):
+                adresse_data["email"] = adresse.get("email").strip()
+            if adresse.get("telephone"):
+                adresse_data["telephone"] = adresse.get("telephone").strip()
+            
+            if adresse_data:
+                demandeur_data["adresse"] = adresse_data
+        
+        # S'assurer qu'on a au moins un nom
+        if not demandeur_data.get("nom"):
+            demandeur_data["nom"] = "DEMANDEUR"
+    else:
+        demandeur_data = {
+            "type": "personne physique",
+            "nom": "DEMANDEUR",
+            "prenom": "Parcelle"
+        }
+    
     return {
         "data": {
             "cerfa_reference": "13410*11",
@@ -69,11 +116,7 @@ def create_minimal_cerfa_json(
             "numero_cu": f"{departement_code}-{code_insee}-{datetime.now().strftime('%Y')}-PARCEL",
             "type_cu": "information",
             "date_depot": datetime.now().strftime("%Y-%m-%d"),
-            "demandeur": {
-                "type": "personne physique",
-                "nom": "DEMANDEUR",
-                "prenom": "Parcelle"
-            },
+            "demandeur": demandeur_data,
             "coord_demandeur": {},
             "mandataire": {},
             "adresse_terrain": {
@@ -102,6 +145,7 @@ def run_pipeline_from_parcelles(
     user_id: str = None,
     user_email: str = None,
     out_dir: str = None,
+    demandeur: dict = None,
 ):
     """
     Pipeline complet depuis une liste de parcelles.
@@ -132,22 +176,49 @@ def run_pipeline_from_parcelles(
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     logger.info(f"📁 Dossier de sortie : {OUT_DIR}")
     
-    # ============================================================
-    # 1️⃣ Génération JSON CERFA minimal
-    # ============================================================
-    logger.info("=== Génération JSON CERFA minimal ===")
-    cerfa_json = create_minimal_cerfa_json(
-        parcelles=parcelles,
-        code_insee=code_insee,
-        commune_nom=commune_nom,
-    )
-    
     cerfa_out = OUT_DIR / "cerfa_result.json"
-    cerfa_out.write_text(
-        json.dumps(cerfa_json, indent=2, ensure_ascii=False),
-        encoding="utf-8"
-    )
-    logger.info(f"✅ JSON CERFA minimal généré : {cerfa_out}")
+    
+    # ============================================================
+    # 1️⃣ Génération ou réutilisation du JSON CERFA
+    # ============================================================
+    if cerfa_out.exists():
+        logger.info(f"📄 cerfa_result.json déjà présent, utilisation des données fournies : {cerfa_out}")
+        try:
+            cerfa_json = json.loads(cerfa_out.read_text(encoding="utf-8"))
+        except Exception as e:
+            logger.warning(f"⚠️ Erreur lecture cerfa_result.json existant ({e}), régénération minimale…")
+            cerfa_json = create_minimal_cerfa_json(
+                parcelles=parcelles,
+                code_insee=code_insee,
+                commune_nom=commune_nom,
+                demandeur=demandeur,
+            )
+            cerfa_out.write_text(
+                json.dumps(cerfa_json, indent=2, ensure_ascii=False),
+                encoding="utf-8"
+            )
+            logger.info(f"✅ JSON CERFA minimal régénéré : {cerfa_out}")
+    else:
+        logger.info("=== Génération JSON CERFA minimal ===")
+        if demandeur:
+            logger.info(
+                f"✅ Données du demandeur fournies : "
+                f"{demandeur.get('type', 'N/A')} - "
+                f"{demandeur.get('nom', 'N/A')} {demandeur.get('prenom', '')}"
+            )
+        else:
+            logger.info("ℹ️  Aucune donnée demandeur fournie, utilisation des valeurs par défaut")
+        cerfa_json = create_minimal_cerfa_json(
+            parcelles=parcelles,
+            code_insee=code_insee,
+            commune_nom=commune_nom,
+            demandeur=demandeur,
+        )
+        cerfa_out.write_text(
+            json.dumps(cerfa_json, indent=2, ensure_ascii=False),
+            encoding="utf-8"
+        )
+        logger.info(f"✅ JSON CERFA minimal généré : {cerfa_out}")
     
     # ============================================================
     # 2️⃣ Vérification unité foncière
@@ -313,6 +384,7 @@ if __name__ == "__main__":
     parser.add_argument("--out-dir", default=None, help="Dossier de sortie")
     parser.add_argument("--user-id", default=None, help="ID utilisateur")
     parser.add_argument("--user-email", default=None, help="Email utilisateur")
+    parser.add_argument("--demandeur", default=None, help="Données du demandeur au format JSON")
     
     args = parser.parse_args()
     
@@ -321,13 +393,24 @@ if __name__ == "__main__":
         if not isinstance(parcelles, list):
             raise ValueError("--parcelles doit être une liste JSON")
         
+        # Parser le demandeur si fourni
+        demandeur = None
+        if args.demandeur:
+            try:
+                demandeur = json.loads(args.demandeur)
+                if not isinstance(demandeur, dict):
+                    raise ValueError("--demandeur doit être un objet JSON")
+            except json.JSONDecodeError as e:
+                logger.warning(f"⚠️ Erreur parsing --demandeur : {e}. Utilisation des valeurs par défaut.")
+        
         result = run_pipeline_from_parcelles(
             parcelles=parcelles,
             code_insee=args.code_insee,
             commune_nom=args.commune_nom,
             user_id=args.user_id,
             user_email=args.user_email,
-            out_dir=args.out_dir
+            out_dir=args.out_dir,
+            demandeur=demandeur
         )
         
         print("\n📦 RÉSULTAT FINAL :")

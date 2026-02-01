@@ -188,7 +188,7 @@ async def get_zonage_plui_uf(request: UFRequest):
     Process:
     1. Pour chaque parcelle, fetch géométrie depuis WFS IGN
     2. Intersection avec carto.plui_bordeaux_zonage
-    3. Retourne tous les zonages trouvés
+    3. Retourne tous les zonages trouvés 
     """
     insee = request.insee
     parcelles = request.parcelles

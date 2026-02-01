@@ -26,6 +26,7 @@ class ChatPLURequest(BaseModel):
     insee: str
     zone: str
     question: str
+    parcelle_context: str           # Contexte parcellaire
     conversation_history: List[Dict[str, str]] = []
 
 @router.post("/chat")
@@ -49,15 +50,24 @@ async def chat_with_plu(request: ChatPLURequest):
                 role_label = "Utilisateur" if msg["role"] == "user" else "Assistant"
                 history_text += f"{role_label}: {msg['content']}\n"
         
-        # 5. System prompt avec règlement
+        # 5. System prompt avec contexte parcellaire + règlement
+        parcelle_context = request.parcelle_context
+        
         system_prompt = f"""Tu es un assistant spécialisé en urbanisme français.
-Tu réponds aux questions sur le règlement du PLU/PLUI de la zone {request.zone}.
 
-RÈGLEMENT COMPLET DE LA ZONE {request.zone}:
+CONTEXTE PARCELLAIRE (FAITS ÉTABLIS) :
+{parcelle_context}
+
+RÈGLEMENT D'URBANISME – ZONE {request.zone} :
 {pdf_text}
 
-Réponds de manière précise en citant les articles pertinents (ex: "Article UP 11.1.1").
-Utilise un langage clair et accessible.{history_text}"""
+INSTRUCTIONS :
+- Appuie-toi d'abord sur le contexte parcellaire.
+- Puis applique strictement le règlement de la zone.
+- Cite les articles précis (ex: Article UP 11.1.1).
+- N'invente aucune règle absente du règlement.
+- Si une information manque, indique-le explicitement.
+{history_text}"""
         
         # 6. Appel GPT-5 Nano
         answer = call_gpt_5(

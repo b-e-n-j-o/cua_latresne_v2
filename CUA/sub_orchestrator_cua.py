@@ -21,6 +21,7 @@ import string
 from pathlib import Path
 from dotenv import load_dotenv
 from supabase import create_client
+from sqlalchemy import create_engine, text
 
 from CUA.carte2d.carte2d_rendu import generer_carte_2d_depuis_wkt
 from CUA.map_3d import exporter_visualisation_3d_plotly_from_wkt
@@ -76,6 +77,63 @@ def upload_to_supabase(local_path, remote_path, bucket=None):
         )
     public_url = f"{SUPABASE_URL}/storage/v1/object/public/{bucket}/{remote_path}"
     return public_url
+
+
+def compute_centroid_from_wkt_path(wkt_path: str):
+    """
+    Calcule le centroïde (lon/lat) de l'unité foncière à partir d'un fichier WKT,
+    en s'appuyant sur PostGIS (même base que pour les intersections).
+    """
+    try:
+        wkt_file = Path(wkt_path)
+        if not wkt_file.exists():
+            logger.warning(f"⚠️ WKT introuvable pour calcul du centroïde: {wkt_path}")
+            return None
+
+        geom_wkt = wkt_file.read_text(encoding="utf-8").strip()
+        if not geom_wkt:
+            logger.warning("⚠️ WKT vide pour calcul du centroïde")
+            return None
+
+        SUPABASE_HOST = os.getenv("SUPABASE_HOST")
+        SUPABASE_DB = os.getenv("SUPABASE_DB")
+        SUPABASE_USER = os.getenv("SUPABASE_USER")
+        SUPABASE_PASSWORD = os.getenv("SUPABASE_PASSWORD")
+        SUPABASE_PORT = os.getenv("SUPABASE_PORT") or "5432"
+
+        if not all([SUPABASE_HOST, SUPABASE_DB, SUPABASE_USER, SUPABASE_PASSWORD]):
+            logger.warning("⚠️ Variables DB manquantes, impossible de calculer le centroïde")
+            return None
+
+        database_url = (
+            f"postgresql+psycopg2://{SUPABASE_USER}:{SUPABASE_PASSWORD}"
+            f"@{SUPABASE_HOST}:{SUPABASE_PORT}/{SUPABASE_DB}"
+        )
+        engine = create_engine(database_url)
+
+        with engine.connect() as conn:
+            lon, lat = conn.execute(
+                text(
+                    """
+                    SELECT
+                        ST_X(ST_Transform(ST_Centroid(ST_GeomFromText(:wkt, 2154)), 4326)) AS lon,
+                        ST_Y(ST_Transform(ST_Centroid(ST_GeomFromText(:wkt, 2154)), 4326)) AS lat
+                    """
+                ),
+                {"wkt": geom_wkt},
+            ).one()
+
+        if lon is None or lat is None:
+            logger.warning("⚠️ Centroïde NULL retourné par PostGIS")
+            return None
+
+        centroid = {"lon": float(lon), "lat": float(lat)}
+        logger.info(f"📍 Centroïde UF calculé: {centroid}")
+        return centroid
+
+    except Exception as e:
+        logger.warning(f"⚠️ Erreur lors du calcul du centroïde UF: {e}")
+        return None
 
 
 # ============================================================
@@ -302,6 +360,18 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     # 🧑‍💼 Récupération des infos utilisateur depuis l'environnement
     user_id = os.getenv("USER_ID") or None
     user_email = os.getenv("USER_EMAIL") or None
+
+    # 📌 Extraction des parcelles pour historisation (depuis cerfa_data si disponible)
+    parcelles_for_history = None
+    if cerfa_data:
+        parcelles_for_history = (
+            cerfa_data.get("references_cadastrales")
+            or cerfa_data.get("parcelles")
+            or None
+        )
+
+    # 📍 Calcul du centroïde de l'unité foncière pour l'historique carto
+    centroid_for_history = compute_centroid_from_wkt_path(str(wkt_path))
     
     logger.info(f"🧩 Insertion pipeline dans latresne.pipelines (slug={slug})...")
     try:
@@ -319,9 +389,12 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
             "user_id": user_id,
             "user_email": user_email,
             "cerfa_data": cerfa_data,
+            "parcelles": parcelles_for_history,
+            "centroid": centroid_for_history,
             "intersections_gpkg_url": intersections_gpkg_url,
             "intersections_json_url": intersections_json_url,
             "metadata": result,
+            "suivi": 2,  # Dossier traité (étapes 1 et 2 validées automatiquement)
         }).execute()
         logger.info(f"✅ Pipeline enregistré dans latresne.pipelines (status={getattr(response, 'status_code', '?')})")
         if user_id:

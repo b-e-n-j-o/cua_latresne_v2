@@ -123,7 +123,7 @@ def analyser_cerfa_complet(pdf_path: str, output_path: str = "cerfa_complet.json
 # CLI de test local
 # ============================================================
 if __name__ == "__main__":
-    pdf = "/path/to/cerfa.pdf"
+    pdf = "/Volumes/T7/Travaux_Freelance/KERELIA/CUAs/INTERSECTION_PIPELINE/LATRESNE/cua_latresne_v4/cerfa_CU_13410-2024-07-19.pdf"
     res = analyser_cerfa_complet(pdf, "cerfa_complet.json")
 
     if not res.get("success"):

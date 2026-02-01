@@ -53,16 +53,14 @@ def get_plu_code(insee: str) -> dict:
 
 
 def get_cached_plu(path: str) -> str | None:
-    """path peut être '243300316' ou '243300316/UP27'"""
-    try:
-        file_path = f"reglements/{path}.pdf"
-        result = supabase.storage.from_(BUCKET_NAME).create_signed_url(
-            file_path, 
-            expires_in=3600
-        )
-        return result.get("signedURL") if result else None
-    except:
-        return None
+    """
+    Retourne l'URL publique du PDF en cache.
+    path = '33234' ou '243300316/UP1'
+    """
+    return (
+        f"{SUPABASE_URL}/storage/v1/object/public/"
+        f"{BUCKET_NAME}/reglements/{path}.pdf"
+    )
 
 
 

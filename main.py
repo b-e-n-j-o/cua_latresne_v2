@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 from pathlib import Path
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 import uuid
 import json
 import os
@@ -58,6 +58,9 @@ from api.latresne.tiles_latresne import router as latresne_router
 from api.latresne.tiles_mbtiles import router as latresne_mbtiles_router
 from api.latresne.patrimoine import router as patrimoine_router
 
+from routers.cerfa import router as cerfa_router
+from services.history.centroid_history import router as centroid_history_router
+from services.history.suivi import router as suivi_router
 
 
 
@@ -86,7 +89,11 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv("SERVICE_KEY") or os.getenv("SUPABASE_SERV
 supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 import cua_routes
+import services.history.centroid_history as centroid_history_module
+import services.history.suivi as suivi_module
 cua_routes.supabase = supabase
+centroid_history_module.supabase = supabase
+suivi_module.supabase = supabase
 
 app = FastAPI(title="Kerelia CUA API", version="2.1")
 # ============================================================
@@ -150,6 +157,10 @@ app.include_router(latresne_mbtiles_router)
 app.include_router(patrimoine_router)
 app.include_router(parcelle_geometrie_router)
 app.include_router(tiles_parcelles)
+
+app.include_router(cerfa_router)
+app.include_router(centroid_history_router)
+app.include_router(suivi_router)
 
 
 
@@ -396,6 +407,22 @@ class ParcelleRequest(BaseModel):
     commune_nom: Optional[str] = None
     user_id: Optional[str] = None
     user_email: Optional[str] = None
+    demandeur: Optional[Dict[str, Any]] = None  # Données du demandeur depuis ValidationView
+
+
+class ParcelleWithCerfaDataRequest(BaseModel):
+    """
+    Requête étendue : parcelles + données CERFA complètes issues du front (LLM + corrections user).
+    - parcelles : liste de sections/numéros (après modifications utilisateur)
+    - code_insee / commune_nom : contexte géographique
+    - cerfa_data : données structurées (info_generales + parcelles_detectees) provenant du front
+    """
+    parcelles: List[Dict[str, str]]
+    code_insee: str
+    commune_nom: Optional[str] = None
+    user_id: Optional[str] = None
+    user_email: Optional[str] = None
+    cerfa_data: Dict[str, Any]
 
 
 async def run_pipeline_from_parcelles_async(
@@ -404,7 +431,8 @@ async def run_pipeline_from_parcelles_async(
     code_insee: str,
     commune_nom: str | None,
     env: dict | None = None,
-    out_dir: str | None = None
+    out_dir: str | None = None,
+    demandeur: dict | None = None
 ):
     """Exécute le pipeline depuis les parcelles et met à jour JOBS pour suivi via polling."""
     try:
@@ -443,6 +471,9 @@ async def run_pipeline_from_parcelles_async(
             cmd += ["--user-id", env["USER_ID"]]
         if env.get("USER_EMAIL"):
             cmd += ["--user-email", env["USER_EMAIL"]]
+        if demandeur:
+            demandeur_json = json.dumps(demandeur)
+            cmd += ["--demandeur", demandeur_json]
 
         print(f"🚀 [JOB {job_id}] Lancement du pipeline parcelles : {' '.join(cmd[:5])}...")
         print(f"🔥 Pipeline démarré pour job {job_id}")
@@ -606,10 +637,114 @@ async def analyze_parcelles(req: ParcelleRequest):
             req.code_insee,
             req.commune_nom,
             env,
-            out_dir=out_dir
+            out_dir=out_dir,
+            demandeur=req.demandeur
         )
     )
     
+    return {"success": True, "job_id": job_id}
+
+
+@app.post("/analyze-parcelles-with-json-data")
+async def analyze_parcelles_with_json_data(req: ParcelleWithCerfaDataRequest):
+    """
+    Variante avancée qui prend :
+    - une liste de parcelles (section/numero) potentiellement modifiées par l'utilisateur
+    - les données CERFA complètes (issues de l'analyse LLM + corrections front)
+    
+    Objectif : utiliser ces données pour le header CUA (demandeur, adresse terrain, numéro CU, etc.)
+    plutôt que de reconstruire un CERFA minimal côté backend.
+    """
+    print("Appel à analyze-parcelles-with-json-data")
+
+    # Validation parcelles
+    if not req.parcelles or len(req.parcelles) == 0:
+        raise HTTPException(status_code=400, detail="Liste de parcelles vide")
+    if len(req.parcelles) > 20:
+        raise HTTPException(status_code=400, detail="Trop de parcelles (max 20)")
+    for p in req.parcelles:
+        if not isinstance(p, dict) or "section" not in p or "numero" not in p:
+            raise HTTPException(
+                status_code=400,
+                detail="Format de parcelle invalide. Attendu: {'section': 'AC', 'numero': '0242'}",
+            )
+
+    job_id = str(uuid.uuid4())
+
+    JOBS[job_id] = {
+        "status": "queued",
+        "created_at": datetime.now().isoformat(),
+        "filename": f"{len(req.parcelles)} parcelle(s)",
+        "user_id": req.user_id,
+        "user_email": req.user_email,
+    }
+
+    # 🔐 Vérification des droits utilisateur
+    user_insee_list = get_user_insee_list(req.user_id) if req.user_id else []
+    print(f"👤 Droits utilisateur {req.user_email}: {user_insee_list or 'toutes communes'}")
+
+    if user_insee_list and req.code_insee and req.code_insee not in user_insee_list:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Accès refusé : vous n'êtes autorisé qu'à analyser "
+                f"les communes suivantes : {', '.join(user_insee_list)}"
+            ),
+        )
+
+    # 🧠 Transmission au sous-processus (via variables d'environnement)
+    env = os.environ.copy()
+    if req.user_id:
+        env["USER_ID"] = req.user_id
+    if req.user_email:
+        env["USER_EMAIL"] = req.user_email
+
+    # 📁 Dossier unique pour ce job
+    out_dir = f"/tmp/out_pipeline_{job_id}"
+    JOBS[job_id]["out_dir"] = out_dir
+
+    # 🧱 Construction du cerfa_result.json à partir des données front
+    cerfa_dir = Path(out_dir)
+    cerfa_dir.mkdir(parents=True, exist_ok=True)
+
+    # 🔍 Log des clés reçues côté backend pour tracer le pont front → back
+    cerfa_payload = req.cerfa_data or {}
+    print(
+        "[CUA] Backend /analyze-parcelles-with-json-data cerfa_data keys:",
+        list(cerfa_payload.keys())
+    )
+
+    # Ici, cerfa_payload est déjà un objet "data" complet au format attendu par le CUA
+    data: Dict[str, Any] = cerfa_payload
+
+    cerfa_json: Dict[str, Any] = {
+        "meta": {
+            "source": "frontend_cerfa",
+            "generated_at": datetime.now().isoformat(),
+            "commune_insee": data.get("commune_insee"),
+            "commune_nom": data.get("commune_nom"),
+        },
+        "data": data,
+        "errors": [],
+    }
+
+    cerfa_out = cerfa_dir / "cerfa_result.json"
+    cerfa_out.write_text(json.dumps(cerfa_json, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"✅ cerfa_result.json (depuis cerfa_data front) écrit dans {cerfa_out}")
+
+    # 🔥 Lancement du pipeline en tâche asynchrone (réutilise run_pipeline_from_parcelles_async)
+    asyncio.create_task(
+        run_pipeline_from_parcelles_async(
+            job_id,
+            req.parcelles,
+            req.code_insee,
+            req.commune_nom,
+            env,
+            out_dir=out_dir,
+            demandeur=data.get("demandeur") or {},
+        )
+    )
+
     return {"success": True, "job_id": job_id}
 
 
@@ -771,44 +906,6 @@ def get_pipeline_by_slug(slug: str):
             "error": str(e)
         }
 
-
-# ============================================================
-# 👤 ENDPOINT 4 — PIPELINES D'UN UTILISATEUR
-# ============================================================
-
-@app.get("/pipelines/by_user")
-def get_pipelines_by_user(user_id: str, limit: int = 15):
-    """
-    Récupère les pipelines d'un utilisateur spécifique.
-    Utile pour afficher l'historique personnel dans l'interface.
-    """
-    try:
-        response = (
-            supabase
-            .schema("latresne")
-            .table("pipelines")
-            .select("*")
-            .eq("user_id", user_id)
-            .order("created_at", desc=True)
-            .limit(limit)
-            .execute()
-        )
-
-        pipelines = response.data or []
-        return {
-            "success": True,
-            "count": len(pipelines),
-            "pipelines": pipelines
-        }
-
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
-
-
-# ============================================================
 
 # ============================================================
 # 🧠 ENDPOINT DEBUG — TEST SUPABASE (latresne + public)
