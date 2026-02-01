@@ -21,7 +21,8 @@ except ImportError:
     gpd = None
 
 load_dotenv()
-logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
+# WARNING pour limiter la RAM (logs verbeux désactivés temporairement)
+logging.basicConfig(level=logging.WARNING, format="%(levelname)s | %(message)s")
 logger = logging.getLogger("intersections")
 
 SUPABASE_HOST = os.getenv('SUPABASE_HOST')
@@ -31,7 +32,12 @@ SUPABASE_PASSWORD = os.getenv('SUPABASE_PASSWORD')
 SUPABASE_PORT = os.getenv('SUPABASE_PORT')
 
 DATABASE_URL = f"postgresql+psycopg2://{SUPABASE_USER}:{SUPABASE_PASSWORD}@{SUPABASE_HOST}:{SUPABASE_PORT}/{SUPABASE_DB}"
-engine = create_engine(DATABASE_URL)
+engine = create_engine(
+    DATABASE_URL,
+    pool_size=1,
+    max_overflow=0,
+    pool_pre_ping=True,
+)
 
 SCHEMA = "latresne"
 
@@ -203,138 +209,92 @@ def calculate_intersection(parcelle_wkt, table_name, area_parcelle_sig):
                 }
 
             # --------------------------------------------------------------------
-            # 2️⃣ MODE GROUP BY → DISSOLVE
+            # 2️⃣ MODE GROUP BY → DISSOLVE (une seule requête : raw_inter + stats)
             # --------------------------------------------------------------------
 
             gb_cols_sql = ", ".join([f"t.{c}" for c in group_by])
             non_group_kept = [c for c in keep_cols if c not in group_by]
 
-            # Attributs non-groupés → première valeur non nulle
-            agg_attrs = []
-            for col in non_group_kept:
-                agg_attrs.append(
-                    f"(array_agg(t.{col}) FILTER (WHERE t.{col} IS NOT NULL))[1] AS {col}"
-                )
-            agg_attrs_sql = ", " + ", ".join(agg_attrs) if agg_attrs else ""
-
-            # -------- Détails avant union : surfaces brutes --------
-            q_details = f"""
-                WITH p AS (SELECT ST_MakeValid(ST_GeomFromText(:wkt, 2154)) AS g)
-                SELECT
-                    {gb_cols_sql},
-                    COUNT(*) AS nb_entites,
-                    ROUND(CAST(
-                        SUM(ST_Area(ST_Intersection(ST_MakeValid(t.geom_2154), p.g)))
-                        AS numeric
-                    ), 2) AS somme_surfaces_brutes
-                FROM {SCHEMA}.{table_name} t, p
-                WHERE t.geom_2154 IS NOT NULL
-                  AND ST_Intersects(ST_MakeValid(t.geom_2154), p.g)
-                GROUP BY {gb_cols_sql}
-            """
-
-            rs_details = conn.execute(text(q_details), {"wkt": parcelle_wkt})
-            cols_details = [c[0] for c in rs_details.cursor.description]
-            rows_details = rs_details.fetchall()
-
-            details = {}
-            for row in rows_details:
-                d = dict(zip(cols_details, row))
-                key = tuple(d[c] for c in group_by)
-                details[key] = {
-                    "nb_entites": d["nb_entites"],
-                    "somme_surfaces_brutes": float(d["somme_surfaces_brutes"] or 0)
-                }
-
-            logger.info("   📊 Étape 1 — Surfaces brutes avant union")
-            for key, det in details.items():
-                label = " / ".join(str(x) for x in key)
-                logger.info(f"      • Groupe '{label}': {det['nb_entites']} entités, "
-                            f"somme brute = {det['somme_surfaces_brutes']} m²")
-
-            # -------- UNION géométrique + surface réelle --------
-            select_cols_final = ", ".join(group_by)
+            # raw_inter : une ligne par entité intersectée (group_by + geom_inter + attrs)
+            raw_inter_attrs = ""
             if non_group_kept:
-                select_cols_final += ", " + ", ".join(non_group_kept)
+                raw_inter_attrs = ", " + ", ".join([f"t.{c}" for c in non_group_kept])
 
-            q_union = f"""
+            # stats : agrégation par groupe (nb_entites, somme_brute, union_area + attrs)
+            stats_agg_attrs = ""
+            if non_group_kept:
+                stats_agg_attrs = ", " + ", ".join(
+                    f"(array_agg({c}) FILTER (WHERE {c} IS NOT NULL))[1] AS {c}"
+                    for c in non_group_kept
+                )
+
+            gb_cols_list = ", ".join(group_by)
+
+            q = f"""
                 WITH p AS (
                     SELECT ST_MakeValid(ST_GeomFromText(:wkt, 2154)) AS g
                 ),
-                raw AS (
+                raw_inter AS (
                     SELECT
                         {gb_cols_sql},
-                        ST_UnaryUnion(
-                            ST_Collect(
-                                ST_Intersection(ST_MakeValid(t.geom_2154), p.g)
-                            )
-                        ) AS geom_union
-                        {agg_attrs_sql}
+                        ST_Intersection(ST_MakeValid(t.geom_2154), p.g) AS geom_inter
+                        {raw_inter_attrs}
                     FROM {SCHEMA}.{table_name} t, p
                     WHERE t.geom_2154 IS NOT NULL
                       AND ST_Intersects(ST_MakeValid(t.geom_2154), p.g)
-                    GROUP BY {gb_cols_sql}
+                ),
+                stats AS (
+                    SELECT
+                        {gb_cols_list},
+                        COUNT(*) AS nb_entites,
+                        ROUND(CAST(SUM(ST_Area(geom_inter)) AS numeric), 2) AS somme_brute,
+                        ROUND(CAST(ST_Area(ST_UnaryUnion(ST_Collect(geom_inter))) AS numeric), 2) AS union_area
+                        {stats_agg_attrs}
+                    FROM raw_inter
+                    GROUP BY {gb_cols_list}
                 )
-                SELECT
-                    {select_cols_final},
-                    ROUND(CAST(ST_Area(geom_union) AS numeric), 2) AS union_area
-                FROM raw
-                WHERE geom_union IS NOT NULL
-                  AND NOT ST_IsEmpty(geom_union)
+                SELECT * FROM stats
+                WHERE union_area > 0
             """
 
-            rs = conn.execute(text(q_union), {"wkt": parcelle_wkt})
+            rs = conn.execute(text(q), {"wkt": parcelle_wkt})
             cols = [c[0] for c in rs.cursor.description]
             rows = rs.fetchall()
 
-            logger.info("   🔧 Étape 2 — Surfaces après union (dissolve)")
-            for row in rows:
-                d = dict(zip(cols, row))
-                surf_union = float(d.get("union_area", 0) or 0)
-                key = tuple(d.get(c) for c in group_by)
-                label = " / ".join(str(x) for x in key)
-
-                det = details.get(key, {"nb_entites": 0, "somme_surfaces_brutes": 0})
-                somme = det["somme_surfaces_brutes"]
-                chev = max(somme - surf_union, 0)
-                pct = (chev / somme * 100) if somme > 0 else 0
-
-                logger.info(f"      • Groupe '{label}':")
-                logger.info(f"         - Surface union = {surf_union:.2f} m²")
-                logger.info(f"         - Surface brute = {somme:.2f} m²")
-                logger.info(f"         - Chevauchement = {chev:.2f} m² ({pct:.1f}%)")
-                logger.info(f"         - Nb entités = {det['nb_entites']}")
+            logger.info("   📊 Une requête : surfaces brutes + union (dissolve)")
 
             objects = []
             surfaces = []
             metadata_items = []
+            nb_raw = 0
 
             for row in rows:
                 d = dict(zip(cols, row))
-                surf_union = float(d.get("union_area", 0) or 0)
-                # Calculer pct_uf et supprimer les surfaces
+                surf_union = float(d.pop("union_area", 0) or 0)
+                somme_brute = float(d.pop("somme_brute", 0) or 0)
+                nb_entites = int(d.pop("nb_entites", 0))
+                nb_raw += nb_entites
+
                 pct_uf = round((surf_union / area_parcelle_sig * 100), 4) if area_parcelle_sig > 0 else 0
                 d["pct_uf"] = pct_uf
-                d.pop("union_area", None)  # Retirer la surface brute
-                d.pop("surface_inter_m2", None)  # Retirer si présente
 
                 key = tuple(d[c] for c in group_by)
                 label = " / ".join(str(v) for v in key)
+                chev = max(somme_brute - surf_union, 0)
+                pct_chev = (chev / somme_brute * 100) if somme_brute > 0 else 0
 
-                det = details.get(key, {"nb_entites": 0, "somme_surfaces_brutes": 0})
-                somme = det["somme_surfaces_brutes"]
-                chev = max(somme - surf_union, 0)
-                pct_chev = (chev / somme * 100) if somme > 0 else 0
+                logger.info(f"      • Groupe '{label}': {nb_entites} entités, "
+                            f"brute={somme_brute:.2f} m², union={surf_union:.2f} m², "
+                            f"chev={chev:.2f} m² ({pct_chev:.1f}%)")
 
                 metadata_items.append({
                     "label": label,
-                    "count": det["nb_entites"],
+                    "count": nb_entites,
                     "surface": surf_union,
-                    "surface_avant_union": somme,
+                    "surface_avant_union": somme_brute,
                     "chevauchement_m2": round(chev, 2),
                     "pct_chevauchement": round(pct_chev, 2)
                 })
-
                 objects.append(d)
                 surfaces.append(surf_union)
 
@@ -348,28 +308,13 @@ def calculate_intersection(parcelle_wkt, table_name, area_parcelle_sig):
                     elif name == "datetime":
                         obj[k] = v.isoformat()
 
-            # Nombre brut d'entités initiales
-            nb_raw = conn.execute(
-                text(f"""
-                    WITH p AS (SELECT ST_MakeValid(ST_GeomFromText(:wkt, 2154)) AS g)
-                    SELECT COUNT(*)
-                    FROM {SCHEMA}.{table_name} t, p
-                    WHERE t.geom_2154 IS NOT NULL
-                      AND ST_Intersects(ST_MakeValid(t.geom_2154), p.g)
-                """),
-                {"wkt": parcelle_wkt}
-            ).scalar()
-
-            logger.info(f"   📦 Étape 3 — Comptage")
-            logger.info(f"      - Entités brutes : {nb_raw}")
-            logger.info(f"      - Groupes après union : {len(objects)}")
+            logger.info(f"   📦 Entités brutes : {nb_raw}, groupes après union : {len(objects)}")
 
             metadata = {
                 "nb_raw": nb_raw,
                 "nb_grouped": len(objects),
                 "items": metadata_items
             }
-
             return objects, sum(surfaces), metadata
 
         except Exception as e:

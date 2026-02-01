@@ -1,0 +1,21 @@
+{
+  "total_snapshots": 2,
+  "peak_ram_mb": 481.33,
+  "final_ram_mb": 481.33,
+  "snapshots": [
+    {
+      "step": "START",
+      "timestamp": "2026-02-01T12:37:38.529792",
+      "ram_mb": 182.97,
+      "tracemalloc_current_mb": 0.0,
+      "tracemalloc_peak_mb": 0.0
+    },
+    {
+      "step": "PIPELINE_DONE",
+      "timestamp": "2026-02-01T12:37:58.971240",
+      "ram_mb": 481.33,
+      "tracemalloc_current_mb": 20.27,
+      "tracemalloc_peak_mb": 87.32
+    }
+  ]
+}

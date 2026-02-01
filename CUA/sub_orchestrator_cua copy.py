@@ -16,15 +16,10 @@ import os
 import json
 import base64
 import logging
-import gc
 import secrets
 import string
 from pathlib import Path
 from dotenv import load_dotenv
-try:
-    import psutil
-except ImportError:
-    psutil = None
 from supabase import create_client
 from sqlalchemy import create_engine, text
 
@@ -61,15 +56,6 @@ logger.info(f"🌍 URL Supabase : {SUPABASE_URL}")
 # 🔗 UTILITAIRES
 # ============================================================
 
-def log_memory(step: str) -> float:
-    """Log la RAM utilisée à chaque étape (si psutil disponible)."""
-    if psutil is None:
-        return 0.0
-    mem_mb = psutil.Process().memory_info().rss / 1024**2
-    logger.info(f"🔹 [{step}] RAM: {mem_mb:.1f} MB")
-    return mem_mb
-
-
 def generate_short_slug(length=26):
     """Génère un slug aléatoire sécurisé (sans caractères ambigus O, 0, I, l)."""
     alphabet = ''.join(ch for ch in string.ascii_letters + string.digits if ch not in 'O0Il')
@@ -77,22 +63,20 @@ def generate_short_slug(length=26):
 
 
 def upload_to_supabase(local_path, remote_path, bucket=None):
-    """Upload d'un fichier vers Supabase Storage et renvoie l'URL publique.
-    Lit le fichier, uploade, puis libère le contenu pour limiter la RAM."""
+    """Upload d'un fichier vers Supabase Storage et renvoie l'URL publique."""
     bucket = bucket or SUPABASE_BUCKET
     with open(local_path, "rb") as f:
-        content = f.read()
-    supabase.storage.from_(bucket).upload(
-        remote_path,
-        content,
-        {
-            "content-type": "application/octet-stream",
-            "cache-control": "no-cache",
-            "upsert": "true",
-        },
-    )
-    del content
-    return f"{SUPABASE_URL}/storage/v1/object/public/{bucket}/{remote_path}"
+        supabase.storage.from_(bucket).upload(
+            remote_path,
+            f.read(),
+            {
+                "content-type": "application/octet-stream",
+                "cache-control": "no-cache",
+                "upsert": "true",
+            },
+        )
+    public_url = f"{SUPABASE_URL}/storage/v1/object/public/{bucket}/{remote_path}"
+    return public_url
 
 
 def compute_centroid_from_wkt_path(wkt_path: str):
@@ -174,7 +158,6 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
         raise FileNotFoundError(f"❌ Fichier WKT introuvable : {wkt_path}")
     
     logger.info(f"🚀 Lancement du pipeline global pour le WKT : {wkt_path}")
-    log_memory("CUA_START")
 
     # --------------------------------------------------------
     # ÉTAPE 1 : CARTE 2D (NOUVEAU MOTEUR)
@@ -191,9 +174,6 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     html_2d_path = os.path.join(OUT_DIR, "carte_2d_unite_fonciere.html")
     with open(html_2d_path, "w", encoding="utf-8") as f:
         f.write(html_2d)
-    del html_2d
-    gc.collect()
-    log_memory("APRES_CARTE_2D")
     logger.info(f"✅ Carte 2D (nouvelle version) sauvegardée : {html_2d_path}")
 
     # --------------------------------------------------------
@@ -206,10 +186,6 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
         exaggeration=1.5
     )
     path_3d = res3d["path"]
-    metadata_3d = res3d.get("metadata")
-    del res3d
-    gc.collect()
-    log_memory("APRES_CARTE_3D")
     logger.info(f"✅ Carte 3D générée : {path_3d}")
 
     # --------------------------------------------------------
@@ -223,8 +199,6 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
 
     url_2d = upload_to_supabase(html_2d_path, remote_2d)
     url_3d = upload_to_supabase(path_3d, remote_3d)
-    gc.collect()
-    log_memory("APRES_UPLOADS")
 
     logger.info(f"🌐 URL publique 2D : {url_2d}")
     logger.info(f"🌐 URL publique 3D : {url_3d}")
@@ -297,8 +271,6 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     gpkg_path = os.path.join(OUT_DIR, "intersections.gpkg")
 
     export_gpkg_from_wkt(str(wkt_path), gpkg_path)
-    gc.collect()
-    log_memory("APRES_GPKG")
 
     remote_gpkg = f"{remote_dir}/intersections.gpkg"
     intersections_gpkg_url = upload_to_supabase(gpkg_path, remote_gpkg)
@@ -327,8 +299,6 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     except Exception as e:
         logger.error(f"💥 Échec génération CUA DOCX : {e}")
         raise
-    gc.collect()
-    log_memory("APRES_DOCX")
 
     # ============================================================
     # 📤 UPLOAD FINAL DES ARTIFACTS (CUA uniquement)
@@ -339,8 +309,6 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     remote_cua = f"{remote_dir}/CUA_unite_fonciere.docx"
     cua_url = upload_to_supabase(output_docx_path, remote_cua, bucket=SUPABASE_BUCKET)
     logger.info(f"📎 CUA uploadé dans {SUPABASE_BUCKET} : {cua_url}")
-    gc.collect()
-    log_memory("APRES_UPLOAD_FINAL")
 
     # ============================================================
     # 🔑 GÉNÉRATION DU TOKEN POUR L'URL /cua?t={token}
@@ -374,7 +342,7 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
         "bucket_path": remote_dir,
         "pipeline_result_url": result_url,
         "metadata_2d": metadata_2d,
-        "metadata_3d": metadata_3d,
+        "metadata_3d": res3d["metadata"],
         "cerfa_data": cerfa_data,  # Métadonnées CERFA
         "status": "success",
     }
