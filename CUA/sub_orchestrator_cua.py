@@ -13,12 +13,15 @@ sub_orchestrator_cua.py — Pipeline de génération des visualisations et du CU
 """
 
 import os
+import sys
 import json
 import base64
 import logging
 import gc
 import secrets
 import string
+import tracemalloc
+import shutil
 from pathlib import Path
 from dotenv import load_dotenv
 try:
@@ -68,6 +71,20 @@ def log_memory(step: str) -> float:
     mem_mb = psutil.Process().memory_info().rss / 1024**2
     logger.info(f"🔹 [{step}] RAM: {mem_mb:.1f} MB")
     return mem_mb
+
+
+def log_memory_detailed(step: str) -> None:
+    """Log RAM process + tracemalloc pour debug fin."""
+    if psutil:
+        rss = psutil.Process().memory_info().rss / 1024**2
+        logger.info(f"🔹 [{step}] RAM Process: {rss:.1f} MB")
+
+    if tracemalloc.is_tracing():
+        current, peak = tracemalloc.get_traced_memory()
+        logger.info(
+            f"   └─ Tracemalloc: current={current/1024**2:.1f}MB, "
+            f"peak={peak/1024**2:.1f}MB"
+        )
 
 
 def generate_short_slug(length=26):
@@ -156,10 +173,38 @@ def compute_centroid_from_wkt_path(wkt_path: str):
 # 🧩 PIPELINE PRINCIPAL
 # ============================================================
 
-def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresne", code_insee="33234"):
+def generer_visualisations_et_cua_depuis_wkt(
+    wkt_path,
+    out_dir,
+    commune="latresne",
+    code_insee="33234",
+    skip_3d: bool = False,
+    skip_gpkg: bool = False,
+):
     OUT_DIR = out_dir
     os.makedirs(OUT_DIR, exist_ok=True)
-    
+
+    # ============================================================
+    # 🧪 LOGS MÉMOIRE DÉTAILLÉS DANS UN FICHIER DÉDIÉ
+    # ============================================================
+    log_file = os.path.join(OUT_DIR, "memory_audit.log")
+    file_handler = logging.FileHandler(log_file, mode="w", encoding="utf-8")
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s | %(levelname)-8s | %(message)s")
+    )
+    # Éviter de dupliquer les FileHandler si la fonction est rappelée
+    logger.handlers = [
+        h for h in logger.handlers if not isinstance(h, logging.FileHandler)
+    ]
+    logger.addHandler(file_handler)
+    logger.info(f"🧪 Memory audit log initialisé : {log_file}")
+    # Tracemalloc pour audit détaillé
+    if not tracemalloc.is_tracing():
+        tracemalloc.start()
+    log_memory_detailed("START")
+    log_memory("CUA_START")
+
     # ============================================================
     # 🔑 GÉNÉRATION DU SLUG EN AMONT (source de vérité)
     # ============================================================
@@ -172,9 +217,7 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     wkt_path = Path(wkt_path)
     if not wkt_path.exists():
         raise FileNotFoundError(f"❌ Fichier WKT introuvable : {wkt_path}")
-    
     logger.info(f"🚀 Lancement du pipeline global pour le WKT : {wkt_path}")
-    log_memory("CUA_START")
 
     # --------------------------------------------------------
     # ÉTAPE 1 : CARTE 2D (NOUVEAU MOTEUR)
@@ -187,12 +230,15 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
         inclure_ppri=True,
         ppri_table=f"{commune}.pm1_detaillee_gironde"
     )
+    log_memory_detailed("CARTE_2D_GENERATED")
 
     html_2d_path = os.path.join(OUT_DIR, "carte_2d_unite_fonciere.html")
     with open(html_2d_path, "w", encoding="utf-8") as f:
         f.write(html_2d)
+    log_memory_detailed("CARTE_2D_WRITTEN")
     del html_2d
     gc.collect()
+    log_memory_detailed("CARTE_2D_FREED")
     log_memory("APRES_CARTE_2D")
     logger.info(f"✅ Carte 2D (nouvelle version) sauvegardée : {html_2d_path}")
 
@@ -200,17 +246,24 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     # ÉTAPE 2 : CARTE 3D
     # --------------------------------------------------------
     logger.info("\n📦 ÉTAPE 2/5 : Génération de la visualisation 3D Plotly")
-    res3d = exporter_visualisation_3d_plotly_from_wkt(
-        wkt_path=wkt_path,
-        output_dir=OUT_DIR,
-        exaggeration=1.5
-    )
-    path_3d = res3d["path"]
-    metadata_3d = res3d.get("metadata")
-    del res3d
-    gc.collect()
-    log_memory("APRES_CARTE_3D")
-    logger.info(f"✅ Carte 3D générée : {path_3d}")
+    path_3d = None
+    metadata_3d = None
+    url_3d = None
+    if not skip_3d:
+        res3d = exporter_visualisation_3d_plotly_from_wkt(
+            wkt_path=wkt_path,
+            output_dir=OUT_DIR,
+            exaggeration=1.5
+        )
+        log_memory_detailed("CARTE_3D_GENERATED")
+        path_3d = res3d["path"]
+        metadata_3d = res3d.get("metadata")
+        del res3d
+        gc.collect()
+        log_memory("APRES_CARTE_3D")
+        logger.info(f"✅ Carte 3D générée : {path_3d}")
+    else:
+        logger.info("⏭️ Carte 3D désactivée (skip_3d=True)")
 
     # --------------------------------------------------------
     # ÉTAPE 3 : UPLOAD SUPABASE (cartes)
@@ -222,9 +275,13 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     remote_3d = f"{remote_dir}/carte_3d.html"
 
     url_2d = upload_to_supabase(html_2d_path, remote_2d)
-    url_3d = upload_to_supabase(path_3d, remote_3d)
+    if path_3d and not skip_3d:
+        url_3d = upload_to_supabase(path_3d, remote_3d)
+    else:
+        url_3d = None
     gc.collect()
     log_memory("APRES_UPLOADS")
+    log_memory_detailed("UPLOADS_DONE")
 
     logger.info(f"🌐 URL publique 2D : {url_2d}")
     logger.info(f"🌐 URL publique 3D : {url_3d}")
@@ -296,13 +353,18 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     logger.info("\n📦 Export GPKG intersections...")
     gpkg_path = os.path.join(OUT_DIR, "intersections.gpkg")
 
-    export_gpkg_from_wkt(str(wkt_path), gpkg_path)
-    gc.collect()
-    log_memory("APRES_GPKG")
+    intersections_gpkg_url = None
+    if not skip_gpkg:
+        export_gpkg_from_wkt(str(wkt_path), gpkg_path)
+        log_memory_detailed("GPKG_GENERATED")
+        gc.collect()
+        log_memory("APRES_GPKG")
 
-    remote_gpkg = f"{remote_dir}/intersections.gpkg"
-    intersections_gpkg_url = upload_to_supabase(gpkg_path, remote_gpkg)
-    logger.info(f"🌐 URL publique GPKG : {intersections_gpkg_url}")
+        remote_gpkg = f"{remote_dir}/intersections.gpkg"
+        intersections_gpkg_url = upload_to_supabase(gpkg_path, remote_gpkg)
+        logger.info(f"🌐 URL publique GPKG : {intersections_gpkg_url}")
+    else:
+        logger.info("⏭️ Export GPKG désactivé (skip_gpkg=True)")
 
     # Utiliser le catalogue avec geom_type
     catalogue_path = os.path.join(BASE_DIR, "..", "catalogues", "catalogue_intersections_tagged.json")
@@ -328,6 +390,7 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
         logger.error(f"💥 Échec génération CUA DOCX : {e}")
         raise
     gc.collect()
+    log_memory_detailed("DOCX_GENERATED")
     log_memory("APRES_DOCX")
 
     # ============================================================
@@ -341,6 +404,7 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     logger.info(f"📎 CUA uploadé dans {SUPABASE_BUCKET} : {cua_url}")
     gc.collect()
     log_memory("APRES_UPLOAD_FINAL")
+    log_memory_detailed("UPLOAD_FINAL_DONE")
 
     # ============================================================
     # 🔑 GÉNÉRATION DU TOKEN POUR L'URL /cua?t={token}
@@ -440,6 +504,14 @@ def generer_visualisations_et_cua_depuis_wkt(wkt_path, out_dir, commune="latresn
     logger.info("\n🎉 PIPELINE CUA TERMINÉ AVEC SUCCÈS 🎉")
     logger.info(f"📦 Slug unique : {slug}")
     logger.info(f"🔗 Lien court : {qr_url}")
+
+    # Copie du fichier de logs mémoire dans /tmp pour Render / debug externe
+    try:
+        shutil.copy(log_file, "/tmp/memory_audit.log")
+        logger.info("📁 memory_audit.log copié vers /tmp/memory_audit.log")
+    except Exception as e:
+        logger.warning(f"⚠️ Impossible de copier memory_audit.log vers /tmp : {e}")
+
     return result
 
 

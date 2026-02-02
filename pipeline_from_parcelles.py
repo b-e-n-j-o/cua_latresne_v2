@@ -156,6 +156,7 @@ def run_pipeline_from_parcelles(
     user_email: str = None,
     out_dir: str = None,
     demandeur: dict = None,
+    skip_3d: bool = False,
 ):
     """
     Pipeline complet depuis une liste de parcelles.
@@ -167,6 +168,8 @@ def run_pipeline_from_parcelles(
         user_id: ID utilisateur (optionnel)
         user_email: Email utilisateur (optionnel)
         out_dir: Dossier de sortie (optionnel, créé automatiquement si None)
+        demandeur: Données du demandeur (optionnel)
+        skip_3d: Si True, ne génère pas la carte 3D (~150 MB économisés)
     
     Returns:
         dict: Résultat du pipeline avec slug, URLs, etc.
@@ -369,15 +372,19 @@ def run_pipeline_from_parcelles(
         os.environ["USER_ID"] = user_id
     if user_email:
         os.environ["USER_EMAIL"] = user_email
-    
+
+    # Skip 3D si paramètre explicite ou variable d'environnement (ex. serveur 512 MB)
+    skip_3d = skip_3d or (os.getenv("SKIP_3D") == "1")
+
     # Déterminer le nom de la commune pour le sous-orchestrateur
     commune_name = commune_nom or "latresne"  # Par défaut latresne
-    
+
     cua_result = generer_visualisations_et_cua_depuis_wkt(
         wkt_path=wkt_path,
         out_dir=str(OUT_DIR),
         commune=commune_name.lower(),
-        code_insee=code_insee
+        code_insee=code_insee,
+        skip_3d=skip_3d,
     )
     log_memory("APRES_CUA")
 
@@ -405,6 +412,7 @@ if __name__ == "__main__":
     parser.add_argument("--user-id", default=None, help="ID utilisateur")
     parser.add_argument("--user-email", default=None, help="Email utilisateur")
     parser.add_argument("--demandeur", default=None, help="Données du demandeur au format JSON")
+    parser.add_argument("--skip-3d", action="store_true", help="Ne pas générer la carte 3D (~150 MB économisés)")
     
     args = parser.parse_args()
     
@@ -430,7 +438,8 @@ if __name__ == "__main__":
             user_id=args.user_id,
             user_email=args.user_email,
             out_dir=args.out_dir,
-            demandeur=demandeur
+            demandeur=demandeur,
+            skip_3d=args.skip_3d,
         )
         
         print("\n📦 RÉSULTAT FINAL :")

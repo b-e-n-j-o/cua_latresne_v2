@@ -11,8 +11,6 @@ import os
 import json
 import sys
 import logging
-import gc
-import psutil
 from pathlib import Path
 from datetime import datetime
 from dotenv import load_dotenv
@@ -35,14 +33,6 @@ logging.basicConfig(
     datefmt="%H:%M:%S"
 )
 logger = logging.getLogger("pipeline_from_parcelles")
-
-
-def log_memory(step: str) -> float:
-    """Helper pour logger la RAM à chaque étape"""
-    process = psutil.Process()
-    mem_mb = process.memory_info().rss / 1024**2
-    logger.info(f"🔹 [{step}] RAM utilisée: {mem_mb:.1f} MB")
-    return mem_mb
 
 
 def create_minimal_cerfa_json(
@@ -185,8 +175,7 @@ def run_pipeline_from_parcelles(
     
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     logger.info(f"📁 Dossier de sortie : {OUT_DIR}")
-    log_memory("DEBUT")
-
+    
     cerfa_out = OUT_DIR / "cerfa_result.json"
     
     # ============================================================
@@ -230,8 +219,7 @@ def run_pipeline_from_parcelles(
             encoding="utf-8"
         )
         logger.info(f"✅ JSON CERFA minimal généré : {cerfa_out}")
-    log_memory("APRES_CERFA")
-
+    
     # ============================================================
     # 2️⃣ Vérification unité foncière
     # ============================================================
@@ -254,10 +242,9 @@ def run_pipeline_from_parcelles(
     wkt_path = uf_json.get("geom_wkt_path")
     if not wkt_path or not Path(wkt_path).exists():
         raise RuntimeError("❌ Geom WKT manquant")
-
+    
     logger.info(f"✅ Unité foncière validée : {wkt_path}")
-    log_memory("APRES_UF")
-
+    
     # ============================================================
     # 3️⃣ Intersections
     # ============================================================
@@ -307,15 +294,15 @@ def run_pipeline_from_parcelles(
     }
     
     # Analyse pour chaque table du catalogue
-    n_tables = len(CATALOGUE)
-    for i, (table, config) in enumerate(CATALOGUE.items()):
+    for table, config in CATALOGUE.items():
         logger.info(f"→ {table}")
-        objets, surface_totale_sig, metadata = calculate_intersection(parcelle_wkt, table, area_parcelle_sig)
+        objets, surface_totale_sig, metadata = calculate_intersection(parcelle_wkt, table, area_parcelle_sig)        
         if objets:
             logger.info(f"  ✅ {len(objets)} objet(s) | {surface_totale_sig:.2f} m²")
             pct_sig = 0.0
             if area_parcelle_sig > 0:
                 pct_sig = round(surface_totale_sig / area_parcelle_sig * 100, 4)
+            
             rapport["intersections"][table] = {
                 "nom": config["nom"],
                 "type": config["type"],
@@ -330,13 +317,7 @@ def run_pipeline_from_parcelles(
                 "pct_sig": 0.0,
                 "objets": []
             }
-        del objets, surface_totale_sig, metadata
-        if i % 5 == 0:
-            log_memory(f"INTERSECTIONS_{i}/{n_tables}")
-            gc.collect()
-
-    log_memory("APRES_INTERSECTIONS")
-
+    
     # Sauvegarde des rapports
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     intersections_json_path = OUT_DIR / f"rapport_intersections_{timestamp}.json"
@@ -379,8 +360,7 @@ def run_pipeline_from_parcelles(
         commune=commune_name.lower(),
         code_insee=code_insee
     )
-    log_memory("APRES_CUA")
-
+    
     logger.info("🎉 Pipeline terminé avec succès")
     return cua_result
 

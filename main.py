@@ -698,6 +698,7 @@ async def analyze_parcelles_with_json_data(req: ParcelleWithCerfaDataRequest):
         env["USER_ID"] = req.user_id
     if req.user_email:
         env["USER_EMAIL"] = req.user_email
+    env["SKIP_3D"] = "1"  # Désactiver 3D pour rester sous 512 MB
 
     # 📁 Dossier unique pour ce job
     out_dir = f"/tmp/out_pipeline_{job_id}"

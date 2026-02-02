@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 from datetime import datetime
 
-# Vos imports existants
 from pipeline_from_parcelles import run_pipeline_from_parcelles
 
 class MemoryMonitor:
@@ -40,15 +39,13 @@ class MemoryMonitor:
         print(f"🔴 RAM peak : {report['peak_ram_mb']:.1f} MB")
         return report
 
-# Test avec vos données réelles
 if __name__ == "__main__":
     monitor = MemoryMonitor()
     
-    # Remplacez par vos vraies parcelles de test
-    parcelles = [
-        {"section": "AC", "numero": "0242"}
-    ]
-    code_insee = "33234"  # Latresne
+    parcelles = [{"section": "AC", "numero": "0242"}]
+    code_insee = "33234"
+    # Dossier de sortie dans le projet courant (à côté de ce script)
+    out_dir = str(Path(__file__).resolve().parent / "test_diagnostic")
     
     monitor.log("START")
     
@@ -57,9 +54,17 @@ if __name__ == "__main__":
             parcelles=parcelles,
             code_insee=code_insee,
             commune_nom="Latresne",
-            out_dir="/tmp/test_diagnostic"
+            out_dir=out_dir,
+            skip_3d=True,  # Diagnostic sans carte 3D (~150 MB économisés)
         )
         monitor.log("PIPELINE_DONE")
+        
+        # Afficher les logs détaillés du pipeline
+        log_file = Path(out_dir) / "memory_audit.log"
+        if log_file.exists():
+            print(f"\n📋 Logs pipeline: {log_file}")
+            print("─" * 60)
+            print(log_file.read_text())
         
     except Exception as e:
         monitor.log(f"ERROR: {e}")
