@@ -56,6 +56,7 @@ from api.identite_parcelle.route_identite_parcelle import router as identite_par
 
 from api.latresne.tiles_latresne import router as latresne_router
 from api.latresne.tiles_mbtiles import router as latresne_mbtiles_router
+from api.latresne.parcelles_geojson import router as parcelles_geojson_router
 from api.latresne.patrimoine import router as patrimoine_router
 
 from routers.cerfa import router as cerfa_router
@@ -141,8 +142,9 @@ app.include_router(rag_parallel_router)
 # app.include_router(plui_tiles_router)
 app.include_router(communes_router)
 app.include_router(departements_router)
-app.include_router(mbtiles_router)
-app.include_router(tiles_router)
+app.include_router(latresne_mbtiles_router)  # avant tiles_router : /latresne/mbtiles/...
+app.include_router(tiles_router)   # route générique /tiles/{layer}/...
+app.include_router(mbtiles_router)  # route /tiles/{name}/... (mbtiles)
 app.include_router(parcelle_router)
 app.include_router(topo_router)
 app.include_router(dpe_router)
@@ -153,7 +155,7 @@ app.include_router(zonage_plui_router)
 
 # endpoint pour les couches latresne
 app.include_router(latresne_router)
-app.include_router(latresne_mbtiles_router)
+app.include_router(parcelles_geojson_router)
 app.include_router(patrimoine_router)
 app.include_router(parcelle_geometrie_router)
 app.include_router(tiles_parcelles)

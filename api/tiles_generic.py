@@ -1,3 +1,7 @@
+"""
+Expose les tuiles vectorielles (MVT) des couches carto.
+"""
+
 # api/tiles_generic.py
 import os
 import time
@@ -29,9 +33,9 @@ WHERE layer_id = %s AND is_active = true;
 MVT_SQL_TEMPLATE = """
 SELECT ST_AsMVT(tile, %s, 4096, 'geom') AS mvt
 FROM (
-    SELECT *, ST_AsMVTGeom({geom_column}, ST_TileEnvelope(%s, %s, %s), 4096, 256, true) AS geom
+    SELECT *, ST_AsMVTGeom({geom_column}, ST_TileEnvelope(%s, %s, %s, 3857), 4096, 2048, true) AS geom
     FROM {table_schema}.{table_name}
-    WHERE {geom_column} && ST_TileEnvelope(%s, %s, %s)
+    WHERE {geom_column} && ST_TileEnvelope(%s, %s, %s, 3857)
 ) tile;
 """
 
@@ -71,7 +75,11 @@ def get_tile(layer: str, z: int, x: int, y: int):
             return Response(content=b"", media_type="application/x-protobuf")
 
         logger.info(f"[TILE OK] layer={layer} z={z} ({duration} ms)")
-        return Response(content=tile, media_type="application/x-protobuf")
+        return Response(
+            content=tile,
+            media_type="application/x-protobuf",
+            headers={"Cache-Control": "public, max-age=3600"}
+        )
 
     except Exception as e:
         logger.error(f"[TILE ERROR] layer={layer}: {e}")
