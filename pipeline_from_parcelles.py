@@ -373,8 +373,10 @@ def run_pipeline_from_parcelles(
     if user_email:
         os.environ["USER_EMAIL"] = user_email
 
-    # Skip 3D si paramètre explicite ou variable d'environnement (ex. serveur 512 MB)
-    skip_3d = skip_3d or (os.getenv("SKIP_3D") == "1")
+    # Skip 3D désactivé temporairement : on force la génération 3D.
+    # Ancien comportement (à réactiver si besoin) :
+    # skip_3d = skip_3d or (os.getenv("SKIP_3D") == "1")
+    skip_3d = False
 
     # Déterminer le nom de la commune pour le sous-orchestrateur
     commune_name = commune_nom or "latresne"  # Par défaut latresne
