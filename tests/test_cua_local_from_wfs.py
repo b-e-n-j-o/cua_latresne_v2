@@ -38,7 +38,7 @@ INTER_PATH = ROOT / "INTERSECTIONS"
 CUA_PATH = ROOT / "CUA"
 
 sys.path.append(str(INTER_PATH))
-sys.path.append(str(CUA_PATH))
+sys.path.insert(0, str(ROOT))
 
 
 import json
@@ -60,7 +60,7 @@ from intersections import (
     CATALOGUE as CATALOGUE_INTER,
     generate_html,
 )
-from cua_builder import build_cua_docx
+from CUA.docx.cua_builder import build_cua_docx
 
 
 # =========================================

@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 print("PYTHONPATH ajouté :", ROOT)
 
-from CUA.carte2d.carte2d_rendu import generer_carte_2d_depuis_wkt
+from CUA.map2d.carte2d.carte2d_rendu import generer_carte_2d_depuis_wkt
 
 
 logging.basicConfig(

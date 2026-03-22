@@ -405,16 +405,6 @@
       "article": "6",
       "geom_type": "lineaire"
     },
-    "i4_lignes_electriques_locales": {
-      "nom": "Lignes électriques locales (I4)",
-      "type": "carte",
-      "keep": [
-        "reglementation"
-      ],
-      "origine": "shp",
-      "article": null,
-      "geom_type": "lineaire"
-    },
     "icpe_seveso": {
       "nom": "ICPE Seveso",
       "type": "installations_classees",

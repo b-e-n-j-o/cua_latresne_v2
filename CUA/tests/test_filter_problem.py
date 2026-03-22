@@ -12,10 +12,10 @@ from pathlib import Path
 INTERSECTIONS_JSON = "/Volumes/T7/Travaux_Freelance/KERELIA/CUAs/INTERSECTION_PIPELINE/LATRESNE/cua_latresne_v4/CUA/tests/rapport_test_intersections.json"
 CATALOGUE_JSON = "/Volumes/T7/Travaux_Freelance/KERELIA/CUAs/INTERSECTION_PIPELINE/LATRESNE/cua_latresne_v4/catalogues/catalogue_intersections_tagged.json"
 
-# Ajouter le dossier CUA au path pour importer cua_utils
-sys.path.insert(0, "/Volumes/T7/Travaux_Freelance/KERELIA/CUAs/INTERSECTION_PIPELINE/LATRESNE/cua_latresne_v4/CUA")
+ROOT = "/Volumes/T7/Travaux_Freelance/KERELIA/CUAs/INTERSECTION_PIPELINE/LATRESNE/cua_latresne_v4"
+sys.path.insert(0, ROOT)
 
-from cua_utils import filter_intersections
+from CUA.docx.cua_utils import filter_intersections
 
 def test_filter():
     print("=" * 80)

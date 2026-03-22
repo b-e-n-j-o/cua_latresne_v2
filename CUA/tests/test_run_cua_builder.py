@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]   # remonte à .../cua_latresne_v4
 sys.path.append(str(ROOT))
 
 # Maintenant on peut importer
-from CUA.cua_builder import run_builder
+from CUA.docx.cua_builder import run_builder
 
 BASE = Path(ROOT)
 

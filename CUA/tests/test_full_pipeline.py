@@ -37,7 +37,7 @@ print(f"📂 PROJECT_ROOT = {PROJECT_ROOT}")
 from CERFA_ANALYSE.analyse_gemini import analyse_cerfa
 from CERFA_ANALYSE.verification_unite_fonciere import verifier_unite_fonciere
 from INTERSECTIONS.intersections import calculate_intersection, CATALOGUE
-from CUA.cua_builder import run_builder
+from CUA.docx.cua_builder import run_builder
 from sqlalchemy import create_engine, text
 
 # -------------------------------------------------------------
@@ -176,7 +176,7 @@ if USE_PARCEL_REF:
 else:
     INSEE = cerfa_json["data"].get("commune_insee") or "33234"
 
-# On suit exactement la signature utilisée dans orchestrator_global.py
+# On suit exactement la signature utilisée dans CUA/orchestrator_global.py
 uf_json = verifier_unite_fonciere(
     str(cerfa_json_path),
     INSEE,

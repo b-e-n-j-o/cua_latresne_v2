@@ -20,15 +20,14 @@ from docx import Document
 # 🔧 Configuration du PYTHONPATH pour imports locaux
 # ============================================================
 BASE_DIR = Path(__file__).resolve().parent
-PARENT_DIR = BASE_DIR.parent
+PROJECT_ROOT = BASE_DIR.parent.parent  # cua_latresne_v4
 
-# Ajouter les chemins nécessaires pour les imports
-sys.path.append(str(PARENT_DIR / "CERFA_ANALYSE"))
-sys.path.append(str(BASE_DIR))
+# Imports : package CUA (docx, etc.) + CERFA_ANALYSE
+sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.append(str(PROJECT_ROOT / "CERFA_ANALYSE"))
 
-# Maintenant les imports fonctionnent
 from analyse_gemini import analyse_cerfa
-from cua_header import render_first_page_header
+from CUA.docx.cua_header import render_first_page_header
 
 def test_cerfa_header(pdf_path: str, logo_path: str = None, out_path: str = "test_header.docx"):
     print(f"📄 Analyse du CERFA : {pdf_path}")

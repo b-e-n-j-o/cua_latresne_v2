@@ -29,11 +29,12 @@ try:
 except ImportError:
     psutil = None
 from supabase import create_client
-from sqlalchemy import create_engine, text
+from pyproj import Transformer
+from shapely import wkt as shapely_wkt
 
-from CUA.carte2d.carte2d_rendu import generer_carte_2d_depuis_wkt
-from CUA.map_3d import exporter_visualisation_3d_plotly_from_wkt
-from CUA.cua_builder import run_builder
+from CUA.map2d.carte2d.carte2d_rendu import generer_carte_2d_depuis_wkt
+from CUA.map3d.map_3d import exporter_visualisation_3d_plotly_from_wkt
+from CUA.docx.cua_builder import run_builder
 from INTERSECTIONS.export_gpkg_intersections import export_gpkg_from_wkt
 
 
@@ -114,8 +115,10 @@ def upload_to_supabase(local_path, remote_path, bucket=None):
 
 def compute_centroid_from_wkt_path(wkt_path: str):
     """
-    Calcule le centroïde (lon/lat) de l'unité foncière à partir d'un fichier WKT,
-    en s'appuyant sur PostGIS (même base que pour les intersections).
+    Centroïde (lon/lat WGS84) à partir du WKT Lambert-93 (EPSG:2154).
+
+    Calcul local (Shapely + Pyproj) : aucune connexion Postgres, donc pas d’impact
+    sur le pool Supabase (évite MaxClientsInSessionMode sur cette étape).
     """
     try:
         wkt_file = Path(wkt_path)
@@ -128,37 +131,14 @@ def compute_centroid_from_wkt_path(wkt_path: str):
             logger.warning("⚠️ WKT vide pour calcul du centroïde")
             return None
 
-        SUPABASE_HOST = os.getenv("SUPABASE_HOST")
-        SUPABASE_DB = os.getenv("SUPABASE_DB")
-        SUPABASE_USER = os.getenv("SUPABASE_USER")
-        SUPABASE_PASSWORD = os.getenv("SUPABASE_PASSWORD")
-        SUPABASE_PORT = os.getenv("SUPABASE_PORT") or "5432"
-
-        if not all([SUPABASE_HOST, SUPABASE_DB, SUPABASE_USER, SUPABASE_PASSWORD]):
-            logger.warning("⚠️ Variables DB manquantes, impossible de calculer le centroïde")
+        geom = shapely_wkt.loads(geom_wkt)
+        if geom.is_empty:
+            logger.warning("⚠️ Géométrie vide pour calcul du centroïde")
             return None
 
-        database_url = (
-            f"postgresql+psycopg2://{SUPABASE_USER}:{SUPABASE_PASSWORD}"
-            f"@{SUPABASE_HOST}:{SUPABASE_PORT}/{SUPABASE_DB}"
-        )
-        engine = create_engine(database_url)
-
-        with engine.connect() as conn:
-            lon, lat = conn.execute(
-                text(
-                    """
-                    SELECT
-                        ST_X(ST_Transform(ST_Centroid(ST_GeomFromText(:wkt, 2154)), 4326)) AS lon,
-                        ST_Y(ST_Transform(ST_Centroid(ST_GeomFromText(:wkt, 2154)), 4326)) AS lat
-                    """
-                ),
-                {"wkt": geom_wkt},
-            ).one()
-
-        if lon is None or lat is None:
-            logger.warning("⚠️ Centroïde NULL retourné par PostGIS")
-            return None
+        c = geom.centroid
+        transformer = Transformer.from_crs("EPSG:2154", "EPSG:4326", always_xy=True)
+        lon, lat = transformer.transform(c.x, c.y)
 
         centroid = {"lon": float(lon), "lat": float(lat)}
         logger.info(f"📍 Centroïde UF calculé: {centroid}")
@@ -417,7 +397,7 @@ def generer_visualisations_et_cua_depuis_wkt(
     cua_viewer_url = f"https://kerelia.fr/cua?t={token_cua}"
     logger.info(f"✅ URL CUA générée : {cua_viewer_url}")
 
-    # 🧠 L'upload du pipeline_result.json est désormais géré par orchestrator_global.py
+    # 🧠 L'upload du pipeline_result.json est désormais géré par CUA/orchestrator_global.py
     result_url = None
 
     # ============================================================

@@ -5,11 +5,18 @@ Permet de vérifier le passage de ppri_table et la requête SQL sous-jacente.
 """
 
 import os
+import sys
+from pathlib import Path
+
 from sqlalchemy import create_engine
 from dotenv import load_dotenv
 import folium
 
-from ppri_map_module import ajouter_ppri_a_carte
+_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
+from CUA.ppri.ppri_map_module import ajouter_ppri_a_carte
 
 # ============================================================
 # 1️⃣ Connexion à la base

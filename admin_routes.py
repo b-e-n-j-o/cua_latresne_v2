@@ -1,7 +1,10 @@
 from fastapi import APIRouter, HTTPException, Query, Body
 from supabase import create_client
+from dotenv import load_dotenv
 import os, json
 from pathlib import Path
+
+load_dotenv()
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 

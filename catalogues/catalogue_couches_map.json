@@ -386,16 +386,6 @@
       "attribut_map": "tension",
       "nom_attribut_map": "Tension"
     },
-    "i4_lignes_electriques_locales": {
-      "nom": "Servitudes I4 - Lignes électriques locales",
-      "type": "Servitudes",
-      "keep": [
-        "reglementation"
-      ],
-      "origine": "shp",
-      "article": null,
-      "attribut_map": "None"
-    },
     "icpe_seveso": {
       "nom": "ICPE Seveso",
       "type": "installations_classees",

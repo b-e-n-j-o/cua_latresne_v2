@@ -2,9 +2,13 @@
 # test_ppri_cua.py
 
 import sys
-sys.path.append('./CUA')
+from pathlib import Path
 
-from ppri_cua_module import analyser_ppri_corrige
+_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
+from CUA.ppri.ppri_cua_module import analyser_ppri_corrige
 
 # Test avec votre WKT d'unité foncière
 wkt_path = "/Volumes/T7/Travaux_Freelance/KERELIA/CUAs/INTERSECTION_PIPELINE/LATRESNE/cua_latresne_v4/out_pipeline/20251104_185314/geom_unite_fonciere.wkt"

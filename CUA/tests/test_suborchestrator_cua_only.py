@@ -64,13 +64,14 @@ def generer_cua_depuis_intersections(intersections_path, out_dir, commune="latre
 
     # Construire les chemins de fichiers pour les entrées et sorties
     base_dir = os.path.dirname(__file__)
+    cua_dir = os.path.abspath(os.path.join(base_dir, ".."))
 
-    builder_path = os.path.join(base_dir, "cua_builder.py")
-    
+    builder_path = os.path.join(cua_dir, "docx", "cua_builder.py")
+
     # Générer le fichier CUA (sans passer par les autres étapes)
     output_docx_path = os.path.join(out_dir, "CUA_unite_fonciere.docx")
-    logo_latresne_path = os.path.join(base_dir, "logos", "logo_latresne.png")
-    logo_kerelia_path = os.path.join(base_dir, "logos", "logo_kerelia.png")
+    logo_latresne_path = os.path.join(cua_dir, "logos", "logo_latresne.png")
+    logo_kerelia_path = os.path.join(cua_dir, "logos", "logo_kerelia.png")
     
     # Récupérer le JSON du Cerfa depuis un exemple local
     cerfa_path = os.path.join(out_dir, "cerfa_result.json")

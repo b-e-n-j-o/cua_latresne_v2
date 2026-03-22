@@ -20,7 +20,7 @@ logging.basicConfig(
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from CUA.carte2d.carte2d_rendu import generer_carte_2d_depuis_wkt
+from CUA.map2d.carte2d.carte2d_rendu import generer_carte_2d_depuis_wkt
 
 WKT_PATH = (
     "/Volumes/T7/Travaux_Freelance/KERELIA/CUAs/INTERSECTION_PIPELINE/LATRESNE/cua_latresne_v4/out_pipeline/20251215_163326/geom_unite_fonciere.wkt"

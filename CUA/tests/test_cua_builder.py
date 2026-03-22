@@ -26,11 +26,11 @@ catalogue_path = os.path.join(BASE_DIR, "catalogue_avec_articles.json")
 output_path = os.path.join(BASE_DIR, "out_pipeline", "CUA_test.docx")
 
 # Logos
-logo_latresne_path = os.path.join(BASE_DIR, "logos", "logo_latresne.png")
-logo_kerelia_path = os.path.join(BASE_DIR, "logos", "logo_kerelia.png")
+logo_latresne_path = os.path.join(ROOT_DIR, "logos", "logo_latresne.png")
+logo_kerelia_path = os.path.join(ROOT_DIR, "logos", "logo_kerelia.png")
 
-# Builder
-builder_path = os.path.join(BASE_DIR, "cua_builder.py")
+# Builder (module déplacé sous CUA/docx/)
+builder_path = os.path.join(ROOT_DIR, "docx", "cua_builder.py")
 
 # ===============================
 # VÉRIFICATION DES ENTRÉES
