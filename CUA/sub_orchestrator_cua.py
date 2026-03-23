@@ -24,6 +24,7 @@ import tracemalloc
 import shutil
 from pathlib import Path
 from dotenv import load_dotenv
+from services.history.project_directory import ensure_project_directory, register_project_file
 try:
     import psutil
 except ImportError:
@@ -477,6 +478,33 @@ def generer_visualisations_et_cua_depuis_wkt(
             logger.info(f"👤 Pipeline associé à l'utilisateur : {user_email or user_id}")
     except Exception as e:
         logger.error(f"💥 Erreur d'insertion dans latresne.pipelines : {e}")
+
+    # ============================================================
+    # 📁 ProjectDirectory + ProjectFile (DOCX généré)
+    # ============================================================
+    try:
+        ensure_project_directory(
+            supabase_client=supabase,
+            slug=slug,
+            user_id=user_id,
+            created_by=user_id,
+        )
+        register_project_file(
+            supabase_client=supabase,
+            slug=slug,
+            file_kind="cua_docx",
+            filename=Path(output_docx_path).name,
+            storage_path=remote_cua,
+            public_url=cua_url,
+            storage_bucket=SUPABASE_BUCKET,
+            mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            size_bytes=Path(output_docx_path).stat().st_size if Path(output_docx_path).exists() else None,
+            uploaded_by=user_id,
+            source="pipeline_output",
+        )
+        logger.info(f"📁 ProjectDirectory + ProjectFile enregistrés pour {slug}")
+    except Exception as e:
+        logger.warning(f"⚠️ Impossible d'enregistrer ProjectDirectory/ProjectFile pour {slug}: {e}")
 
     # --------------------------------------------------------
     # FIN DU PIPELINE

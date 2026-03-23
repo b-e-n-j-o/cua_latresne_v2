@@ -24,8 +24,17 @@ HOST = os.getenv("SUPABASE_HOST")
 DB = os.getenv("SUPABASE_DB")
 USER = os.getenv("SUPABASE_USER")
 PWD = os.getenv("SUPABASE_PASSWORD")
-PORT = os.getenv("SUPABASE_PORT", 5432)
-engine = create_engine(f"postgresql+psycopg2://{USER}:{PWD}@{HOST}:{PORT}/{DB}")
+PORT = str(os.getenv("SUPABASE_PORT", "5432")).strip().strip('"').strip("'")
+if HOST and "pooler.supabase.com" in HOST and PORT == "5432":
+    print("⚠️ SUPABASE_PORT=5432 détecté sur pooler; bascule auto vers 6543 (transaction mode).")
+    PORT = "6543"
+engine = create_engine(
+    f"postgresql+psycopg2://{USER}:{PWD}@{HOST}:{PORT}/{DB}",
+    pool_size=1,
+    max_overflow=0,
+    pool_pre_ping=True,
+    pool_recycle=1800,
+)
 
 # =========================================================
 # 🎨 Hiérarchie de contrainte PPRI

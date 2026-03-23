@@ -29,7 +29,10 @@ SUPABASE_HOST = os.getenv('SUPABASE_HOST')
 SUPABASE_DB = os.getenv('SUPABASE_DB')
 SUPABASE_USER = os.getenv('SUPABASE_USER')
 SUPABASE_PASSWORD = os.getenv('SUPABASE_PASSWORD')
-SUPABASE_PORT = os.getenv('SUPABASE_PORT')
+SUPABASE_PORT = str(os.getenv('SUPABASE_PORT') or "5432").strip().strip('"').strip("'")
+if SUPABASE_HOST and "pooler.supabase.com" in SUPABASE_HOST and SUPABASE_PORT == "5432":
+    logger.warning("SUPABASE_PORT=5432 detecte sur pooler; bascule auto vers 6543 (transaction mode).")
+    SUPABASE_PORT = "6543"
 
 DATABASE_URL = f"postgresql+psycopg2://{SUPABASE_USER}:{SUPABASE_PASSWORD}@{SUPABASE_HOST}:{SUPABASE_PORT}/{SUPABASE_DB}"
 engine = create_engine(

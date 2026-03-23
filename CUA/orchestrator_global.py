@@ -99,10 +99,19 @@ def _analyse_intersections_depuis_wkt(wkt_path: str, out_dir: Path):
     SUPABASE_DB = os.getenv('SUPABASE_DB')
     SUPABASE_USER = os.getenv('SUPABASE_USER')
     SUPABASE_PASSWORD = os.getenv('SUPABASE_PASSWORD')
-    SUPABASE_PORT = os.getenv('SUPABASE_PORT')
+    SUPABASE_PORT = str(os.getenv('SUPABASE_PORT') or "5432").strip().strip('"').strip("'")
+    if SUPABASE_HOST and "pooler.supabase.com" in SUPABASE_HOST and SUPABASE_PORT == "5432":
+        logger.warning("SUPABASE_PORT=5432 detecte sur pooler; bascule auto vers 6543 (transaction mode).")
+        SUPABASE_PORT = "6543"
     
     DATABASE_URL = f"postgresql+psycopg2://{SUPABASE_USER}:{SUPABASE_PASSWORD}@{SUPABASE_HOST}:{SUPABASE_PORT}/{SUPABASE_DB}"
-    engine = create_engine(DATABASE_URL)
+    engine = create_engine(
+        DATABASE_URL,
+        pool_size=1,
+        max_overflow=0,
+        pool_pre_ping=True,
+        pool_recycle=1800,
+    )
     
     # Lecture du WKT
     with open(wkt_path, "r", encoding="utf-8") as f:
@@ -164,6 +173,9 @@ def _analyse_intersections_depuis_wkt(wkt_path: str, out_dir: Path):
                 "objets": []
             }
     
+    # Relâcher explicitement le pool local de ce helper
+    engine.dispose()
+
     # Sauvegarde des rapports
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_json = out_dir / f"rapport_intersections_{timestamp}.json"

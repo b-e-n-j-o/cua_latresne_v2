@@ -255,23 +255,13 @@ def render_first_page_header(
     # ✅ Extraction de l'email du demandeur (si présent)
     email = ((data.get("demandeur") or {}).get("adresse") or {}).get("email")
     
-    # Table layout 1×2 (50/50)
+    # Tableau récapitulatif sur pleine largeur (logo commune conservé plus haut)
     cw = _content_width_cm(doc.sections[0])
-    left_w = (cw - 0.5) / 2.0
-    right_w = (cw - 0.5) / 2.0
-    
-    layout = doc.add_table(rows=1, cols=2)
-    layout.autofit = False
-    layout.columns[0].width = Cm(left_w)
-    layout.columns[1].width = Cm(right_w)
-    
-    # Gauche: tableau récap (6 lignes avec email)
-    left_cell = layout.cell(0, 0)
-    recap = left_cell.add_table(rows=6, cols=2)
+    recap = doc.add_table(rows=6, cols=2)
     recap.style = "Table Grid"
     recap.autofit = False
-    recap.columns[0].width = Cm(5.5)
-    recap.columns[1].width = Cm(max(2.0, left_w - 5.7))
+    recap.columns[0].width = Cm(6.2)
+    recap.columns[1].width = Cm(max(7.0, cw - 6.4))
     
     rows_data = [
         ("Demande déposée le", date_dep),
@@ -291,24 +281,19 @@ def render_first_page_header(
             r_val.bold = True
         # Pas de mise en forme spéciale pour l'URL
     
-    # Droite: QR + numéro CU
-    right_cell = layout.cell(0, 1)
-    
-    # Numéro CU en haut
-    p_num = right_cell.paragraphs[0]
+    # QR code centré sous le tableau (discret, style document officiel)
+    doc.add_paragraph()  # espace
+    p_num = doc.add_paragraph()
     p_num.alignment = WD_ALIGN_PARAGRAPH.CENTER
     r_num = p_num.add_run(f"N° CU {num_cu}")
     r_num.bold = True
-    r_num.font.size = Pt(14)
-    
-    right_cell.add_paragraph()  # espace
-    
-    # QR code centré avec logo
-    p_qr = right_cell.add_paragraph()
+    r_num.font.size = Pt(11)
+
+    p_qr = doc.add_paragraph()
     p_qr.alignment = WD_ALIGN_PARAGRAPH.CENTER
     qr_png = _make_qr_png_bytes(qr_url, logo_path=qr_logo_path)
     stream = io.BytesIO(qr_png)
-    qr_size = min(right_w * 0.9, 6.0)
+    qr_size = min(max(cw * 0.22, 3.6), 4.6)
     p_qr.add_run().add_picture(stream, width=Cm(qr_size))
 
 def add_mayor_section_with_vu(
