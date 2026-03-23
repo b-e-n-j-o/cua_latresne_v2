@@ -45,6 +45,8 @@ from services.history.centroid_history import router as centroid_history_router
 import services.history.centroid_history as centroid_history_module
 from services.history.suivi import router as suivi_router
 import services.history.suivi as suivi_module
+from services.history.project_management import router as project_management_router
+import services.history.project_management as project_management_module
 
 logging.basicConfig(
     level=logging.INFO,
@@ -54,6 +56,7 @@ logging.basicConfig(
 cua_docx_viewer_routes.supabase = supabase
 centroid_history_module.supabase = supabase
 suivi_module.supabase = supabase
+project_management_module.supabase = supabase
 
 app = FastAPI(title="Kerelia CUA API", version="2.1")
 
@@ -113,6 +116,7 @@ app.include_router(tiles_parcelles)
 app.include_router(cerfa_router)
 app.include_router(centroid_history_router)
 app.include_router(suivi_router)
+app.include_router(project_management_router)
 
 # --- Cœur métier CUA / parcelles (jobs + polling) ---
 app.include_router(cua_pipeline_router)
