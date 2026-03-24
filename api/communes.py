@@ -5,14 +5,19 @@ import os
 
 router = APIRouter()
 
+SUPABASE_HOST = str(os.getenv("SUPABASE_HOST") or "").strip().strip('"').strip("'")
+SUPABASE_PORT = str(os.getenv("SUPABASE_PORT") or "5432").strip().strip('"').strip("'")
+if "pooler.supabase.com" in SUPABASE_HOST.lower() and SUPABASE_PORT == "5432":
+    SUPABASE_PORT = "6543"
+
 def get_db_connection():
     """Crée une nouvelle connexion PostgreSQL."""
     return psycopg2.connect(
-        host=os.getenv("SUPABASE_HOST"),
+        host=SUPABASE_HOST,
         dbname=os.getenv("SUPABASE_DB"),
         user=os.getenv("SUPABASE_USER"),
         password=os.getenv("SUPABASE_PASSWORD"),
-        port=5432,
+        port=int(SUPABASE_PORT),
     )
 
 @router.get("/communes")

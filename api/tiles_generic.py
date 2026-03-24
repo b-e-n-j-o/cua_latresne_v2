@@ -14,14 +14,19 @@ router = APIRouter()
 logger = logging.getLogger("tiles.generic")
 logger.setLevel(logging.INFO)
 
+SUPABASE_HOST = str(os.getenv("SUPABASE_HOST") or "").strip().strip('"').strip("'")
+SUPABASE_PORT = str(os.getenv("SUPABASE_PORT") or "5432").strip().strip('"').strip("'")
+if "pooler.supabase.com" in SUPABASE_HOST.lower() and SUPABASE_PORT == "5432":
+    SUPABASE_PORT = "6543"
+
 DB_POOL = SimpleConnectionPool(
     minconn=1,
     maxconn=5,
-    host=os.getenv("SUPABASE_HOST"),
+    host=SUPABASE_HOST,
     dbname=os.getenv("SUPABASE_DB"),
     user=os.getenv("SUPABASE_USER"),
     password=os.getenv("SUPABASE_PASSWORD"),
-    port=5432,
+    port=int(SUPABASE_PORT),
 )
 
 REGISTRY_SQL = """
