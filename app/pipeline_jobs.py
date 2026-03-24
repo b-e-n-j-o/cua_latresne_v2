@@ -44,6 +44,23 @@ async def run_pipeline_from_parcelles_async(
         if env is None:
             env = os.environ.copy()
 
+        # Garde-fou Render/Supabase : en host pooler, forcer transaction mode (6543)
+        # pour éviter MaxClientsInSessionMode si l'instance a conservé un ancien env.
+        supabase_host = str(env.get("SUPABASE_HOST") or "").strip().strip('"').strip("'")
+        supabase_port = str(env.get("SUPABASE_PORT") or "").strip().strip('"').strip("'")
+        if "pooler.supabase.com" in supabase_host.lower():
+            if not supabase_port or supabase_port == "5432":
+                env["SUPABASE_PORT"] = "6543"
+                print(
+                    f"⚠️ [JOB {job_id}] SUPABASE_PORT absent/5432 sur pooler, "
+                    "forçage automatique vers 6543."
+                )
+
+        print(
+            f"🧪 [JOB {job_id}] DB env utilisé: host={supabase_host or '<missing>'}, "
+            f"port={env.get('SUPABASE_PORT', '<missing>')}"
+        )
+
         parcelles_json = json.dumps(parcelles)
         cmd = [
             "python3",
