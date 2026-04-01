@@ -17,13 +17,14 @@ from admin_routes import router as admin_router
 from api.communes import router as communes_router
 from api.departements import router as departements_router
 from api.generate_dpe import router as dpe_router
-from api.identite_parcelle.route_identite_parcelle import router as identite_parcelle_router
-from api.identite_parcelle.zonage_plui import router as zonage_plui_router
+from api.identite_fonciere.route_identite_parcelle import (
+    router as identite_parcelle_router,
+    router_fonciere as identite_fonciere_router,
+)
 from api.latresne.parcelles_geojson import router as parcelles_geojson_router
 from api.latresne.patrimoine import router as patrimoine_router
 from api.latresne.tiles_latresne import router as latresne_router
 from api.latresne.tiles_mbtiles import router as latresne_mbtiles_router
-from api.parcelle_et_voisins import router as parcelle_router
 from api.parcelle_geometrie import router as parcelle_geometrie_router
 from api.plu.chat import router as chat_router
 from api.plu.fetch_plu import router as plu_router
@@ -166,13 +167,12 @@ app.include_router(departements_router)
 app.include_router(latresne_mbtiles_router)
 app.include_router(tiles_router)
 app.include_router(mbtiles_router)
-app.include_router(parcelle_router)
 app.include_router(topo_router)
 app.include_router(dpe_router)
 app.include_router(plu_router)
 app.include_router(chat_router)
 app.include_router(identite_parcelle_router)
-app.include_router(zonage_plui_router)
+app.include_router(identite_fonciere_router)
 app.include_router(latresne_router)
 app.include_router(parcelles_geojson_router)
 app.include_router(patrimoine_router)

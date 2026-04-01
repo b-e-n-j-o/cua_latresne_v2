@@ -301,6 +301,18 @@
     "article": "5",
     "geom_type": "surfacique"
   },
+  "retrait_gonflement_argiles_gironde_2026": {
+    "nom": "Retrait-gonflement des argiles - Règlementation à venir, juillet 2026",
+    "type": "prescription",
+    "keep": [
+      "niveau",
+      "alea",
+      "reglementation"
+    ],
+    "origine": "shp",
+    "article": "5",
+    "geom_type": "surfacique"
+  },
   "secteurs_carrieres_comblees": {
     "nom": "Secteurs carrières comblées",
     "type": "information",

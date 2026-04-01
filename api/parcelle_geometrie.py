@@ -9,6 +9,8 @@ from typing import List
 
 import requests
 from fastapi import APIRouter, HTTPException
+
+from .ssl_utils import ssl_verify_for_requests
 from pydantic import BaseModel
 from shapely.geometry import shape
 from shapely.ops import transform, unary_union
@@ -59,7 +61,12 @@ def load_commune_to_insee():
 COMMUNE_TO_INSEE = load_commune_to_insee()
 
 def wfs_get(params):
-    r = requests.get(WFS_URL, params=params, timeout=20)
+    r = requests.get(
+        WFS_URL,
+        params=params,
+        timeout=20,
+        verify=ssl_verify_for_requests(),
+    )
     r.raise_for_status()
     return r.json()
 
