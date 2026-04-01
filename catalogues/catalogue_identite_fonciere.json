@@ -35,11 +35,9 @@
       "nom": "Servitude PM1 - PPRI",
       "type": "servitude",
       "keep": [
-        "gid",
         "nom"
       ],
       "clean_attributes": [
-        "Identifiant",
         "Nom"
       ],
       "origine": "wfs",
@@ -51,11 +49,9 @@
       "nom": "AOC viticoles",
       "type": "information",
       "keep": [
-        "uid",
         "denom"
       ],
       "clean_attributes": [
-        "Identifiant",
         "Domaine"
       ],
       "origine": "wfs",
@@ -105,10 +101,8 @@
       "nom": "Haies et bocages",
       "type": "information",
       "keep": [
-        "id"
       ],
       "clean_attributes": [
-        "Identifiant"
       ],
       "origine": "wfs",
       "article": "5",
@@ -118,11 +112,9 @@
       "nom": "Servitudes I1 – Hydrocarbures, chimiques et gaz",
       "type": "servitude",
       "keep": [
-        "gml_id",
         "cat_fluide"
       ],
       "clean_attributes": [
-        "Identifiant",
         "Catégorie de fluide"
       ],
       "origine": "wfs",
@@ -191,11 +183,9 @@
       "nom": "Zonage PLU",
       "type": "prescription",
       "keep": [
-        "id",
         "zonage_reglement"
       ],
       "clean_attributes": [
-        "Identifiant",
         "Zonage"
       ],
       "origine": "wfs",
@@ -209,11 +199,9 @@
       "nom": "Prescriptions linéaires",
       "type": "prescription",
       "keep": [
-        "gml_id",
         "libelle"
       ],
       "clean_attributes": [
-        "Identifiant",
         "Libelle"
       ],
       "origine": "shp",
@@ -224,11 +212,9 @@
       "nom": "Prescriptions ponctuelles",
       "type": "prescription",
       "keep": [
-        "gml_id",
         "libelle"
       ],
       "clean_attributes": [
-        "Identifiant",
         "Libelle"
       ],
       "origine": "shp",
@@ -239,11 +225,9 @@
       "nom": "Prescriptions surfaciques",
       "type": "prescription",
       "keep": [
-        "gml_id",
         "libelle"
       ],
       "clean_attributes": [
-        "Identifiant",
         "Libelle"
       ],
       "origine": "shp",
@@ -407,11 +391,9 @@
       "nom": "Zones ZAENR",
       "type": "information",
       "keep": [
-        "uid",
         "detail_fil"
       ],
-      "clean_attributes": [
-        "Identifiant",
+      "clean_attributes": [ 
         "Détail filière"
       ],
       "origine": "wfs",

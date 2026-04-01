@@ -40,6 +40,8 @@ from reportlab.platypus import (
 )
 from reportlab.platypus.flowables import HRFlowable
 
+from ..identite_fonciere import _elements_display_count
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -242,9 +244,9 @@ def _layer_row_result_label(row: Dict[str, Any]) -> str:
     except (TypeError, ValueError):
         ec_int = 0
     if st == "intersected":
-        return f"{ec_int} élt."
+        return f"{ec_int} éléments"
     if st == "not_intersected":
-        return "Non"
+        return "-"
     if st == "skipped":
         sr = (row.get("skip_reason") or row.get("skipReason") or "").strip()
         return f"Ignoré ({sr})" if sr else "Ignoré"
@@ -289,8 +291,9 @@ def _synthese_couches_rows(
     for table in list(cat.keys()):
         if table in by_table:
             x = by_table[table]
-            els = x.get("elements") or []
-            n = len(els) if isinstance(els, list) else 0
+            els = x.get("elements") if isinstance(x.get("elements"), list) else []
+            cfg_row = cat.get(table) or {}
+            n = _elements_display_count(els, cfg_row)
             rows.append(
                 {
                     "table": table,

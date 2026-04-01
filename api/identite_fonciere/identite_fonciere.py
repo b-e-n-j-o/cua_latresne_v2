@@ -105,6 +105,49 @@ class GeoJsonLayerAttempt:
     error: Optional[str] = None
 
 
+def _fingerprint_valeur_groupe(val: Any) -> str:
+    """Clé stable pour dédupliquer les valeurs d’attribut (str ou liste)."""
+    if val is None:
+        return ""
+    if isinstance(val, list):
+        return ",".join(str(v) for v in val if v is not None)
+    return str(val)
+
+
+def _elements_display_count(elements: List[Dict[str, Any]], config: Dict[str, Any]) -> int:
+    """
+    Nombre affiché pour la couche (SSE, PDF synthèse) : si le catalogue définit
+    `group_by`, on compte les valeurs distinctes de cet attribut ; sinon le nombre
+    d’éléments retournés.
+    """
+    if not elements:
+        return 0
+    gb = config.get("group_by")
+    keys: List[str] = []
+    if isinstance(gb, str) and gb.strip():
+        keys = [gb.strip()]
+    elif isinstance(gb, list):
+        keys = [str(x).strip() for x in gb if isinstance(x, str) and x.strip()]
+
+    if not keys:
+        return len(elements)
+
+    chosen: Optional[str] = None
+    for k in keys:
+        if any(k in el for el in elements):
+            chosen = k
+            break
+    if not chosen:
+        return len(elements)
+
+    distinct: set = set()
+    for el in elements:
+        if chosen not in el:
+            continue
+        distinct.add(_fingerprint_valeur_groupe(el.get(chosen)))
+    return len(distinct) if distinct else len(elements)
+
+
 # ------------------------------------------------------------
 # Fonctions métier
 # ------------------------------------------------------------
@@ -717,13 +760,22 @@ def process_geojson_layer(
                 elements.append(obj)
 
             if elements:
-                logger.info(f"   ✅ {table_name}: {len(elements)} élément(s)")
+                n_display = _elements_display_count(elements, config)
+                if n_display != len(elements):
+                    logger.info(
+                        "   ✅ %s: %s valeur(s) distincte(s) (group_by) sur %s ligne(s)",
+                        table_name,
+                        n_display,
+                        len(elements),
+                    )
+                else:
+                    logger.info(f"   ✅ {table_name}: {len(elements)} élément(s)")
                 return GeoJsonLayerAttempt(
                     table=table_name,
                     display_name=display_name,
                     status="intersected",
                     intersected=True,
-                    elements_count=len(elements),
+                    elements_count=n_display,
                     intersection={
                         "table": table_name,
                         "display_name": display_name,
