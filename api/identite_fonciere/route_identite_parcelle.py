@@ -74,6 +74,28 @@ class ParcelleCadRef(BaseModel):
         return str(v)
 
 
+class CoucheSyntheseRow(BaseModel):
+    """Une ligne du tableau dynamique d’intersection (identique au front)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    table: str
+    display_name: str = Field(
+        default="",
+        validation_alias=AliasChoices("display_name", "displayName"),
+    )
+    status: str
+    elements_count: int = Field(
+        default=0,
+        validation_alias=AliasChoices("elements_count", "elementsCount"),
+    )
+    skip_reason: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("skip_reason", "skipReason"),
+    )
+    error: Optional[str] = None
+
+
 class RapportFonciereRequest(BaseModel):
     """PDF : intersections déjà calculées (recommandé) ou géométrie seule pour relancer l’analyse."""
 
@@ -91,6 +113,11 @@ class RapportFonciereRequest(BaseModel):
     parcelles_cadastrales: Optional[List[ParcelleCadRef]] = Field(
         default=None,
         validation_alias=AliasChoices("parcelles_cadastrales", "parcellesCadastrales"),
+    )
+    # Lignes « Couche / Résultat » (même logique que le tableau SSE du frontend)
+    couches_synthese: Optional[List[CoucheSyntheseRow]] = Field(
+        default=None,
+        validation_alias=AliasChoices("couches_synthese", "couchesSynthese"),
     )
 
 
@@ -268,6 +295,9 @@ async def rapport_fonciere(payload: RapportFonciereRequest):
             pcs = payload.parcelles_cadastrales
             if pcs:
                 result["parcelles_cadastrales"] = [p.model_dump() for p in pcs]
+            cs = payload.couches_synthese
+            if cs:
+                result["couches_synthese"] = [c.model_dump() for c in cs]
         elif payload.geometry is not None:
             result = analyser_identite_fonciere(
                 geometry=payload.geometry,
@@ -280,6 +310,9 @@ async def rapport_fonciere(payload: RapportFonciereRequest):
                 result["parcelles_cadastrales"] = [p.model_dump() for p in pcs]
             if payload.parcelle:
                 result["parcelle"] = payload.parcelle
+            cs = payload.couches_synthese
+            if cs:
+                result["couches_synthese"] = [c.model_dump() for c in cs]
         else:
             raise HTTPException(
                 status_code=400,

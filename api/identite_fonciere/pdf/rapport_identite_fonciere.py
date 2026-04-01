@@ -79,7 +79,7 @@ ARTICLE_LABELS: Dict[str, str] = {
     "6": "Réseaux et équipements",
     "7": "Informations diverses",
     "8": "Autres",
-    "9": "Article 9 – Droits de préemption",
+    "9": "Droits de préemption",
 }
 
 # Chemin logo par défaut (relatif à ce fichier puis fallback)
@@ -229,6 +229,174 @@ def _article_key(article_raw: Optional[str]) -> str:
         return "8"
     first = str(article_raw).split(",")[0].strip()
     return first if first in ARTICLE_LABELS else "8"
+
+
+def _layer_row_result_label(row: Dict[str, Any]) -> str:
+    """Même logique que le tableau dynamique du frontend (ParcelleIdentity)."""
+    st = (row.get("status") or "").strip()
+    ec = row.get("elements_count")
+    if ec is None:
+        ec = row.get("elementsCount")
+    try:
+        ec_int = int(ec) if ec is not None else 0
+    except (TypeError, ValueError):
+        ec_int = 0
+    if st == "intersected":
+        return f"{ec_int} élt."
+    if st == "not_intersected":
+        return "Non"
+    if st == "skipped":
+        sr = (row.get("skip_reason") or row.get("skipReason") or "").strip()
+        return f"Ignoré ({sr})" if sr else "Ignoré"
+    if st == "error":
+        err = str(row.get("error") or "Erreur")
+        return err[:220] + ("…" if len(err) > 220 else "")
+    if st == "pending":
+        return "…"
+    return "—"
+
+
+def _normalize_couche_display_name(row: Dict[str, Any]) -> str:
+    return str(
+        row.get("display_name")
+        or row.get("displayName")
+        or row.get("table")
+        or "—"
+    )
+
+
+def _synthese_couches_rows(
+    result: Dict[str, Any],
+    catalogue: Optional[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """
+    Lignes pour la vue d'ensemble : préfère `couches_synthese` (flux SSE),
+    sinon une ligne par entrée du catalogue + statut dérivé des intersections.
+    """
+    raw = result.get("couches_synthese")
+    if isinstance(raw, list) and raw:
+        return [r for r in raw if isinstance(r, dict)]
+
+    cat = catalogue or {}
+    inters: List[Dict] = result.get("intersections") or []
+    by_table: Dict[str, Dict] = {}
+    for x in inters:
+        t = x.get("table")
+        if isinstance(t, str) and t:
+            by_table[t] = x
+
+    rows: List[Dict[str, Any]] = []
+    for table in list(cat.keys()):
+        if table in by_table:
+            x = by_table[table]
+            els = x.get("elements") or []
+            n = len(els) if isinstance(els, list) else 0
+            rows.append(
+                {
+                    "table": table,
+                    "display_name": x.get("display_name")
+                    or (cat.get(table) or {}).get("nom_affiche")
+                    or (cat.get(table) or {}).get("nom")
+                    or table,
+                    "status": "intersected",
+                    "elements_count": n,
+                }
+            )
+        else:
+            cfg = cat.get(table) or {}
+            rows.append(
+                {
+                    "table": table,
+                    "display_name": cfg.get("nom_affiche") or cfg.get("nom") or table,
+                    "status": "not_intersected",
+                    "elements_count": 0,
+                }
+            )
+    return rows
+
+
+def _build_synthese_couches_flowables(
+    result: Dict[str, Any],
+    catalogue: Optional[Dict[str, Any]],
+    styles: Dict,
+    page_width_pts: float,
+) -> List[Any]:
+    """Tableaux Couche / Résultat groupés par article du catalogue."""
+    cat = catalogue or {}
+    rows_data = _synthese_couches_rows(result, catalogue)
+    flowables: List[Any] = []
+
+    flowables.append(
+        Paragraph("Vue d'ensemble — couches du catalogue", styles["summary_title"])
+    )
+    flowables.append(Spacer(1, 4))
+
+    if not rows_data:
+        flowables.append(
+            Paragraph("Aucune donnée de synthèse.", styles["subtitle"])
+        )
+        flowables.append(Spacer(1, 6))
+        return flowables
+
+    inner_w = page_width_pts - 4 * cm
+
+    groups: Dict[str, List[Dict[str, Any]]] = {}
+    for r in rows_data:
+        t = r.get("table") or ""
+        cfg = cat.get(t) or {}
+        art_raw = cfg.get("article")
+        ak = _article_key(str(art_raw) if art_raw is not None else None)
+        groups.setdefault(ak, []).append(r)
+
+    art_sorted = sorted(groups.keys(), key=lambda k: int(k) if k.isdigit() else 99)
+
+    for ak in art_sorted:
+        label = ARTICLE_LABELS.get(ak, f"Article {ak}")
+        flowables.append(Paragraph(f"<b>{xml_escape(label)}</b>", styles["subtitle"]))
+        flowables.append(Spacer(1, 2))
+
+        tbl_data: List[List[Any]] = [
+            [
+                Paragraph("<b>Couche</b>", styles["attr_key"]),
+                Paragraph("<b>Résultat</b>", styles["attr_key"]),
+            ]
+        ]
+        for r in groups[ak]:
+            dn = _normalize_couche_display_name(r)
+            lbl = _layer_row_result_label(r)
+            tbl_data.append(
+                [
+                    Paragraph(xml_escape(dn), styles["attr_val"]),
+                    Paragraph(xml_escape(lbl), styles["attr_val"]),
+                ]
+            )
+
+        tt = Table(tbl_data, colWidths=[inner_w * 0.62, inner_w * 0.38])
+        tt.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E8F5EE")),
+                    ("GRID", (0, 0), (-1, -1), 0.5, C_BORDER),
+                    (
+                        "ROWBACKGROUNDS",
+                        (0, 1),
+                        (-1, -1),
+                        [colors.white, colors.HexColor("#F7FCF9")],
+                    ),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, 0), 8),
+                ]
+            )
+        )
+        flowables.append(tt)
+        flowables.append(Spacer(1, 8))
+
+    return flowables
 
 
 def _format_attr_value(val: Any) -> str:
@@ -747,51 +915,11 @@ def generate_rapport_pdf(
     story.append(Spacer(1, 14))
 
     # -----------------------------------------------------------------------
-    # Sommaire des types
+    # Vue d'ensemble : toutes les couches (comme le tableau dynamique du front)
     # -----------------------------------------------------------------------
-    story.append(Paragraph("Résumé par type de contrainte", styles["summary_title"]))
-    story.append(Spacer(1, 4))
-
-    type_counts: Dict[str, int] = {}
-    for layer in intersections:
-        t = layer.get("type") or "—"
-        type_counts[t] = type_counts.get(t, 0) + 1
-
-    if type_counts:
-        summary_rows = [
-            [
-                Paragraph("<b>Type</b>", styles["attr_key"]),
-                Paragraph("<b>Nb couches</b>", styles["attr_key"]),
-            ]
-        ]
-        for t, cnt in sorted(type_counts.items()):
-            c = _type_color(t)
-            badge = Table(
-                [[Paragraph(f'<font color="white"><b>{_type_label(t)}</b></font>', styles["type_badge"])]],
-                colWidths=[max(len(_type_label(t)) * 5.5 + 12, 60)],
-                rowHeights=[14],
-            )
-            badge.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, -1), c),
-                ("TOPPADDING", (0, 0), (-1, -1), 2),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-                ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ]))
-            summary_rows.append([badge, Paragraph(str(cnt), styles["attr_val"])])
-
-        summary_table = Table(summary_rows, colWidths=[9 * cm, 3 * cm])
-        summary_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E8F5EE")),
-            ("GRID", (0, 0), (-1, -1), 0.5, C_BORDER),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F7FCF9")]),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ("LEFTPADDING", (0, 0), (-1, -1), 8),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ]))
-        story.append(summary_table)
+    story.extend(
+        _build_synthese_couches_flowables(result, catalogue, styles, page_w)
+    )
 
     story.append(PageBreak())
 
