@@ -4,8 +4,8 @@ Endpoint API pour l'identité parcellaire
 """
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse
-from pydantic import BaseModel
-from typing import List, Dict, Any
+from pydantic import BaseModel, ConfigDict, Field, AliasChoices, field_validator
+from typing import List, Dict, Any, Optional
 from pathlib import Path
 
 from .identite_fonciere import (
@@ -58,8 +58,26 @@ class IdentiteFonciereMapRequest(IdentiteFonciereRequest):
     intersections: List[IntersectionResult] | None = None
 
 
+class ParcelleCadRef(BaseModel):
+    """Une parcelle cadastrale (section + numéro) pour l’affichage UF en page de garde du PDF."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    section: str = ""
+    numero: str = ""
+
+    @field_validator("section", "numero", mode="before")
+    @classmethod
+    def _coerce_str(cls, v: Any) -> str:
+        if v is None:
+            return ""
+        return str(v)
+
+
 class RapportFonciereRequest(BaseModel):
     """PDF : intersections déjà calculées (recommandé) ou géométrie seule pour relancer l’analyse."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     commune: str
     insee: str | None = None
@@ -69,6 +87,11 @@ class RapportFonciereRequest(BaseModel):
     output_dir: str | None = None
     # Référence cadastrale dans le PDF si pas d’UF (ex. section + numéro)
     parcelle: str | None = None
+    # UF : liste des parcelles (section + numéro) pour la page 1 du rapport
+    parcelles_cadastrales: Optional[List[ParcelleCadRef]] = Field(
+        default=None,
+        validation_alias=AliasChoices("parcelles_cadastrales", "parcellesCadastrales"),
+    )
 
 
 class IdentiteFonciereMapResponse(BaseModel):
@@ -242,6 +265,9 @@ async def rapport_fonciere(payload: RapportFonciereRequest):
                 "nb_intersections": len(payload.intersections),
                 "intersections": [i.model_dump() for i in payload.intersections],
             }
+            pcs = payload.parcelles_cadastrales
+            if pcs:
+                result["parcelles_cadastrales"] = [p.model_dump() for p in pcs]
         elif payload.geometry is not None:
             result = analyser_identite_fonciere(
                 geometry=payload.geometry,
@@ -249,6 +275,11 @@ async def rapport_fonciere(payload: RapportFonciereRequest):
                 insee=payload.insee,
                 srid=payload.srid,
             )
+            pcs = payload.parcelles_cadastrales
+            if pcs:
+                result["parcelles_cadastrales"] = [p.model_dump() for p in pcs]
+            if payload.parcelle:
+                result["parcelle"] = payload.parcelle
         else:
             raise HTTPException(
                 status_code=400,

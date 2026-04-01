@@ -19,7 +19,8 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+from xml.sax.saxutils import escape as xml_escape
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
@@ -236,6 +237,67 @@ def _format_attr_value(val: Any) -> str:
     return str(val) if val is not None else "—"
 
 
+def _build_attr_label_map(layer: Dict[str, Any]) -> Dict[str, str]:
+    """
+    Construit la table de correspondance attribut brut -> libellé propre.
+
+    Sources acceptées (dans la config couche du catalogue):
+    - clean_attributes: { "attr_brut": "Nom propre", ... }
+    - clean_attributes: ["Nom propre 1", "Nom propre 2", ...] (aligné sur keep)
+    """
+    mapping: Dict[str, str] = {}
+    clean_cfg = layer.get("clean_attributes")
+    keep_cfg = layer.get("keep") or []
+
+    if isinstance(clean_cfg, dict):
+        for raw, clean in clean_cfg.items():
+            if isinstance(raw, str) and raw.strip() and isinstance(clean, str) and clean.strip():
+                mapping[raw] = clean
+        return mapping
+
+    if isinstance(clean_cfg, list) and isinstance(keep_cfg, list):
+        keep_fields = [k for k in keep_cfg if isinstance(k, str)]
+        clean_fields = [c for c in clean_cfg if isinstance(c, str)]
+        for raw, clean in zip(keep_fields, clean_fields):
+            if raw.strip() and clean.strip():
+                mapping[raw] = clean
+    return mapping
+
+
+def _pdf_column_keys(layer: Dict[str, Any]) -> Optional[List[str]]:
+    """
+    Si `clean_attributes` est renseigné dans le catalogue, colonnes du tableau PDF
+    uniquement dans cet ordre (dict: clés ; liste: alignement sur keep).
+    Sinon None : comportement historique (toutes les clés présentes sur les lignes).
+    """
+    clean_cfg = layer.get("clean_attributes")
+    keep_cfg = layer.get("keep") or []
+
+    if isinstance(clean_cfg, dict) and clean_cfg:
+        return [k for k in clean_cfg.keys() if isinstance(k, str) and k.strip()]
+
+    if isinstance(clean_cfg, list) and clean_cfg and isinstance(keep_cfg, list):
+        keep_fields = [k for k in keep_cfg if isinstance(k, str)]
+        clean_fields = [c for c in clean_cfg if isinstance(c, str)]
+        keys: List[str] = []
+        for raw, clean in zip(keep_fields, clean_fields):
+            if raw.strip() and clean.strip():
+                keys.append(raw)
+        return keys if keys else None
+
+    return None
+
+
+def _pdf_keep_effectif_vide(layer: Dict[str, Any]) -> bool:
+    """True si keep est absent ou [] (ou uniquement des chaînes vides) : rapport sans tableau d'attributs."""
+    keep = layer.get("keep")
+    if keep is None:
+        return False
+    if not isinstance(keep, list):
+        return False
+    return not any(isinstance(k, str) and k.strip() for k in keep)
+
+
 def _group_by_key_from_layer(layer: Dict[str, Any], elements: List[Dict[str, Any]]) -> Optional[str]:
     """
     Détermine la clé de groupement effective à utiliser dans le PDF.
@@ -373,21 +435,34 @@ def _build_layer_block(layer: Dict[str, Any], styles: Dict, page_width_pts: floa
     filtered_elements = _aggregate_elements_for_pdf(layer, elements)
 
     # --- Tableau des attributs ---
-    if not filtered_elements:
+    if _pdf_keep_effectif_vide(layer):
+        # keep [] dans le catalogue : uniquement le texte (pas de tableau)
+        attr_block = Paragraph(
+            "Intersection détectée (données attributaires non disponibles)",
+            styles["no_intersection"],
+        )
+    elif not filtered_elements:
         # Intersection géométrique seule (pas d'attributs visibles)
         attr_block = Paragraph("Intersection détectée (données attributaires non disponibles)", styles["no_intersection"])
     else:
+        label_map = _build_attr_label_map(layer)
+
         # Construire les lignes du tableau attributs
         attr_rows = []
-        # En-têtes colonnes = clés de tous les éléments
-        all_keys: List[str] = []
-        for el in filtered_elements:
-            for k in el.keys():
-                if k not in all_keys:
-                    all_keys.append(k)
+        catalog_keys = _pdf_column_keys(layer)
+        if catalog_keys is not None:
+            all_keys = catalog_keys
+        else:
+            all_keys = []
+            for el in filtered_elements:
+                for k in el.keys():
+                    if k not in all_keys:
+                        all_keys.append(k)
 
         # Ligne header colonnes
-        header_cells = [Paragraph(f"<b>{k}</b>", styles["attr_key"]) for k in all_keys]
+        header_cells = [
+            Paragraph(f"<b>{label_map.get(k, k)}</b>", styles["attr_key"]) for k in all_keys
+        ]
         attr_rows.append(header_cells)
 
         for el in filtered_elements:
@@ -527,6 +602,43 @@ class _PageDecorator:
 # Fonction principale
 # ---------------------------------------------------------------------------
 
+def _meta_parcelle_label_and_html(result: Dict[str, Any]) -> Tuple[str, str]:
+    """
+    Libellé + fragment HTML pour la ligne « parcelle » sur la page de garde.
+    Si `parcelles_cadastrales` est fourni (UF), une ligne par parcelle (section + numéro).
+    """
+    raw_list = result.get("parcelles_cadastrales")
+    parcelle = result.get("parcelle") or ""
+    if isinstance(raw_list, list) and raw_list:
+        lines: List[str] = []
+        for p in raw_list:
+            if not isinstance(p, dict):
+                continue
+            s = str(p.get("section", "")).strip()
+            n = str(p.get("numero", "")).strip()
+            if s or n:
+                lines.append(f"{s} {n}".strip())
+        if lines:
+            label = (
+                "Références cadastrales (UF)"
+                if len(lines) > 1
+                else "Référence cadastrale"
+            )
+            html = "<br/>".join(xml_escape(x) for x in lines)
+            return label, html
+    pv = parcelle.strip() if isinstance(parcelle, str) else ""
+    # Liste UF passée uniquement dans `parcelle` (ex. "AC 12, AC 34") — plusieurs lignes
+    if pv and pv != "UNITE_FONCIERE" and "," in pv:
+        parts = [p.strip() for p in pv.split(",") if p.strip()]
+        if len(parts) > 1:
+            label = "Références cadastrales (UF)"
+            html = "<br/>".join(xml_escape(x) for x in parts)
+            return label, html
+    if not pv or pv == "UNITE_FONCIERE":
+        return "Référence parcelle / UF", "—"
+    return "Référence parcelle / UF", xml_escape(pv)
+
+
 def generate_rapport_pdf(
     result: Dict[str, Any],
     output_dir: str = ".",
@@ -539,7 +651,8 @@ def generate_rapport_pdf(
 
     Args:
         result: Dict retourné par analyser_identite_fonciere / analyser_identite_parcelle
-                Doit contenir 'intersections', 'commune', 'insee', 'parcelle'.
+                Doit contenir 'intersections', 'commune', 'insee', et optionnellement
+                'parcelle' et/ou 'parcelles_cadastrales' (liste {section, numero}) pour l’UF.
         output_dir: Dossier de sortie.
         logo_path: Chemin explicite vers logo_kerelia.png (optionnel).
         filename: Nom du fichier de sortie (optionnel, auto-généré sinon).
@@ -552,7 +665,6 @@ def generate_rapport_pdf(
     intersections: List[Dict] = result.get("intersections", [])
     commune: str = result.get("commune", "Commune inconnue")
     insee: str = result.get("insee", "")
-    parcelle: str = result.get("parcelle", "")
     nb_intersections: int = result.get("nb_intersections", len(intersections))
 
     date_str = datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -606,10 +718,11 @@ def generate_rapport_pdf(
     story.append(Spacer(1, 8))
 
     # Métadonnées
+    pl_lbl, pl_html = _meta_parcelle_label_and_html(result)
     meta_rows = [
         ("Commune", commune),
         ("Code INSEE", insee or "—"),
-        ("Référence parcelle / UF", parcelle or "—"),
+        (pl_lbl, pl_html),
         ("Date d'analyse", date_str),
         ("Couches intersectées", str(nb_intersections)),
     ]
@@ -696,6 +809,10 @@ def generate_rapport_pdf(
                 layer["article"] = cat_entry["article"]
             if not layer.get("group_by") and cat_entry.get("group_by"):
                 layer["group_by"] = cat_entry["group_by"]
+            if not layer.get("clean_attributes") and cat_entry.get("clean_attributes"):
+                layer["clean_attributes"] = cat_entry["clean_attributes"]
+            if "keep" not in layer and "keep" in cat_entry:
+                layer["keep"] = cat_entry["keep"]
 
     # Grouper par article
     articles: Dict[str, List[Dict]] = {}

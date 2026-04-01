@@ -71,6 +71,18 @@ def _sql_ident(name: str) -> str:
     return name
 
 
+def _pg_quote_ident(name: str) -> str:
+    """
+    Identifiant PostgreSQL entre guillemets doubles (casse et caractères préservés).
+    Sans cela, PG plie les noms non quotés en minuscules et les colonnes « Ap » échouent.
+    """
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError(f"Identifiant SQL invalide: {name!r}")
+    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", name):
+        raise ValueError(f"Identifiant SQL invalide: {name!r}")
+    return '"' + name.replace('"', '""') + '"'
+
+
 try:
     _sql_ident(IDENTITE_DB_SCHEMA)
 except ValueError as e:
@@ -203,6 +215,59 @@ def _elements_intersection_geometrique_seule(n: int) -> List[Dict[str, str]]:
     return [{"intersection": "Oui", "entités": str(n)}]
 
 
+def _attempt_geometry_only_intersection(
+    conn,
+    *,
+    table_name: str,
+    geom_json: str,
+    parcelle_geom_sql: str,
+    geom_col: str,
+    display_name: str,
+    article: Any,
+    attr_disc: Optional[str],
+) -> GeoJsonLayerAttempt:
+    """Compte les intersections sans lecture d’attributs (keep vide ou seulement réglementation)."""
+    n = _count_broad_intersect(
+        conn, geom_json, table_name, parcelle_geom_sql, geom_col
+    )
+    if n is None:
+        return GeoJsonLayerAttempt(
+            table=table_name,
+            display_name=display_name,
+            status="error",
+            intersected=False,
+            error="Échec du comptage géométrique",
+        )
+    if n == 0:
+        return GeoJsonLayerAttempt(
+            table=table_name,
+            display_name=display_name,
+            status="not_intersected",
+            intersected=False,
+            elements_count=0,
+        )
+    logger.info(
+        "   ✅ %s: intersection géométrique seule (%s ligne(s))",
+        table_name,
+        n,
+    )
+    els = _elements_intersection_geometrique_seule(n)
+    return GeoJsonLayerAttempt(
+        table=table_name,
+        display_name=display_name,
+        status="intersected",
+        intersected=True,
+        elements_count=n,
+        intersection={
+            "table": table_name,
+            "display_name": display_name,
+            "article": article,
+            "attribut_discriminant": attr_disc,
+            "elements": els,
+        },
+    )
+
+
 def calculate_intersections_detailed(parcelle_wkt: str, tables: List[str] = None):
     if tables is None:
         tables = get_carto_tables()
@@ -274,7 +339,10 @@ def calculate_intersections_detailed(parcelle_wkt: str, tables: List[str] = None
                         "elements": _elements_intersection_geometrique_seule(n),
                     }
 
-                selected_expr = ", ".join([f"{attr} AS \"{attr}\"" for attr in output_attrs])
+                q = _pg_quote_ident
+                selected_expr = ", ".join(
+                    [f"{q(attr)} AS {q(attr)}" for attr in output_attrs]
+                )
                 query = text(f"""
                     SELECT DISTINCT {selected_expr}
                     FROM {IDENTITE_DB_SCHEMA}.{table_name} t
@@ -518,19 +586,6 @@ def process_geojson_layer(
         if attr_disc and attr_disc not in keep_attrs:
             keep_attrs = [attr_disc, *keep_attrs]
 
-        if not keep_attrs:
-            if debug:
-                logger.info(
-                    "   [debug] skip %s: catalogue sans attributs `keep`", table_name
-                )
-            return GeoJsonLayerAttempt(
-                table=table_name,
-                display_name=display_name,
-                status="skipped",
-                intersected=False,
-                skip_reason="catalogue sans attributs keep",
-            )
-
         with engine.connect() as conn:
             _sql_ident(table_name)
             geom_col = _find_geom_column(conn, table_name, IDENTITE_DB_SCHEMA)
@@ -546,6 +601,23 @@ def process_geojson_layer(
                     status="skipped",
                     intersected=False,
                     skip_reason="aucune colonne géométrique",
+                )
+
+            if not keep_attrs:
+                if debug:
+                    logger.info(
+                        "   [debug] %s: keep vide → intersection géométrique seule",
+                        table_name,
+                    )
+                return _attempt_geometry_only_intersection(
+                    conn,
+                    table_name=table_name,
+                    geom_json=geom_json,
+                    parcelle_geom_sql=parcelle_geom_sql,
+                    geom_col=geom_col,
+                    display_name=display_name,
+                    article=article,
+                    attr_disc=attr_disc,
                 )
 
             existing_cols_query = text(
@@ -583,48 +655,20 @@ def process_geojson_layer(
 
             output_attrs = _attrs_sans_reglementation(selected_attrs)
             if not output_attrs:
-                n = _count_broad_intersect(
-                    conn, geom_json, table_name, parcelle_geom_sql, geom_col
-                )
-                if n is None:
-                    return GeoJsonLayerAttempt(
-                        table=table_name,
-                        display_name=display_name,
-                        status="error",
-                        intersected=False,
-                        error="Échec du comptage géométrique",
-                    )
-                if n == 0:
-                    return GeoJsonLayerAttempt(
-                        table=table_name,
-                        display_name=display_name,
-                        status="not_intersected",
-                        intersected=False,
-                        elements_count=0,
-                    )
-                logger.info(
-                    "   ✅ %s: intersection géométrique seule (%s ligne(s))",
-                    table_name,
-                    n,
-                )
-                els = _elements_intersection_geometrique_seule(n)
-                return GeoJsonLayerAttempt(
-                    table=table_name,
+                return _attempt_geometry_only_intersection(
+                    conn,
+                    table_name=table_name,
+                    geom_json=geom_json,
+                    parcelle_geom_sql=parcelle_geom_sql,
+                    geom_col=geom_col,
                     display_name=display_name,
-                    status="intersected",
-                    intersected=True,
-                    elements_count=n,
-                    intersection={
-                        "table": table_name,
-                        "display_name": display_name,
-                        "article": article,
-                        "attribut_discriminant": attr_disc,
-                        "elements": els,
-                    },
+                    article=article,
+                    attr_disc=attr_disc,
                 )
 
+            q = _pg_quote_ident
             selected_expr = ", ".join(
-                [f"{attr} AS \"{attr}\"" for attr in output_attrs]
+                [f"{q(attr)} AS {q(attr)}" for attr in output_attrs]
             )
             query = text(f"""
                 WITH parcelle AS (
