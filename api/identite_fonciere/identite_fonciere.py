@@ -64,6 +64,9 @@ with open(CATALOGUE_PATH, "r", encoding="utf-8") as f:
 # Schéma PostgreSQL des couches cartographiques (Latresne en base, pas `carto`)
 IDENTITE_DB_SCHEMA = os.getenv("IDENTITE_FONCIERE_DB_SCHEMA", "latresne").strip()
 
+# Textes longs (réglementation, laius Markdown…) : non exposés par défaut sauf présents dans `keep`.
+_IDENTITE_LONG_TEXT_ATTRS = frozenset({"reglementation", "laius_reglement"})
+
 
 def _sql_ident(name: str) -> str:
     if not re.match(r"^[a-z_][a-z0-9_]*$", name or ""):
@@ -221,7 +224,7 @@ def _resolve_discriminant_attribute(config: Dict[str, Any]) -> Optional[str]:
     Ordre de priorité:
     1) attribut_disc / attribut_discriminant
     2) group_by (str ou premier élément si list)
-    3) premier attribut non 'reglementation' de keep
+    3) premier attribut hors textes longs (`reglementation`, `laius_reglement`) dans keep
     """
     explicit_attr = config.get("attribut_disc") or config.get("attribut_discriminant")
     if explicit_attr:
@@ -238,15 +241,23 @@ def _resolve_discriminant_attribute(config: Dict[str, Any]) -> Optional[str]:
     keep = config.get("keep", [])
     if isinstance(keep, list):
         for attr in keep:
-            if isinstance(attr, str) and attr.strip() and attr.lower() != "reglementation":
+            if (
+                isinstance(attr, str)
+                and attr.strip()
+                and attr.lower() not in _IDENTITE_LONG_TEXT_ATTRS
+            ):
                 return attr
 
     return None
 
 
 def _attrs_sans_reglementation(attrs: List[str]) -> List[str]:
-    """N'expose pas `reglementation` en sortie (trop volumineux)."""
-    return [a for a in attrs if isinstance(a, str) and a.lower() != "reglementation"]
+    """N'expose pas les attributs de texte long (réglementation, laius Markdown, etc.)."""
+    return [
+        a
+        for a in attrs
+        if isinstance(a, str) and a.lower() not in _IDENTITE_LONG_TEXT_ATTRS
+    ]
 
 
 def _elements_intersection_geometrique_seule(n: int) -> List[Dict[str, str]]:
@@ -365,12 +376,11 @@ def calculate_intersections_detailed(parcelle_wkt: str, tables: List[str] = None
                     return None
 
                 has_reg = any(
-                    isinstance(a, str) and a.lower() == "reglementation"
+                    isinstance(a, str) and a.lower() in _IDENTITE_LONG_TEXT_ATTRS
                     for a in selected_attrs
                 )
-                # Par défaut on évite `reglementation` (trop volumineux),
-                # mais si elle est demandée dans le catalogue via `keep`,
-                # on la récupère pour pouvoir l'afficher dans le PDF.
+                # Par défaut on évite les textes longs (`reglementation`, `laius_reglement`, …),
+                # mais s'ils sont dans `keep`, on les récupère (ex. PDF / annexe).
                 output_attrs = (
                     selected_attrs if has_reg else _attrs_sans_reglementation(selected_attrs)
                 )
@@ -706,12 +716,10 @@ def process_geojson_layer(
                 )
 
             has_reg = any(
-                isinstance(a, str) and a.lower() == "reglementation"
+                isinstance(a, str) and a.lower() in _IDENTITE_LONG_TEXT_ATTRS
                 for a in selected_attrs
             )
-            # Par défaut on évite `reglementation` (trop volumineux),
-            # mais si elle est demandée dans le catalogue via `keep`,
-            # on la récupère pour pouvoir l'afficher dans le PDF.
+            # Par défaut on évite les textes longs ; si dans `keep`, on les récupère (ex. PDF).
             output_attrs = (
                 selected_attrs if has_reg else _attrs_sans_reglementation(selected_attrs)
             )

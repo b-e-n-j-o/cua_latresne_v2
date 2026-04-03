@@ -524,7 +524,7 @@ def build_ppri_section_flowables(
             Paragraph(xml_escape("Règlement complet"), ps["ppri_label"]),
             Paragraph(
                 f'<a href="{xml_escape(PPRI_REGLEMENT_URL)}" color="#1d4ed8">'
-                f"<u>Télécharger le règlement PPRI (PDF)</u></a>",
+                f"<u>Consulter le règlement PPRI (PDF)</u></a>",
                 ps["ppri_link"],
             ),
         ],
@@ -561,7 +561,7 @@ def build_ppri_section_flowables(
         flow.append(Spacer(1, 10))
         flow.append(
             Paragraph(
-                "Réglementation par zone (extraits) — seuil de surface d’étude identique au panneau %",
+                "Réglementation par zone",
                 ps["ppri_laius_head"],
             )
         )

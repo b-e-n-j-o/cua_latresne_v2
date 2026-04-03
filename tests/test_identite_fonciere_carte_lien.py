@@ -40,6 +40,8 @@ def test_publier_api_returns_carte_url_https():
 
     Usage :
       API_BASE_URL=https://ton-api.onrender.com python3 -m pytest tests/test_identite_fonciere_carte_lien.py -v
+
+    Si le host ne résout pas (DNS) ou l’API est hors ligne, le test est **skipped**, pas en erreur.
     """
     base = (os.getenv("API_BASE_URL") or os.getenv("IDENTITE_FONCIERE_TEST_API") or "").strip().rstrip("/")
 
@@ -84,6 +86,12 @@ def test_publier_api_returns_carte_url_https():
     except urllib.error.HTTPError as e:
         err = e.read().decode("utf-8", errors="replace")
         pytest.fail(f"HTTP {e.code}: {err}")
+    except (urllib.error.URLError, OSError) as e:
+        # DNS introuvable, hors ligne, VPN, etc. — ne pas faire échouer la suite CI locale
+        pytest.skip(
+            f"API injoignable ({base}): {e}. "
+            f"Vérifier l’URL (ex. sous-domaine api.* existant, ou http://127.0.0.1:8000 en local)."
+        )
 
     assert body.get("success") is True, body
     cu = body.get("carte_url") or ""

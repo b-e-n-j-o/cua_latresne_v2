@@ -97,10 +97,13 @@ ARTICLE_LABELS: Dict[str, str] = {
     "4": "Servitudes d'utilité publique",
     "5": "Risques et nuisances",
     "6": "Réseaux et équipements",
-    "7": "Informations diverses",
+    "7": "Informations et Prescriptions",
     "8": "Autres",
     "9": "Droits de préemption",
 }
+
+# Couches linéaires : le tableau d’attributs ne peut pas dépasser la frame ReportLab si N est grand.
+PDF_LINEAR_LAYER_ATTR_MAX_ROWS = 5
 
 # Chemin logo par défaut (relatif à ce fichier puis fallback)
 _DEFAULT_LOGO_CANDIDATES = [
@@ -225,6 +228,15 @@ def _build_styles():
             textColor=colors.HexColor("#888888"),
             fontName="Helvetica-Oblique",
             leading=12,
+        ),
+        "attr_trunc_note": ParagraphStyle(
+            "KAttrTruncNote",
+            parent=base["Normal"],
+            fontSize=8,
+            textColor=colors.HexColor("#666666"),
+            fontName="Helvetica-Oblique",
+            leading=11,
+            spaceBefore=4,
         ),
         "summary_title": ParagraphStyle(
             "KSummaryTitle",
@@ -410,7 +422,9 @@ def _pdf_column_keys(layer: Dict[str, Any]) -> Optional[List[str]]:
         keys = [
             k
             for k in clean_cfg.keys()
-            if isinstance(k, str) and k.strip() and k.lower() != "reglementation"
+            if isinstance(k, str)
+            and k.strip()
+            and k.lower() not in _PDF_TABLE_SKIP_LONG_ATTRS
         ]
         # Si seules des clés « réglementation » existent, ne pas retourner [] (tableau 0 colonne → crash ReportLab)
         return keys if keys else None
@@ -421,7 +435,7 @@ def _pdf_column_keys(layer: Dict[str, Any]) -> Optional[List[str]]:
         keys: List[str] = []
         for raw, clean in zip(keep_fields, clean_fields):
             if raw.strip() and clean.strip():
-                if raw.lower() != "reglementation":
+                if raw.lower() not in _PDF_TABLE_SKIP_LONG_ATTRS:
                     keys.append(raw)
         return keys if keys else None
 
@@ -469,6 +483,22 @@ def _normalize_layer_elements(layer: Dict[str, Any]) -> List[Dict[str, Any]]:
     return [e for e in raw if isinstance(e, dict)]
 
 
+# Colonnes de texte long : jamais dans le tableau d’attributs PDF (comme `reglementation`).
+_PDF_TABLE_SKIP_LONG_ATTRS = frozenset({"reglementation", "laius_reglement"})
+
+
+def _annex_reglementation_attr_key(elements: List[Dict[str, Any]]) -> Optional[str]:
+    """Clé d’élément pour l’annexe « Réglementation » : laius Markdown prioritaire sur `reglementation`."""
+    for el in elements:
+        if not isinstance(el, dict):
+            continue
+        by_l = {str(k).lower(): k for k in el.keys() if isinstance(k, str)}
+        for cand in ("laius_reglement", "reglementation"):
+            if cand in by_l:
+                return by_l[cand]
+    return None
+
+
 def _aggregate_elements_for_pdf(layer: Dict[str, Any], elements: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Agrège les éléments pour éviter les doublons:
@@ -479,7 +509,11 @@ def _aggregate_elements_for_pdf(layer: Dict[str, Any], elements: List[Dict[str, 
     # Nettoyage base: on n'affiche jamais la réglementation brute dans le tableau
     cleaned = []
     for el in elements:
-        row = {k: v for k, v in el.items() if k.lower() != "reglementation"}
+        row = {
+            k: v
+            for k, v in el.items()
+            if k.lower() not in _PDF_TABLE_SKIP_LONG_ATTRS
+        }
         if row:
             cleaned.append(row)
 
@@ -532,6 +566,19 @@ def _aggregate_elements_for_pdf(layer: Dict[str, Any], elements: List[Dict[str, 
                 g[pct_label] = " / ".join(vals)
 
     return aggregated
+
+
+def _layer_geom_type_normalized(layer: Dict[str, Any]) -> str:
+    raw = layer.get("geom_type")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip().lower()
+    return ""
+
+
+def _is_linear_geom_layer(layer: Dict[str, Any]) -> bool:
+    """Couches catalogue `lineaire` (tronçons, réseaux, etc.) — tabularisation PDF limitée."""
+    g = _layer_geom_type_normalized(layer)
+    return g in ("lineaire", "linestring", "multilinestring", "linear")
 
 
 def _build_layer_block(
@@ -595,6 +642,7 @@ def _build_layer_block(
     # --- Filtrer/Agréger les éléments ---
     # (group_by du catalogue si présent: une ligne par valeur)
     filtered_elements = _aggregate_elements_for_pdf(layer, elements)
+    attr_trunc_note: Optional[str] = None
 
     # --- Tableau des attributs ---
     if _pdf_keep_effectif_vide(layer):
@@ -624,6 +672,16 @@ def _build_layer_block(
                 styles["no_intersection"],
             )
     else:
+        table_elements = filtered_elements
+        n_tab = len(filtered_elements)
+        if _is_linear_geom_layer(layer) and n_tab > PDF_LINEAR_LAYER_ATTR_MAX_ROWS:
+            table_elements = filtered_elements[:PDF_LINEAR_LAYER_ATTR_MAX_ROWS]
+            omitted = n_tab - PDF_LINEAR_LAYER_ATTR_MAX_ROWS
+            attr_trunc_note = (
+                f"… et {omitted} autre(s) entité(s) intersectée(s) non affichée(s) "
+                f"(couche linéaire : aperçu limité à {PDF_LINEAR_LAYER_ATTR_MAX_ROWS} ligne(s) dans ce rapport)."
+            )
+
         label_map = _build_attr_label_map(layer)
 
         # Construire les lignes du tableau attributs
@@ -650,7 +708,7 @@ def _build_layer_block(
             ]
             attr_rows.append(header_cells)
 
-            for el in filtered_elements:
+            for el in table_elements:
                 row_cells = []
                 for k in all_keys:
                     val = el.get(k)
@@ -678,16 +736,7 @@ def _build_layer_block(
 
     # --- Réglementation : texte mis en annexe + lien depuis la couche ---
     reg_dest: Optional[str] = None
-    reg_key = None
-    for el in elements:
-        if not isinstance(el, dict):
-            continue
-        for k in el.keys():
-            if isinstance(k, str) and k.lower() == "reglementation":
-                reg_key = k
-                break
-        if reg_key:
-            break
+    reg_key = _annex_reglementation_attr_key(elements)
 
     if reg_key:
         grp_key = _group_by_key_from_layer(layer, elements)
@@ -824,8 +873,13 @@ def _build_layer_block(
                     )
 
     # Encadrement de la couche entière
+    content_body: List[List[Any]] = [[header_row], [Spacer(1, 4)], [attr_block]]
+    if attr_trunc_note:
+        content_body.append(
+            [Paragraph(xml_escape(attr_trunc_note), styles["attr_trunc_note"])]
+        )
     content_table = Table(
-        [[header_row], [Spacer(1, 4)], [attr_block]],
+        content_body,
         colWidths=[inner_w],
     )
     content_table.setStyle(TableStyle([
@@ -1034,6 +1088,13 @@ def generate_rapport_pdf(
                 pour la couche plu_latresne (la carto conserve le buffer 50 m).
                 Si l’UF intersecte le PPRI (`pm1_detaillee_gironde`), une page PPRI (carte +
                 légende % par codezone + laius) est insérée après la page PLU (typiquement page 3).
+                Si au moins une couche « servitude » du catalogue intersecte l’UF, une page
+                regroupée (carte + légende + tableau) est insérée après le PPRI ; le PPRI cartographique
+                n’y figure pas (page PPRI dédiée).
+                L’article 9 (préemption, table `preemption`) n’apparaît plus dans le corps du rapport :
+                une page dédiée (`zone_de_preemption`) est ajoutée après les articles 3–8 et avant
+                l’annexe « Réglementations », si la part surfacique d’intersection avec l’UF est
+                ≥ 1 % (contact de limite seul exclu ; pourcentage affiché en légende et sous le titre).
         output_dir: Dossier de sortie.
         logo_path: Chemin explicite vers logo_kerelia.png (optionnel).
         filename: Nom du fichier de sortie (optionnel, auto-généré sinon).
@@ -1064,6 +1125,12 @@ def generate_rapport_pdf(
     pct_stats: Dict[str, float] = {}
     ppri_map_png_path: Optional[str] = None
     ppri_pct_stats: Dict[str, float] = {}
+    servitudes_map_png_path: Optional[str] = None
+    servitudes_table_rows: List[Tuple[str, int]] = []
+    servitudes_display_names: Dict[str, str] = {}
+    preemption_map_png_path: Optional[str] = None
+    preemption_reglementation_texts: List[str] = []
+    preemption_overlap_pct: Optional[float] = None
     if isinstance(geom, dict) and geom.get("type"):
         out_base = Path(output_dir).resolve()
         out_base.mkdir(parents=True, exist_ok=True)
@@ -1126,6 +1193,46 @@ def generate_rapport_pdf(
                 result["ppri_pct_stats"] = ppri_pct_stats
         except Exception as exc:
             logger.warning("Visuels PPRI indisponibles : %s", exc, exc_info=True)
+
+        try:
+            from .servitudes import generate_servitudes_visuals_from_uf_geometry
+
+            serv_out = generate_servitudes_visuals_from_uf_geometry(
+                geom,
+                str(out_base),
+                srid=srid,
+                insee=str(result.get("insee") or "").strip(),
+                parcelles_cadastrales=pcs,
+            )
+            if serv_out:
+                servitudes_map_png_path, servitudes_table_rows, servitudes_display_names = serv_out
+                result["servitudes_map_png"] = servitudes_map_png_path
+                result["servitudes_table_rows"] = servitudes_table_rows
+                result["servitudes_display_names"] = servitudes_display_names
+        except Exception as exc:
+            logger.warning("Visuels servitudes indisponibles : %s", exc, exc_info=True)
+
+        try:
+            from .zone_de_preemption import generate_preemption_visuals_from_uf_geometry
+
+            preem_out = generate_preemption_visuals_from_uf_geometry(
+                geom,
+                str(out_base),
+                srid=srid,
+                insee=str(result.get("insee") or "").strip(),
+                parcelles_cadastrales=pcs,
+            )
+            if preem_out:
+                (
+                    preemption_map_png_path,
+                    preemption_reglementation_texts,
+                    preemption_overlap_pct,
+                ) = preem_out
+                result["preemption_map_png"] = preemption_map_png_path
+                result["preemption_reglementation_texts"] = preemption_reglementation_texts
+                result["preemption_overlap_pct"] = preemption_overlap_pct
+        except Exception as exc:
+            logger.warning("Visuels préemption indisponibles : %s", exc, exc_info=True)
 
     commune: str = result.get("commune", "Commune inconnue")
     insee: str = result.get("insee", "")
@@ -1193,6 +1300,8 @@ def generate_rapport_pdf(
                 layer["clean_attributes"] = cat_entry["clean_attributes"]
             if "keep" not in layer and "keep" in cat_entry:
                 layer["keep"] = cat_entry["keep"]
+            if not layer.get("geom_type") and cat_entry.get("geom_type"):
+                layer["geom_type"] = cat_entry["geom_type"]
 
     pl_lbl, pl_html = _meta_parcelle_label_and_html(result)
     cover_w = page_w - 4 * cm
@@ -1258,6 +1367,21 @@ def generate_rapport_pdf(
             )
         )
 
+    if servitudes_map_png_path and servitudes_table_rows:
+        from .servitudes import build_servitudes_flowables_for_report
+
+        story.append(PageBreak())
+        story.extend(
+            build_servitudes_flowables_for_report(
+                map_png_path=servitudes_map_png_path,
+                table_rows=servitudes_table_rows,
+                display_names=servitudes_display_names,
+                table_width=cover_w,
+                c_kerelia_light=C_KERELIA_LIGHT,
+                c_border=C_BORDER,
+            )
+        )
+
     story.append(PageBreak())
 
     # -----------------------------------------------------------------------
@@ -1274,6 +1398,9 @@ def generate_rapport_pdf(
         articles[art_key].sort(key=lambda x: (x.get("display_name") or "").lower())
 
     for art_key in sorted(articles.keys(), key=lambda k: int(k) if k.isdigit() else 99):
+        # Article 9 (préemption) : page dédiée `zone_de_preemption` après le corps 3–8
+        if art_key == "9":
+            continue
         layers_in_art = articles[art_key]
         story.extend(
             _build_article_section(
@@ -1283,6 +1410,22 @@ def generate_rapport_pdf(
                 page_w,
                 reg_annex_blocks=reg_annex_blocks,
                 reg_counter=reg_counter,
+            )
+        )
+
+    if preemption_map_png_path and preemption_overlap_pct is not None:
+        from .zone_de_preemption import build_preemption_flowables_for_report
+
+        story.append(PageBreak())
+        story.extend(
+            build_preemption_flowables_for_report(
+                map_png_path=preemption_map_png_path,
+                reglementation_texts=preemption_reglementation_texts,
+                overlap_pct=preemption_overlap_pct,
+                table_width=cover_w,
+                c_kerelia_light=C_KERELIA_LIGHT,
+                c_border=C_BORDER,
+                c_laius_header_bg=C_BG_ARTICLE,
             )
         )
 

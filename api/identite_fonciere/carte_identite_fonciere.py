@@ -21,6 +21,7 @@ from .identite_fonciere import (
     _build_parcelle_geom_sql,
     _detect_input_srid,
     _find_geom_column,
+    _pg_quote_ident,
     analyser_identite_fonciere,
     engine,
 )
@@ -109,7 +110,10 @@ def _fetch_layer_features_4326(
 
         select_attrs = ""
         if output_attrs:
-            select_attrs = ", " + ", ".join([f"t.{a} AS \"{a}\"" for a in output_attrs])
+            # PostgreSQL replie les identifiants non quotés en minuscules : t.Ap → t.ap (invalide si la colonne est "Ap").
+            select_attrs = ", " + ", ".join(
+                f"t.{_pg_quote_ident(a)} AS {_pg_quote_ident(a)}" for a in output_attrs
+            )
 
         q = text(
             f"""

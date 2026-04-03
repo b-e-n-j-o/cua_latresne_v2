@@ -157,7 +157,7 @@
       "type": "information",
       "keep": [
         "libelle",
-        "reglementation"
+        "laius_reglement"
       ],
       "clean_attributes": [
         "Libelle",
@@ -202,7 +202,7 @@
         "Réglementation"
       ],
       "origine": "wfs",
-      "article": "7, 5",
+      "article": "7",
       "geom_type": "surfacique"
     },
     "plu_latresne": {
@@ -237,7 +237,7 @@
         "Réglementation"
       ],
       "origine": "shp",
-      "article": "5",
+      "article": "7",
       "geom_type": "surfacique"
     },
     "prescriptions_pct_latresne": {
@@ -252,7 +252,7 @@
         "Réglementation"
       ],
       "origine": "shp",
-      "article": "5",
+      "article": "7",
       "geom_type": "surfacique"
     },
     "prescriptions_surf_latresne": {
@@ -267,7 +267,7 @@
         "Réglementation"
       ],
       "origine": "shp",
-      "article": "4",
+      "article": "7",
       "geom_type": "surfacique"
     },
     "pt3": {
@@ -533,7 +533,7 @@
       "geom_type": "surfacique"
     },
     "i4_cables_haute_tension": {
-      "nom": "Câbles haute tension (I4)",
+      "nom": "Servitude I4 - Câbles haute tension",
       "type": "servitude",
       "keep": [
         "tension",
