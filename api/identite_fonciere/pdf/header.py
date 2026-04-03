@@ -123,6 +123,51 @@ def extract_zonage_urbain_summary(intersections: List[Dict[str, Any]]) -> str:
     return "—"
 
 
+def extract_plu_libelle_descriptions_distinct(intersections: List[Dict[str, Any]]) -> List[str]:
+    """
+    Textes `libelle_description` distincts pour plu_latresne (après filtre ≥ 1 % surface UF),
+    dans l’ordre de première occurrence.
+    """
+    for layer in intersections:
+        t = (layer.get("table") or "").strip()
+        if t not in _ZONAGE_PLU_TABLES:
+            continue
+        if layer.get("_plu_all_zonages_below_min_pct"):
+            return []
+        texts: List[str] = []
+        seen: set = set()
+        for el in layer.get("elements") or []:
+            if not isinstance(el, dict):
+                continue
+            d = el.get("libelle_description")
+            if d is None:
+                continue
+            s = str(d).strip()
+            if not s or s in seen:
+                continue
+            seen.add(s)
+            texts.append(s)
+        return texts
+    return []
+
+
+def cover_libelle_description_paragraph_html(texts: List[str]) -> str:
+    """Une cellule PDF : une ligne par texte distinct (`<br/>`), contenu échappé."""
+    if not texts:
+        return xml_escape("—")
+    parts: List[str] = []
+    for t in texts:
+        raw = (t or "").strip()
+        if not raw:
+            continue
+        if len(raw) > 2000:
+            raw = raw[:1997] + "…"
+        parts.append(xml_escape(raw))
+    if not parts:
+        return xml_escape("—")
+    return "<br/>".join(parts)
+
+
 def _map_url_from_result(result: Dict[str, Any]) -> Optional[str]:
     for key in ("carte_web_url", "map_url", "carteUrl", "mapUrl"):
         u = result.get(key)
@@ -240,6 +285,14 @@ def build_cover_styles() -> Dict[str, ParagraphStyle]:
             textColor=colors.HexColor("#1a4d36"),
             fontName="Helvetica-Bold",
             leading=13,
+        ),
+        "cover_zonage_description": ParagraphStyle(
+            "CoverZonageDesc",
+            parent=base["Normal"],
+            fontSize=9.5,
+            textColor=colors.HexColor("#1a1a1a"),
+            fontName="Helvetica",
+            leading=12,
         ),
         "cover_link": ParagraphStyle(
             "CoverLink",
@@ -414,7 +467,7 @@ def build_plu_zonage_page_flowables(
             flow.append(
                 Paragraph(
                     "Réglementation par zone (extraits PLU) — mêmes zonages que pour le détail "
-                    "réglementaire (seuil de surface d’étude)",
+                    "réglementaire (seuil de surface d'étude)",
                     ps["plu_laius_section"],
                 )
             )
@@ -490,7 +543,7 @@ def build_cover_page_flowables(
     `result` peut contenir :
     - geometry (+ srid optionnel dans result) : calcul superficie UF
     - carte_web_url | map_url : lien cliquable « Visualiser la carte web »
-    - intersections : extraction zonage plu_latresne
+    - intersections : extraction zonage plu_latresne et libellés descriptifs (ligne « Description du zonage »)
     (L’image carte PLU + légende est sur une page dédiée, voir
     `build_plu_zonage_page_flowables`.)
     - parcelles_uf_detail : liste optionnelle de dicts (ref, contenance_m2, pct_uf, idu)
@@ -529,6 +582,9 @@ def build_cover_page_flowables(
 
     surface_str = _format_surface_fr(surface_m2) if surface_m2 is not None else "—"
     zonage_str = extract_zonage_urbain_summary(result.get("intersections") or [])
+    libelle_desc_lines = extract_plu_libelle_descriptions_distinct(
+        result.get("intersections") or []
+    )
     map_url = _map_url_from_result(result)
 
     if map_url:
@@ -547,6 +603,13 @@ def build_cover_page_flowables(
         ("Code INSEE", Paragraph(xml_escape(insee or "—"), cs["cover_value"])),
         (meta_parcelle_label, Paragraph(meta_parcelle_html, cs["cover_value"])),
         ("Zonage urbain (PLU)", Paragraph(xml_escape(zonage_str), cs["cover_zonage_value"])),
+        (
+            "Description du zonage",
+            Paragraph(
+                cover_libelle_description_paragraph_html(libelle_desc_lines),
+                cs["cover_zonage_description"],
+            ),
+        ),
         ("Superficie estimée", Paragraph(xml_escape(surface_str), cs["cover_value"])),
         ("Carte interactive", map_cell),
     ]
@@ -557,6 +620,7 @@ def build_cover_page_flowables(
 
     table_rows = []
     zonage_row_index = 3
+    description_zonage_row_index = 4
     for label, value_cell in rows_data:
         lbl = Paragraph(xml_escape(label), cs["cover_label"])
         table_rows.append([lbl, value_cell])
@@ -572,6 +636,7 @@ def build_cover_page_flowables(
         # ReportLab : (col_début, ligne_début), (col_fin, ligne_fin)
         ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#F0F7F4")),
         ("BACKGROUND", (0, zonage_row_index), (-1, zonage_row_index), colors.HexColor("#e8f5ee")),
+        ("VALIGN", (0, description_zonage_row_index), (1, description_zonage_row_index), "TOP"),
     ]
     t.setStyle(TableStyle(style_cmds))
     flow.append(t)

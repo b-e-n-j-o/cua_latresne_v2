@@ -513,7 +513,9 @@ def _aggregate_elements_for_pdf(layer: Dict[str, Any], elements: List[Dict[str, 
         if not grp_val or grp_val in ("—", "None", "null"):
             grp_val = "Non renseigné"
         if grp_val not in grouped:
-            grouped[grp_val] = {grp_key: grp_val}
+            merged = dict(row)
+            merged[grp_key] = grp_val
+            grouped[grp_val] = merged
             pct_values_by_group[grp_val] = []
 
         for pk in pct_key_candidates:
@@ -947,6 +949,30 @@ class _PageDecorator:
 # Fonction principale
 # ---------------------------------------------------------------------------
 
+def _cadastral_ref_html_bold_section_numero(section: str, numero: str) -> str:
+    """Section et numéro en gras pour Paragraph (balises XML ReportLab)."""
+    s = (section or "").strip()
+    n = (numero or "").strip()
+    if s and n:
+        return f"<b>{xml_escape(s)}</b> <b>{xml_escape(n)}</b>"
+    if s:
+        return f"<b>{xml_escape(s)}</b>"
+    if n:
+        return f"<b>{xml_escape(n)}</b>"
+    return ""
+
+
+def _cadastral_combined_text_html_bold(text: str) -> str:
+    """« Section numéro » en une chaîne : 1er mot = section, le reste = numéro (gras chacun)."""
+    t = (text or "").strip()
+    if not t:
+        return ""
+    parts = t.split(None, 1)
+    if len(parts) == 2:
+        return _cadastral_ref_html_bold_section_numero(parts[0], parts[1])
+    return f"<b>{xml_escape(t)}</b>"
+
+
 def _meta_parcelle_label_and_html(result: Dict[str, Any]) -> Tuple[str, str]:
     """
     Libellé + fragment HTML pour la ligne « parcelle » sur la page de garde.
@@ -962,14 +988,16 @@ def _meta_parcelle_label_and_html(result: Dict[str, Any]) -> Tuple[str, str]:
             s = str(p.get("section", "")).strip()
             n = str(p.get("numero", "")).strip()
             if s or n:
-                lines.append(f"{s} {n}".strip())
+                line = _cadastral_ref_html_bold_section_numero(s, n)
+                if line:
+                    lines.append(line)
         if lines:
             label = (
                 "Références cadastrales"
                 if len(lines) > 1
                 else "Référence cadastrale"
             )
-            html = "<br/>".join(xml_escape(x) for x in lines)
+            html = "<br/>".join(lines)
             return label, html
     pv = parcelle.strip() if isinstance(parcelle, str) else ""
     # Liste UF passée uniquement dans `parcelle` (ex. "AC 12, AC 34") — plusieurs lignes
@@ -977,11 +1005,11 @@ def _meta_parcelle_label_and_html(result: Dict[str, Any]) -> Tuple[str, str]:
         parts = [p.strip() for p in pv.split(",") if p.strip()]
         if len(parts) > 1:
             label = "Références cadastrales"
-            html = "<br/>".join(xml_escape(x) for x in parts)
+            html = "<br/>".join(_cadastral_combined_text_html_bold(x) for x in parts)
             return label, html
     if not pv or pv == "UNITE_FONCIERE":
         return "Référence parcelle / UF", "—"
-    return "Référence parcelle / UF", xml_escape(pv)
+    return "Référence parcelle / UF", _cadastral_combined_text_html_bold(pv)
 
 
 def generate_rapport_pdf(
@@ -1004,6 +1032,8 @@ def generate_rapport_pdf(
                 Avec 'geometry', génération optionnelle du PNG PLU combiné (carte + légende)
                 sur une page dédiée après la page de garde, et filtrage des zonages sous 1 %
                 pour la couche plu_latresne (la carto conserve le buffer 50 m).
+                Si l’UF intersecte le PPRI (`pm1_detaillee_gironde`), une page PPRI (carte +
+                légende % par codezone + laius) est insérée après la page PLU (typiquement page 3).
         output_dir: Dossier de sortie.
         logo_path: Chemin explicite vers logo_kerelia.png (optionnel).
         filename: Nom du fichier de sortie (optionnel, auto-généré sinon).
@@ -1032,7 +1062,15 @@ def generate_rapport_pdf(
 
     plu_map_png_path: Optional[str] = None
     pct_stats: Dict[str, float] = {}
+    ppri_map_png_path: Optional[str] = None
+    ppri_pct_stats: Dict[str, float] = {}
     if isinstance(geom, dict) and geom.get("type"):
+        out_base = Path(output_dir).resolve()
+        out_base.mkdir(parents=True, exist_ok=True)
+        pcs = result.get("parcelles_cadastrales")
+        if not isinstance(pcs, list):
+            pcs = None
+
         try:
             from .plu_visuels import (
                 PLU_LATRESNE_TABLE,
@@ -1040,11 +1078,6 @@ def generate_rapport_pdf(
                 generate_plu_visuals_from_uf_geometry,
             )
 
-            out_base = Path(output_dir).resolve()
-            out_base.mkdir(parents=True, exist_ok=True)
-            pcs = result.get("parcelles_cadastrales")
-            if not isinstance(pcs, list):
-                pcs = None
             map_path, map_png_compat, pct_stats, parcelles_detail = (
                 generate_plu_visuals_from_uf_geometry(
                     geom,
@@ -1076,6 +1109,23 @@ def generate_rapport_pdf(
                 result["intersections"] = intersections
         except Exception as exc:
             logger.warning("Visuels PLU ou filtre zonage indisponible : %s", exc, exc_info=True)
+
+        try:
+            from .section_ppri import generate_ppri_visuals_from_uf_geometry
+
+            ppri_out = generate_ppri_visuals_from_uf_geometry(
+                geom,
+                str(out_base),
+                srid=srid,
+                insee=str(result.get("insee") or "").strip(),
+                parcelles_cadastrales=pcs,
+            )
+            if ppri_out:
+                ppri_map_png_path, ppri_pct_stats, _ppri_par_detail = ppri_out
+                result["ppri_map_png"] = ppri_map_png_path
+                result["ppri_pct_stats"] = ppri_pct_stats
+        except Exception as exc:
+            logger.warning("Visuels PPRI indisponibles : %s", exc, exc_info=True)
 
     commune: str = result.get("commune", "Commune inconnue")
     insee: str = result.get("insee", "")
@@ -1192,6 +1242,21 @@ def generate_rapport_pdf(
         )
     else:
         story.append(Spacer(1, 14))
+
+    if ppri_map_png_path and ppri_pct_stats:
+        from .section_ppri import build_ppri_flowables_for_report
+
+        story.append(PageBreak())
+        story.extend(
+            build_ppri_flowables_for_report(
+                ppri_map_png_path=ppri_map_png_path,
+                pct_stats=ppri_pct_stats,
+                table_width=cover_w,
+                c_kerelia_light=C_KERELIA_LIGHT,
+                c_border=C_BORDER,
+                c_laius_header_bg=C_BG_ARTICLE,
+            )
+        )
 
     story.append(PageBreak())
 

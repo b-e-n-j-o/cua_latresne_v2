@@ -210,10 +210,12 @@
       "type": "prescription",
       "keep": [
         "zonage_reglement",
+        "libelle_description",
         "reglementation"
       ],
       "clean_attributes": [
         "Zonage",
+        "Description du libellé",
         "Réglementation"
       ],
       "origine": "wfs",

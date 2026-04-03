@@ -478,6 +478,17 @@ def _proxy_identite_asset_url(request: Request, project_id: str, filename: str) 
     return f"{base}/api/identite-fonciere/public/if/{pid}/{fn}"
 
 
+def _is_non_shareable_carte_web_url(url: str) -> bool:
+    """
+    Liens qui ne fonctionnent que sur un navigateur / session (ex. /maps?ls=… + localStorage).
+    Ne pas les mettre dans le PDF : utiliser l’URL proxy API ou Storage à la place.
+    """
+    u = (url or "").strip().lower()
+    if "/maps" in u and ("ls=" in u or "ls%3d" in u):
+        return True
+    return False
+
+
 def _prefer_identite_proxy_url(request: Request, project_id: str, filename: str, url: str) -> str:
     """
     Supabase Storage renvoie souvent un Content-Type inadapté pour le HTML (ex. text/plain) :
@@ -603,6 +614,9 @@ async def publier_identite_fonciere(request: Request, payload: RapportFonciereRe
     Génère la carte HTML et le rapport PDF, les dépose sur Storage (même `project_id`) et renvoie les URLs.
     À appeler après l’analyse SSE (même corps que POST /rapport) : les boutons front n’ont plus qu’à ouvrir ces liens.
 
+    Le lien « carte web » dans le PDF est toujours une URL **partageable** (proxy `/public/if/…` ou équivalent),
+    jamais un lien `/maps?ls=…` (localStorage, non valide pour un tiers).
+
     Si Storage est indisponible : `carte_url` / `pdf_url` pointent vers des URLs temporaires de cette API.
     """
     warnings: List[str] = []
@@ -696,7 +710,9 @@ async def rapport_fonciere(payload: RapportFonciereRequest):
         result = _build_result_dict_from_rapport_payload(payload)
 
         if payload.carte_web_url and str(payload.carte_web_url).strip():
-            result["carte_web_url"] = str(payload.carte_web_url).strip()
+            cu = str(payload.carte_web_url).strip()
+            if not _is_non_shareable_carte_web_url(cu):
+                result["carte_web_url"] = cu
 
         output_dir = payload.output_dir or "./rapports_identite"
         pdf_path = generate_rapport_pdf(
