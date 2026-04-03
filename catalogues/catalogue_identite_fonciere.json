@@ -3,8 +3,10 @@
       "nom": "Servitudes A4",
       "type": "servitude",
       "keep": [
+        "reglementation"
       ],
       "clean_attributes": [
+        "Réglementation"
       ],
       "origine": "shp",
       "article": "4",
@@ -18,14 +20,16 @@
         "typeass",
         "nature_protection",
         "precision_protection",
-        "statut_proprietaire"
+        "statut_proprietaire",
+        "reglementation"
       ],
       "clean_attributes": [
         "Nom monument",
         "Type de protection",
-        "Nature de protection",
+        "Nature de protection", 
         "Precision",
-        "Type proprietaire"
+        "Type proprietaire",
+        "Réglementation"
       ],
       "origine": "wfs",
       "article": "4",
@@ -35,10 +39,12 @@
       "nom": "Servitude PM1 - PPRI",
       "type": "servitude",
       "keep": [
-        "nom"
+        "nom",
+        "reglementation"
       ],
       "clean_attributes": [
-        "Nom"
+        "Nom",
+        "Réglementation"
       ],
       "origine": "wfs",
       "article": "4",
@@ -49,10 +55,12 @@
       "nom": "AOC viticoles",
       "type": "information",
       "keep": [
-        "denom"
+        "denom",
+        "reglementation"
       ],
       "clean_attributes": [
-        "Domaine"
+        "Domaine",
+        "Réglementation"
       ],
       "origine": "wfs",
       "article": "5",
@@ -62,10 +70,12 @@
       "nom": "Zones de débroussaillement",
       "type": "prescription",
       "keep": [
-        "zonage"
+        "zonage",
+        "reglementation"
       ],
       "clean_attributes": [
-        "Zonage"
+        "Zonage",
+        "Réglementation"
       ],
       "origine": "shp",
       "article": "5",
@@ -75,10 +85,12 @@
       "nom": "Zonage sismique France",
       "type": "information",
       "keep": [
-        "sismicite"
+        "sismicite",
+        "reglementation"
       ],
       "clean_attributes": [
-        "Sismicite"
+        "Sismicite",
+        "Réglementation"
       ],
       "origine": "wfs",
       "article": "5",
@@ -88,10 +100,12 @@
       "nom": "Galeries et piliers souterrains",
       "type": "information",
       "keep": [
-        "objectid"
+        "objectid",
+        "reglementation"
       ],
       "clean_attributes": [
-        "Galerie"
+        "Galerie",
+        "Réglementation"
       ],
       "origine": "wfs",
       "article": "5",
@@ -101,32 +115,38 @@
       "nom": "Haies et bocages",
       "type": "information",
       "keep": [
+        "reglementation"
       ],
       "clean_attributes": [
+        "Réglementation"
       ],
       "origine": "wfs",
-      "article": "5",
+      "article": "7",
       "geom_type": "lineaire"
     },
     "i1_hydrocarbure_chimique_gaz": {
       "nom": "Servitudes I1 – Hydrocarbures, chimiques et gaz",
       "type": "servitude",
       "keep": [
-        "cat_fluide"
+        "cat_fluide",
+        "reglementation"
       ],
       "clean_attributes": [
-        "Catégorie de fluide"
+        "Catégorie de fluide",
+        "Réglementation"
       ],
       "origine": "wfs",
       "article": "4",
       "geom_type": "surfacique"
     },
     "i6": {
-      "nom": "Servitudes I6",
+      "nom": "Servitudes I6 - Exploitation mines et carrières",
       "type": "servitude",
       "keep": [
+        "reglementation"
       ],
       "clean_attributes": [
+        "Réglementation"
       ],
       "origine": "shp",
       "article": "4",
@@ -136,10 +156,12 @@
       "nom": "Zones de préemption",
       "type": "information",
       "keep": [
-        "libelle"
+        "libelle",
+        "reglementation"
       ],
       "clean_attributes": [
-        "Libelle"
+        "Libelle",
+        "Réglementation"
       ],
       "origine": "wfs",
       "article": "9",
@@ -152,13 +174,15 @@
         "nom_tronc",
         "debutant",
         "finissant",
-        "cat_bruit"
+        "cat_bruit",
+        "reglementation"
       ],
       "clean_attributes": [
         "Nom troncon",
         "Debutant",
         "Finissant",
-        "Catégorie de bruit"
+        "Catégorie de bruit",
+        "Réglementation"
           ],
       "origine": "shp",
       "article": "5",
@@ -166,14 +190,16 @@
     },
     "patrimoine_naturel_latresne": {
       "nom": "Patrimoine naturel",
-      "type": "information_ou_prescription",
+      "type": "information",
       "keep": [
         "nom",
-        "type_patrimoine"
+        "type_patrimoine",
+        "reglementation"
       ],
       "clean_attributes": [
         "Nom",
-        "Type de patrimoine"
+        "Type de patrimoine",
+        "Réglementation"
       ],
       "origine": "wfs",
       "article": "7, 5",
@@ -183,10 +209,12 @@
       "nom": "Zonage PLU",
       "type": "prescription",
       "keep": [
-        "zonage_reglement"
+        "zonage_reglement",
+        "reglementation"
       ],
       "clean_attributes": [
-        "Zonage"
+        "Zonage",
+        "Réglementation"
       ],
       "origine": "wfs",
       "article": "3",
@@ -199,10 +227,12 @@
       "nom": "Prescriptions linéaires",
       "type": "prescription",
       "keep": [
-        "libelle"
+        "libelle",
+        "reglementation"
       ],
       "clean_attributes": [
-        "Libelle"
+        "Libelle",
+        "Réglementation"
       ],
       "origine": "shp",
       "article": "5",
@@ -212,10 +242,12 @@
       "nom": "Prescriptions ponctuelles",
       "type": "prescription",
       "keep": [
-        "libelle"
+        "libelle",
+        "reglementation"
       ],
       "clean_attributes": [
-        "Libelle"
+        "Libelle",
+        "Réglementation"
       ],
       "origine": "shp",
       "article": "5",
@@ -225,10 +257,12 @@
       "nom": "Prescriptions surfaciques",
       "type": "prescription",
       "keep": [
-        "libelle"
+        "libelle",
+        "reglementation"
       ],
       "clean_attributes": [
-        "Libelle"
+        "Libelle",
+        "Réglementation"
       ],
       "origine": "shp",
       "article": "4",
@@ -239,11 +273,13 @@
       "type": "servitude",
       "keep": [
         "nom_sup",
-        "type"
+        "type",
+        "reglementation"
       ],
       "clean_attributes": [
         "Nom servitude",
-        "Type"
+        "Type",
+        "Réglementation"
       ],
       "origine": "shp",
       "article": "4",
@@ -253,10 +289,12 @@
       "nom": "IRSN - Radon métropole",
       "type": "prescription",
       "keep": [
-        "classe_pot"
+        "classe_pot",
+        "reglementation"
       ],
       "clean_attributes": [
-        "Classe"
+        "Classe",
+        "Réglementation"
       ],
       "origine": "wfs",
       "article": "7",
@@ -266,10 +304,12 @@
       "nom": "Réseaux eaux potables (linéaires)",
       "type": "Informations",
       "keep": [
-        "libelle"
+        "libelle",
+        "reglementation"
             ],
       "clean_attributes": [
-        "Libelle"
+        "Libelle",
+        "Réglementation"
       ],
       "origine": "shp",
       "article": "6",
@@ -279,10 +319,12 @@
       "nom": "Réseaux eaux potables (ponctuels)",
       "type": "Informations",
       "keep": [
-        "libelle"
+        "libelle",
+        "reglementation"
       ],
       "clean_attributes": [
-        "Libelle"
+        "Libelle",
+        "Réglementation"
       ],
       "origine": "shp",
       "article": "6",
@@ -292,10 +334,12 @@
       "nom": "Réseaux eaux usées (linéaires)",
       "type": "Informations",
       "keep": [
-        "libelle"
+        "libelle",
+        "reglementation"
             ],
       "clean_attributes": [
-        "Libelle"
+        "Libelle",
+        "Réglementation"
       ],
       "origine": "shp",
       "article": "6",
@@ -305,10 +349,12 @@
       "nom": "Réseaux eaux usées (ponctuels)",
       "type": "Informations",
       "keep": [
-        "libelle"
+        "libelle",
+        "reglementation"
       ],
       "clean_attributes": [
-        "Libelle"
+        "Libelle",
+        "Réglementation"
       ],
       "origine": "shp",
       "article": "6",
@@ -318,10 +364,12 @@
       "nom": "Réseaux HTA",
       "type": "reseaux",
       "keep": [
-        "type"
+        "type",
+        "reglementation"
       ],
       "clean_attributes": [
-        "Type"
+        "Type",
+        "Réglementation"
       ],
       "origine": "shp",
       "article": "6",
@@ -332,11 +380,13 @@
       "type": "prescription",
       "keep": [
         "niveau",
-        "alea"
+        "alea",
+        "reglementation"
       ],
       "clean_attributes": [
         "Niveau",
-        "Aléa"
+        "Aléa",
+        "Réglementation"
       ],
       "origine": "wfs",
       "article": "5",
@@ -347,11 +397,13 @@
       "type": "prescription",
       "keep": [
         "niveau",
-        "alea"
+        "alea",
+        "reglementation"
       ],
       "clean_attributes": [
         "Niveau",
-        "Aléa"
+        "Aléa",
+        "Réglementation"
       ],
       "origine": "shp",
       "article": "5",
@@ -362,11 +414,13 @@
       "type": "information",
       "keep": [
         "type_comblement",
-        "nom_cavite"
+        "nom_cavite",
+        "reglementation"
       ],
       "clean_attributes": [
         "Type de comblement",
-        "Nom de la cavité"
+        "Nom de la cavité",
+        "Réglementation"
       ],
       "origine": "wfs",
       "article": "5",
@@ -377,11 +431,13 @@
       "type": "information",
       "keep": [
         "observation",
-        "type_ecoulement"
+        "type_ecoulement",
+        "reglementation"
       ],
       "clean_attributes": [
         "Observation",
-        "Type d'écoulement"
+        "Type d'écoulement",
+        "Réglementation"
       ],
       "origine": "shp",
       "article": "6",
@@ -391,10 +447,12 @@
       "nom": "Zones ZAENR",
       "type": "information",
       "keep": [
-        "detail_fil"
+        "detail_fil",
+        "reglementation"
       ],
       "clean_attributes": [ 
-        "Détail filière"
+        "Détail filière",
+        "Réglementation"
       ],
       "origine": "wfs",
       "article": "7",
@@ -405,11 +463,13 @@
       "type": "information",
       "keep": [
         "source",
-        "legende"
+        "legende",
+        "reglementation"
       ],
       "clean_attributes": [
         "Zone de bruit",
-        "Décibels"
+        "Décibels",
+        "Réglementation"
       ],
       "origine": "wfs",
       "article": "5",
@@ -421,12 +481,14 @@
       "keep": [
         "nom_captage",
         "perimetre_protection",
-        "ins_pro__1"
+        "ins_pro__1",
+        "reglementation"
       ],
       "clean_attributes": [
         "Nom captage",
         "Périmètre de protection",
-        "Inscription protection"
+        "Inscription protection",
+        "Réglementation"
       ],
       "origine": "wfs",
       "article": "4",
@@ -440,14 +502,16 @@
         "lib_seveso",
         "adresse",
         "lib_naf",
-        "num_siret"
+        "num_siret",
+        "reglementation"
           ],
       "clean_attributes": [
         "Nom établissement",
         "Libellé Seveso",
         "Adresse",
         "Libellé NAF",
-        "Numéro Siret"      
+        "Numéro Siret",
+        "Réglementation"      
     ],
       "origine": "kerelia",
       "article": "5",
@@ -457,8 +521,10 @@
       "nom": "Servitudes domaine public fluvial (EL3)",
       "type": "servitude",
       "keep": [
+        "reglementation"
       ],
       "clean_attributes": [
+        "Réglementation"
       ],
       "origine": "shp",
       "article": "4",
@@ -469,14 +535,16 @@
       "type": "servitude",
       "keep": [
         "tension",
-        "type"
+        "type",
+        "reglementation"
       ],
       "clean_attributes": [
         "Tension",
-        "Type"
+        "Type",
+        "Réglementation"
       ],
       "origine": "wfs",
-      "article": "6",
+      "article": "4",
       "geom_type": "lineaire"
     },
     "icpe_seveso": {
@@ -486,13 +554,15 @@
         "nom_ets",
         "adresse",
         "lib_naf",
-        "lib_seveso"
+        "lib_seveso",
+        "reglementation"
       ],
       "clean_attributes": [
         "Nom établissement",
         "Adresse",
         "Libellé NAF",
-        "Libellé Seveso"
+        "Libellé Seveso",
+        "Réglementation"
       ],
       "origine": "wfs",
       "article": "5",
@@ -502,10 +572,12 @@
       "nom": "Risques mouvements de terrain",
       "type": "prescription",
       "keep": [
-        "libelle"
+        "libelle",
+        "reglementation"
       ],
       "clean_attributes": [
-        "Libelle"
+        "Libelle",
+        "Réglementation"
       ],
       "origine": "wfs",
       "article": "5",
@@ -522,7 +594,8 @@
         "Ag",
         "Af",
         "Zone_Regl_",
-        "Zone_Reg_1"
+        "Zone_Reg_1",
+        "reglementation"
       ],
       "clean_attributes": [
         "Etiquette",
@@ -531,7 +604,8 @@
         "Ag",
         "Af",
         "Zone_Regl_",
-        "Zone_Reg_1"
+        "Zone_Reg_1",
+        "Réglementation"
       ],
       "article": "5",
       "geom_type": "surfacique"

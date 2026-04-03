@@ -364,7 +364,16 @@ def calculate_intersections_detailed(parcelle_wkt: str, tables: List[str] = None
                 if not selected_attrs:
                     return None
 
-                output_attrs = _attrs_sans_reglementation(selected_attrs)
+                has_reg = any(
+                    isinstance(a, str) and a.lower() == "reglementation"
+                    for a in selected_attrs
+                )
+                # Par défaut on évite `reglementation` (trop volumineux),
+                # mais si elle est demandée dans le catalogue via `keep`,
+                # on la récupère pour pouvoir l'afficher dans le PDF.
+                output_attrs = (
+                    selected_attrs if has_reg else _attrs_sans_reglementation(selected_attrs)
+                )
                 if not output_attrs:
                     n = _count_wkt_intersect(conn, table_name, parcelle_wkt, geom_col)
                     if not n:
@@ -696,7 +705,16 @@ def process_geojson_layer(
                     skip_reason="colonnes catalogue absentes en base",
                 )
 
-            output_attrs = _attrs_sans_reglementation(selected_attrs)
+            has_reg = any(
+                isinstance(a, str) and a.lower() == "reglementation"
+                for a in selected_attrs
+            )
+            # Par défaut on évite `reglementation` (trop volumineux),
+            # mais si elle est demandée dans le catalogue via `keep`,
+            # on la récupère pour pouvoir l'afficher dans le PDF.
+            output_attrs = (
+                selected_attrs if has_reg else _attrs_sans_reglementation(selected_attrs)
+            )
             if not output_attrs:
                 return _attempt_geometry_only_intersection(
                     conn,

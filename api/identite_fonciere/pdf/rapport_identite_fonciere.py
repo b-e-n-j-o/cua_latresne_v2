@@ -31,6 +31,7 @@ from reportlab.platypus import (
     HRFlowable,
     Image,
     KeepTogether,
+    Flowable,
     PageBreak,
     Paragraph,
     SimpleDocTemplate,
@@ -39,8 +40,25 @@ from reportlab.platypus import (
     TableStyle,
 )
 from reportlab.platypus.flowables import HRFlowable
+from reportlab.pdfbase.pdfmetrics import stringWidth
 
-from ..identite_fonciere import _elements_display_count
+from .header import build_cover_page_flowables, build_plu_zonage_page_flowables
+
+try:
+    from .zonage_markdown_pdf import (
+        build_zonage_regulation_flowables,
+        is_plu_zonage_layer,
+        regulation_text_looks_like_markdown,
+    )
+except ImportError:
+    build_zonage_regulation_flowables = None  # type: ignore[assignment,misc]
+
+    def is_plu_zonage_layer(layer):  # type: ignore[misc]
+        return False
+
+    def regulation_text_looks_like_markdown(t):  # type: ignore[misc]
+        return False
+
 
 logger = logging.getLogger(__name__)
 
@@ -168,6 +186,14 @@ def _build_styles():
             fontName="Helvetica",
             leading=12,
         ),
+        "reglementation_block": ParagraphStyle(
+            "KRegBlock",
+            parent=base["Normal"],
+            fontSize=8.5,
+            textColor=colors.HexColor("#1f2937"),
+            fontName="Helvetica",
+            leading=11,
+        ),
         "footer": ParagraphStyle(
             "KFooter",
             parent=base["Normal"],
@@ -211,6 +237,78 @@ def _build_styles():
         ),
     }
     return styles
+
+
+class _LinkToBookmark(Flowable):
+    """Petit lien interne vers une destination PDF (bookmark)."""
+
+    def __init__(
+        self,
+        text: str,
+        dest: str,
+        fontName: str = "Helvetica",
+        fontSize: float = 8,
+        color: Any = colors.HexColor("#1d4ed8"),
+        padding_x: float = 4,
+        padding_y: float = 1,
+    ):
+        super().__init__()
+        self.text = text
+        self.dest = dest
+        self.fontName = fontName
+        self.fontSize = fontSize
+        self.color = color
+        self.padding_x = padding_x
+        self.padding_y = padding_y
+
+    def wrap(self, availWidth: float, availHeight: float):
+        w_text = stringWidth(self.text, self.fontName, self.fontSize)
+        w = min(availWidth, w_text + 2 * self.padding_x)
+        h = self.fontSize * 1.25 + 2 * self.padding_y
+        self.width = w
+        self.height = h
+        return w, h
+
+    def draw(self):
+        w, h = self.width, self.height
+        self.canv.saveState()
+        self.canv.setFont(self.fontName, self.fontSize)
+        self.canv.setFillColor(self.color)
+        # Baseline un peu au-dessus du bas pour éviter d'écraser le texte.
+        y = self.padding_y
+        self.canv.drawString(self.padding_x, y, self.text)
+
+        # Rectangle de lien en coordonnées absolues (sinon certains viewers
+        # créent une annotation à largeur nulle).
+        abs_x, abs_y = self.canv.absolutePosition(0, 0)
+        self.canv.linkRect(
+            "",
+            self.dest,
+            (abs_x, abs_y, abs_x + w, abs_y + h),
+            relative=0,
+            thickness=0,
+            color=self.color,
+        )
+        self.canv.restoreState()
+
+
+class _AnchorBookmarkPage(Flowable):
+    """Crée une destination PDF interne via bookmarkPage (plus fiable que horizontal seul)."""
+
+    _ZEROSIZE = 0
+
+    def __init__(self, name: str):
+        super().__init__()
+        self.name = name
+
+    def wrap(self, availWidth: float, availHeight: float):
+        return 0, 0
+
+    def draw(self):
+        # On ancre au point courant pour que le lecteur aille "au bon endroit"
+        # (pas seulement au début de la page).
+        x, y = self.canv.absolutePosition(0, 0)
+        self.canv.bookmarkPage(self.name, fit="FitH", top=y)
 
 
 # ---------------------------------------------------------------------------
@@ -266,142 +364,6 @@ def _normalize_couche_display_name(row: Dict[str, Any]) -> str:
         or "—"
     )
 
-
-def _synthese_couches_rows(
-    result: Dict[str, Any],
-    catalogue: Optional[Dict[str, Any]],
-) -> List[Dict[str, Any]]:
-    """
-    Lignes pour la vue d'ensemble : préfère `couches_synthese` (flux SSE),
-    sinon une ligne par entrée du catalogue + statut dérivé des intersections.
-    """
-    raw = result.get("couches_synthese")
-    if isinstance(raw, list) and raw:
-        return [r for r in raw if isinstance(r, dict)]
-
-    cat = catalogue or {}
-    inters: List[Dict] = result.get("intersections") or []
-    by_table: Dict[str, Dict] = {}
-    for x in inters:
-        t = x.get("table")
-        if isinstance(t, str) and t:
-            by_table[t] = x
-
-    rows: List[Dict[str, Any]] = []
-    for table in list(cat.keys()):
-        if table in by_table:
-            x = by_table[table]
-            els = x.get("elements") if isinstance(x.get("elements"), list) else []
-            cfg_row = cat.get(table) or {}
-            n = _elements_display_count(els, cfg_row)
-            rows.append(
-                {
-                    "table": table,
-                    "display_name": x.get("display_name")
-                    or (cat.get(table) or {}).get("nom_affiche")
-                    or (cat.get(table) or {}).get("nom")
-                    or table,
-                    "status": "intersected",
-                    "elements_count": n,
-                }
-            )
-        else:
-            cfg = cat.get(table) or {}
-            rows.append(
-                {
-                    "table": table,
-                    "display_name": cfg.get("nom_affiche") or cfg.get("nom") or table,
-                    "status": "not_intersected",
-                    "elements_count": 0,
-                }
-            )
-    return rows
-
-
-def _build_synthese_couches_flowables(
-    result: Dict[str, Any],
-    catalogue: Optional[Dict[str, Any]],
-    styles: Dict,
-    page_width_pts: float,
-) -> List[Any]:
-    """Tableaux Couche / Résultat groupés par article du catalogue."""
-    cat = catalogue or {}
-    rows_data = _synthese_couches_rows(result, catalogue)
-    flowables: List[Any] = []
-
-    flowables.append(
-        Paragraph("Vue d'ensemble — couches du catalogue", styles["summary_title"])
-    )
-    flowables.append(Spacer(1, 4))
-
-    if not rows_data:
-        flowables.append(
-            Paragraph("Aucune donnée de synthèse.", styles["subtitle"])
-        )
-        flowables.append(Spacer(1, 6))
-        return flowables
-
-    inner_w = page_width_pts - 4 * cm
-
-    groups: Dict[str, List[Dict[str, Any]]] = {}
-    for r in rows_data:
-        t = r.get("table") or ""
-        cfg = cat.get(t) or {}
-        art_raw = cfg.get("article")
-        ak = _article_key(str(art_raw) if art_raw is not None else None)
-        groups.setdefault(ak, []).append(r)
-
-    art_sorted = sorted(groups.keys(), key=lambda k: int(k) if k.isdigit() else 99)
-
-    for ak in art_sorted:
-        label = ARTICLE_LABELS.get(ak, f"Article {ak}")
-        flowables.append(Paragraph(f"<b>{xml_escape(label)}</b>", styles["subtitle"]))
-        flowables.append(Spacer(1, 2))
-
-        tbl_data: List[List[Any]] = [
-            [
-                Paragraph("<b>Couche</b>", styles["attr_key"]),
-                Paragraph("<b>Résultat</b>", styles["attr_key"]),
-            ]
-        ]
-        for r in groups[ak]:
-            dn = _normalize_couche_display_name(r)
-            lbl = _layer_row_result_label(r)
-            tbl_data.append(
-                [
-                    Paragraph(xml_escape(dn), styles["attr_val"]),
-                    Paragraph(xml_escape(lbl), styles["attr_val"]),
-                ]
-            )
-
-        tt = Table(tbl_data, colWidths=[inner_w * 0.62, inner_w * 0.38])
-        tt.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E8F5EE")),
-                    ("GRID", (0, 0), (-1, -1), 0.5, C_BORDER),
-                    (
-                        "ROWBACKGROUNDS",
-                        (0, 1),
-                        (-1, -1),
-                        [colors.white, colors.HexColor("#F7FCF9")],
-                    ),
-                    ("TOPPADDING", (0, 0), (-1, -1), 4),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, 0), 8),
-                ]
-            )
-        )
-        flowables.append(tt)
-        flowables.append(Spacer(1, 8))
-
-    return flowables
-
-
 def _format_attr_value(val: Any) -> str:
     if isinstance(val, list):
         return ", ".join(str(v) for v in val if v is not None)
@@ -445,7 +407,13 @@ def _pdf_column_keys(layer: Dict[str, Any]) -> Optional[List[str]]:
     keep_cfg = layer.get("keep") or []
 
     if isinstance(clean_cfg, dict) and clean_cfg:
-        return [k for k in clean_cfg.keys() if isinstance(k, str) and k.strip()]
+        keys = [
+            k
+            for k in clean_cfg.keys()
+            if isinstance(k, str) and k.strip() and k.lower() != "reglementation"
+        ]
+        # Si seules des clés « réglementation » existent, ne pas retourner [] (tableau 0 colonne → crash ReportLab)
+        return keys if keys else None
 
     if isinstance(clean_cfg, list) and clean_cfg and isinstance(keep_cfg, list):
         keep_fields = [k for k in keep_cfg if isinstance(k, str)]
@@ -453,7 +421,8 @@ def _pdf_column_keys(layer: Dict[str, Any]) -> Optional[List[str]]:
         keys: List[str] = []
         for raw, clean in zip(keep_fields, clean_fields):
             if raw.strip() and clean.strip():
-                keys.append(raw)
+                if raw.lower() != "reglementation":
+                    keys.append(raw)
         return keys if keys else None
 
     return None
@@ -490,6 +459,16 @@ def _group_by_key_from_layer(layer: Dict[str, Any], elements: List[Dict[str, Any
     return candidates[0]
 
 
+def _normalize_layer_elements(layer: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """`elements` peut être absent, null (JSON) ou mal typé — toujours une liste de dicts."""
+    raw = layer.get("elements")
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        return []
+    return [e for e in raw if isinstance(e, dict)]
+
+
 def _aggregate_elements_for_pdf(layer: Dict[str, Any], elements: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Agrège les éléments pour éviter les doublons:
@@ -513,7 +492,10 @@ def _aggregate_elements_for_pdf(layer: Dict[str, Any], elements: List[Dict[str, 
 
     # Champs potentiels de pourcentage d'intersection
     pct_key_candidates = []
-    for k in cleaned[0].keys():
+    head0 = cleaned[0]
+    if not isinstance(head0, dict):
+        return cleaned
+    for k in head0.keys():
         lk = k.lower()
         if re.search(r"(pourcent|percentage|pct|taux)", lk):
             pct_key_candidates.append(k)
@@ -550,14 +532,21 @@ def _aggregate_elements_for_pdf(layer: Dict[str, Any], elements: List[Dict[str, 
     return aggregated
 
 
-def _build_layer_block(layer: Dict[str, Any], styles: Dict, page_width_pts: float) -> List:
+def _build_layer_block(
+    layer: Dict[str, Any],
+    styles: Dict,
+    page_width_pts: float,
+    *,
+    reg_annex_blocks: List[Any],
+    reg_counter: Dict[str, int],
+) -> List:
     """Construit le bloc ReportLab pour une couche intersectée."""
     flowables = []
 
     display_name = layer.get("display_name") or layer.get("table") or "Couche inconnue"
     layer_type = layer.get("type") or ""
     article_raw = layer.get("article")
-    elements: List[Dict] = layer.get("elements", [])
+    elements: List[Dict] = _normalize_layer_elements(layer)
     attr_disc = layer.get("attribut_discriminant")
 
     type_color = _type_color(layer_type)
@@ -607,21 +596,38 @@ def _build_layer_block(layer: Dict[str, Any], styles: Dict, page_width_pts: floa
 
     # --- Tableau des attributs ---
     if _pdf_keep_effectif_vide(layer):
-        # keep [] dans le catalogue : uniquement le texte (pas de tableau)
-        attr_block = Paragraph(
-            "Intersection détectée (données attributaires non disponibles)",
-            styles["no_intersection"],
-        )
+        if layer.get("_plu_all_zonages_below_min_pct"):
+            attr_block = Paragraph(
+                "Les zonages PLU visibles sur la carte (contexte 50 m, page de garde) "
+                "représentent chacun moins de 1 % de la surface d'étude : le détail "
+                "réglementaire n'est pas reproduit ici.",
+                styles["no_intersection"],
+            )
+        else:
+            attr_block = Paragraph(
+                "Intersection détectée (données attributaires non disponibles)",
+                styles["no_intersection"],
+            )
     elif not filtered_elements:
-        # Intersection géométrique seule (pas d'attributs visibles)
-        attr_block = Paragraph("Intersection détectée (données attributaires non disponibles)", styles["no_intersection"])
+        if layer.get("_plu_all_zonages_below_min_pct"):
+            attr_block = Paragraph(
+                "Les zonages PLU visibles sur la carte (contexte 50 m, page de garde) "
+                "représentent chacun moins de 1 % de la surface d'étude : le détail "
+                "réglementaire n'est pas reproduit ici.",
+                styles["no_intersection"],
+            )
+        else:
+            attr_block = Paragraph(
+                "Intersection détectée (données attributaires non disponibles)",
+                styles["no_intersection"],
+            )
     else:
         label_map = _build_attr_label_map(layer)
 
         # Construire les lignes du tableau attributs
         attr_rows = []
         catalog_keys = _pdf_column_keys(layer)
-        if catalog_keys is not None:
+        if catalog_keys:
             all_keys = catalog_keys
         else:
             all_keys = []
@@ -630,35 +636,190 @@ def _build_layer_block(layer: Dict[str, Any], styles: Dict, page_width_pts: floa
                     if k not in all_keys:
                         all_keys.append(k)
 
-        # Ligne header colonnes
-        header_cells = [
-            Paragraph(f"<b>{label_map.get(k, k)}</b>", styles["attr_key"]) for k in all_keys
-        ]
-        attr_rows.append(header_cells)
+        if not all_keys:
+            attr_block = Paragraph(
+                "Intersection détectée (données attributaires non disponibles pour le tableau)",
+                styles["no_intersection"],
+            )
+        else:
+            # Ligne header colonnes
+            header_cells = [
+                Paragraph(f"<b>{label_map.get(k, k)}</b>", styles["attr_key"]) for k in all_keys
+            ]
+            attr_rows.append(header_cells)
 
-        for el in filtered_elements:
-            row_cells = []
-            for k in all_keys:
-                val = el.get(k)
-                row_cells.append(Paragraph(_format_attr_value(val), styles["attr_val"]))
-            attr_rows.append(row_cells)
+            for el in filtered_elements:
+                row_cells = []
+                for k in all_keys:
+                    val = el.get(k)
+                    row_cells.append(Paragraph(_format_attr_value(val), styles["attr_val"]))
+                attr_rows.append(row_cells)
 
-        col_w = inner_w / max(len(all_keys), 1)
-        col_widths = [col_w] * len(all_keys)
+            col_w = inner_w / max(len(all_keys), 1)
+            col_widths = [col_w] * len(all_keys)
+            # repeatRows=1 avec 1 seule ligne + colWidths[] peut provoquer list index out of range (ReportLab)
+            repeat_hdr = 1 if len(attr_rows) > 1 else 0
 
-        attr_block = Table(attr_rows, colWidths=col_widths, repeatRows=1)
-        attr_block.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E8F5EE")),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CCDDCC")),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F7FCF9")]),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, 0), 8),
-        ]))
+            attr_block = Table(attr_rows, colWidths=col_widths, repeatRows=repeat_hdr)
+            attr_block.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E8F5EE")),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CCDDCC")),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F7FCF9")]),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 8),
+            ]))
+
+    # --- Réglementation : texte mis en annexe + lien depuis la couche ---
+    reg_dest: Optional[str] = None
+    reg_key = None
+    for el in elements:
+        if not isinstance(el, dict):
+            continue
+        for k in el.keys():
+            if isinstance(k, str) and k.lower() == "reglementation":
+                reg_key = k
+                break
+        if reg_key:
+            break
+
+    if reg_key:
+        grp_key = _group_by_key_from_layer(layer, elements)
+        # Ordre d'affichage : suit l'ordre agrégé (si group_by existe)
+        group_order: List[str] = []
+        if grp_key:
+            for row in filtered_elements:
+                gv = row.get(grp_key)
+                if gv is None:
+                    continue
+                group_order.append(_format_attr_value(gv))
+        if not group_order and grp_key:
+            group_order = ["Non renseigné"]
+
+        MAX_REG_CHARS = 20000
+        reg_by_group: Dict[str, List[str]] = {}
+        seen_texts: Dict[str, set] = {}
+
+        for el in elements:
+            if not isinstance(el, dict) or reg_key not in el:
+                continue
+            raw_val = el.get(reg_key)
+            if raw_val is None:
+                continue
+            if isinstance(raw_val, list):
+                text_val = ", ".join(str(v) for v in raw_val if v is not None).strip()
+            else:
+                text_val = str(raw_val).strip()
+            if not text_val:
+                continue
+            if len(text_val) > MAX_REG_CHARS:
+                text_val = text_val[:MAX_REG_CHARS] + "…"
+
+            if grp_key:
+                gv_raw = el.get(grp_key)
+                gv = _format_attr_value(gv_raw)
+                if not gv or gv in ("—", "None", "null"):
+                    gv = "Non renseigné"
+            else:
+                gv = "__ALL__"
+
+            reg_by_group.setdefault(gv, [])
+            seen_texts.setdefault(gv, set())
+            if text_val not in seen_texts[gv]:
+                seen_texts[gv].add(text_val)
+                reg_by_group[gv].append(text_val)
+
+        if reg_by_group:
+            ordered_groups_full = group_order + [g for g in reg_by_group.keys() if g not in group_order]
+            use_zonage_md = (
+                build_zonage_regulation_flowables is not None
+                and is_plu_zonage_layer(layer)
+                and any(
+                    regulation_text_looks_like_markdown(str(t))
+                    for texts in reg_by_group.values()
+                    for t in texts
+                    if t
+                )
+            )
+            md_flows: List[Any] = []
+            if use_zonage_md:
+                try:
+                    md_flows = build_zonage_regulation_flowables(  # type: ignore[misc]
+                        reg_by_group,
+                        ordered_groups_full,
+                        grp_key,
+                        inner_w,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Rendu Markdown zonage PLU indisponible, repli HTML : %s",
+                        exc,
+                        exc_info=True,
+                    )
+                    md_flows = []
+
+            if md_flows:
+                reg_counter["i"] += 1
+                reg_dest = f"reg_{reg_counter['i']}"
+                reg_heading = Paragraph(
+                    f"<b>Réglementation — {xml_escape(display_name)}</b>",
+                    styles["layer_name"],
+                )
+                reg_annex_blocks.extend(
+                    [
+                        _AnchorBookmarkPage(reg_dest),
+                        reg_heading,
+                        Spacer(1, 2),
+                        *md_flows,
+                        Spacer(1, 10),
+                    ]
+                )
+            else:
+                parts_html: List[str] = []
+                if grp_key:
+                    for gv in ordered_groups_full:
+                        texts = reg_by_group.get(gv) or []
+                        if not texts:
+                            continue
+                        label_html = xml_escape(str(gv))
+                        text_html = "<br/><br/>".join(
+                            xml_escape(t).replace("\n", "<br/>") for t in texts
+                        )
+                        parts_html.append(f"<b>{label_html}</b><br/>{text_html}")
+                else:
+                    texts = reg_by_group.get("__ALL__") or []
+                    if texts:
+                        parts_html.append(
+                            "<br/><br/>".join(
+                                xml_escape(t).replace("\n", "<br/>") for t in texts
+                            )
+                        )
+
+                if parts_html:
+                    reg_counter["i"] += 1
+                    reg_dest = f"reg_{reg_counter['i']}"
+
+                    reg_heading = Paragraph(
+                        f"<b>Réglementation — {xml_escape(display_name)}</b>",
+                        styles["layer_name"],
+                    )
+                    reg_body = Paragraph(
+                        "<br/><br/>".join(parts_html),
+                        styles["reglementation_block"],
+                    )
+                    reg_annex_blocks.extend(
+                        [
+                            _AnchorBookmarkPage(reg_dest),
+                            reg_heading,
+                            Spacer(1, 2),
+                            reg_body,
+                            Spacer(1, 10),
+                        ]
+                    )
 
     # Encadrement de la couche entière
     content_table = Table(
@@ -670,13 +831,15 @@ def _build_layer_block(layer: Dict[str, Any], styles: Dict, page_width_pts: floa
         ("ROUNDEDCORNERS", [4, 4, 4, 4]),
         ("TOPPADDING", (0, 0), (-1, -1), 6),
         ("BOTTOMPADDING", (0, 0), (-1, 0), 4),
-        ("BOTTOMPADDING", (0, 2), (-1, -1), 6),
         ("LEFTPADDING", (0, 0), (-1, -1), 8),
         ("RIGHTPADDING", (0, 0), (-1, -1), 8),
         ("BACKGROUND", (0, 0), (-1, -1), colors.white),
     ]))
 
-    flowables.append(KeepTogether([content_table]))
+    flowables.append(content_table)
+    if reg_dest:
+        flowables.append(Spacer(1, 2))
+        flowables.append(_LinkToBookmark("Voir réglementation", reg_dest))
     flowables.append(Spacer(1, 6))
     return flowables
 
@@ -686,6 +849,9 @@ def _build_article_section(
     layers: List[Dict],
     styles: Dict,
     page_width_pts: float,
+    *,
+    reg_annex_blocks: List[Any],
+    reg_counter: Dict[str, int],
 ) -> List:
     """Construit la section complète d'un article."""
     flowables = []
@@ -718,7 +884,15 @@ def _build_article_section(
     flowables.append(KeepTogether([header_table, Spacer(1, 4), badge_count, Spacer(1, 6)]))
 
     for layer in layers:
-        flowables.extend(_build_layer_block(layer, styles, page_width_pts))
+        flowables.extend(
+            _build_layer_block(
+                layer,
+                styles,
+                page_width_pts,
+                reg_annex_blocks=reg_annex_blocks,
+                reg_counter=reg_counter,
+            )
+        )
 
     return flowables
 
@@ -762,7 +936,7 @@ class _PageDecorator:
         # Footer
         canvas.setFillColor(colors.HexColor("#AAAAAA"))
         canvas.setFont("Helvetica", 7)
-        canvas.drawCentredString(w / 2, 8 * mm, f"Rapport d'identité foncière – {self.commune} – Page {doc.page}")
+        canvas.drawCentredString(w / 2, 8 * mm, f"Carte d'identité foncière – {self.commune} – Page {doc.page}")
         canvas.setStrokeColor(colors.HexColor("#DDDDDD"))
         canvas.line(15 * mm, 13 * mm, w - 15 * mm, 13 * mm)
 
@@ -791,7 +965,7 @@ def _meta_parcelle_label_and_html(result: Dict[str, Any]) -> Tuple[str, str]:
                 lines.append(f"{s} {n}".strip())
         if lines:
             label = (
-                "Références cadastrales (UF)"
+                "Références cadastrales"
                 if len(lines) > 1
                 else "Référence cadastrale"
             )
@@ -802,7 +976,7 @@ def _meta_parcelle_label_and_html(result: Dict[str, Any]) -> Tuple[str, str]:
     if pv and pv != "UNITE_FONCIERE" and "," in pv:
         parts = [p.strip() for p in pv.split(",") if p.strip()]
         if len(parts) > 1:
-            label = "Références cadastrales (UF)"
+            label = "Références cadastrales"
             html = "<br/>".join(xml_escape(x) for x in parts)
             return label, html
     if not pv or pv == "UNITE_FONCIERE":
@@ -824,6 +998,12 @@ def generate_rapport_pdf(
         result: Dict retourné par analyser_identite_fonciere / analyser_identite_parcelle
                 Doit contenir 'intersections', 'commune', 'insee', et optionnellement
                 'parcelle' et/ou 'parcelles_cadastrales' (liste {section, numero}) pour l’UF.
+                Optionnel pour la page de garde : 'geometry' (GeoJSON UF), 'srid',
+                'carte_web_url' ou 'map_url' (lien https vers la carte 2D),
+                'surface_uf_m2' (nombre, sinon calcul depuis geometry).
+                Avec 'geometry', génération optionnelle du PNG PLU combiné (carte + légende)
+                sur une page dédiée après la page de garde, et filtrage des zonages sous 1 %
+                pour la couche plu_latresne (la carto conserve le buffer 50 m).
         output_dir: Dossier de sortie.
         logo_path: Chemin explicite vers logo_kerelia.png (optionnel).
         filename: Nom du fichier de sortie (optionnel, auto-généré sinon).
@@ -834,6 +1014,69 @@ def generate_rapport_pdf(
         str: Chemin absolu du PDF généré.
     """
     intersections: List[Dict] = result.get("intersections", [])
+    for _ly in intersections:
+        if not isinstance(_ly, dict):
+            continue
+        el = _ly.get("elements")
+        if el is None or not isinstance(el, list):
+            _ly["elements"] = []
+        else:
+            _ly["elements"] = [e for e in el if isinstance(e, dict)]
+
+    geom = result.get("geometry")
+    srid = result.get("srid")
+    if isinstance(srid, str) and srid.isdigit():
+        srid = int(srid)
+    elif not isinstance(srid, int):
+        srid = None
+
+    plu_map_png_path: Optional[str] = None
+    pct_stats: Dict[str, float] = {}
+    if isinstance(geom, dict) and geom.get("type"):
+        try:
+            from .plu_visuels import (
+                PLU_LATRESNE_TABLE,
+                filter_plu_latresne_layer_for_report,
+                generate_plu_visuals_from_uf_geometry,
+            )
+
+            out_base = Path(output_dir).resolve()
+            out_base.mkdir(parents=True, exist_ok=True)
+            pcs = result.get("parcelles_cadastrales")
+            if not isinstance(pcs, list):
+                pcs = None
+            map_path, map_png_compat, pct_stats, parcelles_detail = (
+                generate_plu_visuals_from_uf_geometry(
+                    geom,
+                    str(out_base),
+                    srid=srid,
+                    insee=str(result.get("insee") or "").strip(),
+                    parcelles_cadastrales=pcs,
+                )
+            )
+            plu_map_png_path = map_path
+            result["plu_map_png"] = map_path
+            # Clé historique : même fichier que plu_map_png (ancien second visuel supprimé).
+            result["plu_pie_png"] = map_png_compat
+            result["plu_pct_stats"] = pct_stats
+            if parcelles_detail:
+                result["parcelles_uf_detail"] = parcelles_detail
+
+            if pct_stats:
+                new_ix: List[Dict] = []
+                for ly in intersections:
+                    if not isinstance(ly, dict):
+                        new_ix.append(ly)
+                        continue
+                    if (ly.get("table") or "").strip() == PLU_LATRESNE_TABLE:
+                        new_ix.append(filter_plu_latresne_layer_for_report(ly, pct_stats))
+                    else:
+                        new_ix.append(ly)
+                intersections = new_ix
+                result["intersections"] = intersections
+        except Exception as exc:
+            logger.warning("Visuels PLU ou filtre zonage indisponible : %s", exc, exc_info=True)
+
     commune: str = result.get("commune", "Commune inconnue")
     insee: str = result.get("insee", "")
     nb_intersections: int = result.get("nb_intersections", len(intersections))
@@ -862,6 +1105,10 @@ def generate_rapport_pdf(
     styles = _build_styles()
     page_w, page_h = A4
 
+    # Annexe : toutes les réglementations (liées depuis chaque couche)
+    reg_annex_blocks: List[Any] = []
+    reg_counter: Dict[str, int] = {"i": 0}
+
     doc = SimpleDocTemplate(
         str(output_path),
         pagesize=A4,
@@ -878,60 +1125,12 @@ def generate_rapport_pdf(
     story = []
 
     # -----------------------------------------------------------------------
-    # Page de garde
+    # Page de garde (module header : zonage, surface UF, lien carte web)
     # -----------------------------------------------------------------------
-    story.append(Spacer(1, 1 * cm))
-
-    # Bloc titre
-    story.append(Paragraph("RAPPORT D'IDENTITÉ FONCIÈRE", styles["title"]))
-    story.append(Spacer(1, 4))
-    story.append(HRFlowable(width="100%", thickness=2, color=C_KERELIA_LIGHT))
-    story.append(Spacer(1, 8))
-
-    # Métadonnées
-    pl_lbl, pl_html = _meta_parcelle_label_and_html(result)
-    meta_rows = [
-        ("Commune", commune),
-        ("Code INSEE", insee or "—"),
-        (pl_lbl, pl_html),
-        ("Date d'analyse", date_str),
-        ("Couches intersectées", str(nb_intersections)),
-    ]
-    meta_table_data = [
-        [
-            Paragraph(k, styles["meta_label"]),
-            Paragraph(v, styles["meta_value"]),
-        ]
-        for k, v in meta_rows
-    ]
-    meta_table = Table(meta_table_data, colWidths=[5 * cm, 11 * cm])
-    meta_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#F0F7F4")),
-        ("GRID", (0, 0), (-1, -1), 0.5, C_BORDER),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("LEFTPADDING", (0, 0), (-1, -1), 8),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-    ]))
-    story.append(meta_table)
-    story.append(Spacer(1, 14))
-
-    # -----------------------------------------------------------------------
-    # Vue d'ensemble : toutes les couches (comme le tableau dynamique du front)
-    # -----------------------------------------------------------------------
-    story.extend(
-        _build_synthese_couches_flowables(result, catalogue, styles, page_w)
-    )
-
-    story.append(PageBreak())
-
-    # -----------------------------------------------------------------------
-    # Corps : regroupement par article
-    # -----------------------------------------------------------------------
-    # Enrichir les intersections avec les infos du catalogue si fourni
     if catalogue:
         for layer in intersections:
+            if not isinstance(layer, dict):
+                continue
             t = layer.get("table") or ""
             cat_entry = catalogue.get(t, {})
             if not layer.get("type") and cat_entry.get("type"):
@@ -945,6 +1144,60 @@ def generate_rapport_pdf(
             if "keep" not in layer and "keep" in cat_entry:
                 layer["keep"] = cat_entry["keep"]
 
+    pl_lbl, pl_html = _meta_parcelle_label_and_html(result)
+    cover_w = page_w - 4 * cm
+    story.extend(
+        build_cover_page_flowables(
+            result,
+            meta_parcelle_label=pl_lbl,
+            meta_parcelle_html=pl_html,
+            commune=commune,
+            insee=insee,
+            table_width=cover_w,
+            c_border=C_BORDER,
+            c_kerelia_light=C_KERELIA_LIGHT,
+        )
+    )
+    if plu_map_png_path:
+        story.append(PageBreak())
+        plu_laius_map: Dict[str, str] = {}
+        if pct_stats:
+            try:
+                from .plu_visuels import (
+                    MIN_PCT_ZONAGE_URBAIN,
+                    fetch_laius_reglement_par_zonages,
+                )
+
+                # Même seuil que le filtre plu_latresne / réglementation : ≥ 1 % (surface UF)
+                zonages_pour_laius = [
+                    z
+                    for z, p in pct_stats.items()
+                    if isinstance(p, (int, float)) and float(p) >= MIN_PCT_ZONAGE_URBAIN
+                ]
+                plu_laius_map = fetch_laius_reglement_par_zonages(zonages_pour_laius)
+                if plu_laius_map:
+                    result["plu_zonage_laius"] = plu_laius_map
+            except Exception as exc:
+                logger.warning("Textes laius PLU indisponibles : %s", exc)
+        story.extend(
+            build_plu_zonage_page_flowables(
+                plu_map_png_path,
+                table_width=cover_w,
+                c_kerelia_green=C_KERELIA_GREEN,
+                c_kerelia_light=C_KERELIA_LIGHT,
+                zonage_laius=plu_laius_map or None,
+                c_border=C_BORDER,
+                c_laius_header_bg=C_BG_ARTICLE,
+            )
+        )
+    else:
+        story.append(Spacer(1, 14))
+
+    story.append(PageBreak())
+
+    # -----------------------------------------------------------------------
+    # Corps : regroupement par article
+    # -----------------------------------------------------------------------
     # Grouper par article
     articles: Dict[str, List[Dict]] = {}
     for layer in intersections:
@@ -958,8 +1211,22 @@ def generate_rapport_pdf(
     for art_key in sorted(articles.keys(), key=lambda k: int(k) if k.isdigit() else 99):
         layers_in_art = articles[art_key]
         story.extend(
-            _build_article_section(art_key, layers_in_art, styles, page_w)
+            _build_article_section(
+                art_key,
+                layers_in_art,
+                styles,
+                page_w,
+                reg_annex_blocks=reg_annex_blocks,
+                reg_counter=reg_counter,
+            )
         )
+
+    # Annexe : réglementations
+    if reg_annex_blocks:
+        story.append(PageBreak())
+        story.append(Paragraph("Annexe — Réglementations", styles["summary_title"]))
+        story.append(Spacer(1, 6))
+        story.extend(reg_annex_blocks)
 
     # -----------------------------------------------------------------------
     # Build

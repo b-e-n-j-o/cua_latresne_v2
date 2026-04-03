@@ -1,9 +1,18 @@
 """
 route_identite_parcelle.py
-Endpoint API pour l'identité parcellaire
+Endpoint API pour l'identité parcellaire et l'identité foncière (UF) :
+intersections, carte Folium, rapport PDF, et proxy des fichiers carte/PDF stockés
+sur Supabase (liens « propres » sans domaine supabase dans le PDF).
 """
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse, FileResponse
+import logging
+import os
+import re
+import secrets
+import time
+
+import requests
+from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
 from pydantic import BaseModel, ConfigDict, Field, AliasChoices, field_validator
 from typing import List, Dict, Any, Optional
 from pathlib import Path
@@ -16,9 +25,88 @@ from .identite_fonciere import (
 from .carte_identite_fonciere import generate_identite_fonciere_map_html
 from .sse_identite_fonciere import iter_identite_fonciere_sse_chunks, sse_error_chunk
 from .pdf.rapport_identite_fonciere import generate_rapport_pdf
+from .storage_et_urls import (
+    new_project_id,
+    object_path,
+    public_object_url,
+    upload_html_carte,
+    upload_pdf_rapport,
+)
 
 router = APIRouter(prefix="/api/identite-parcelle", tags=["Identité Parcellaire"])
 router_fonciere = APIRouter(prefix="/api/identite-fonciere", tags=["Identité Foncière"])
+
+_logger = logging.getLogger(__name__)
+
+# HTML Folium servi via GET /map/view/{token} (évite de ne renvoyer que du HTML inline)
+_MAP_HTML_CACHE: dict[str, tuple[str, float]] = {}
+_MAP_CACHE_TTL_SEC = int(os.getenv("IDENTITE_FONCIERE_MAP_CACHE_TTL_SEC", "3600"))
+
+# PDF généré pour POST /publier si upload Storage échoue (lien temporaire GET /rapport/view/{token})
+_RAPPORT_PDF_CACHE: dict[str, tuple[str, float]] = {}
+
+# GET /public/if/... — identifiants projet générés par storage_et_urls.new_project_id()
+_IF_PROJECT_ID_RE = re.compile(r"^if_[a-f0-9]{8,32}$")
+
+
+def _identite_fichier_public_autorise(filename: str) -> bool:
+    """Noms autorisés pour le proxy Storage (carte HTML ou rapport PDF)."""
+    base = filename.split("/")[-1]
+    if base == "carte.html":
+        return True
+    if base.endswith(".pdf") and ".." not in base and "/" not in base and "\\" not in base:
+        return True
+    return False
+
+
+def _prune_map_html_cache() -> None:
+    now = time.time()
+    for k, (_, exp) in list(_MAP_HTML_CACHE.items()):
+        if exp < now:
+            del _MAP_HTML_CACHE[k]
+
+
+def _map_html_cache_put(html: str) -> str:
+    _prune_map_html_cache()
+    token = secrets.token_urlsafe(24)
+    _MAP_HTML_CACHE[token] = (html, time.time() + _MAP_CACHE_TTL_SEC)
+    return token
+
+
+def _map_html_cache_get(token: str) -> str | None:
+    _prune_map_html_cache()
+    item = _MAP_HTML_CACHE.get(token)
+    if not item:
+        return None
+    html, exp = item
+    if time.time() > exp:
+        del _MAP_HTML_CACHE[token]
+        return None
+    return html
+
+
+def _prune_rapport_pdf_cache() -> None:
+    now = time.time()
+    for k, (_, exp) in list(_RAPPORT_PDF_CACHE.items()):
+        if exp < now:
+            del _RAPPORT_PDF_CACHE[k]
+
+
+def _rapport_pdf_cache_put(pdf_path: Path, base_url: str) -> str:
+    _prune_rapport_pdf_cache()
+    token = secrets.token_urlsafe(24)
+    p = str(Path(pdf_path).resolve())
+    _RAPPORT_PDF_CACHE[token] = (p, time.time() + _MAP_CACHE_TTL_SEC)
+    return f"{base_url}/api/identite-fonciere/rapport/view/{token}"
+
+
+def _public_api_base_url(request: Request) -> str:
+    """URL publique de l’API (reverse proxy) ; sinon `request.base_url`."""
+    base = (os.getenv("PUBLIC_API_BASE_URL") or "").strip().rstrip("/")
+    if base:
+        return base
+    return str(request.base_url).rstrip("/")
+
 
 # ------------------------------------------------------------
 # Models
@@ -107,6 +195,11 @@ class RapportFonciereRequest(BaseModel):
     geometry: dict | None = None
     intersections: List[IntersectionResult] | None = None
     output_dir: str | None = None
+    # URL publique (HTTPS) affichée en lien cliquable sur la page 1 du PDF (ex. page carte du front).
+    carte_web_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("carte_web_url", "carteWebUrl", "map_url", "mapUrl"),
+    )
     # Référence cadastrale dans le PDF si pas d’UF (ex. section + numéro)
     parcelle: str | None = None
     # UF : liste des parcelles (section + numéro) pour la page 1 du rapport
@@ -122,11 +215,84 @@ class RapportFonciereRequest(BaseModel):
 
 
 class IdentiteFonciereMapResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     success: bool
     html: str
     metadata: Dict[str, Any]
     intersections: List[IntersectionResult]
     error: str | None = None
+    # Lien GET pour ouvrir la même carte dans le navigateur (sans coller le HTML)
+    carte_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("carte_url", "carteUrl", "map_url", "mapUrl"),
+    )
+    # Présent si la carte a été déposée sur Supabase Storage (même dossier que le PDF prévu)
+    carte_project_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("carte_project_id", "carteProjectId"),
+    )
+
+
+class PublierIdentiteResponse(BaseModel):
+    """Réponse JSON après génération carte + PDF et dépôt Storage (ou URL temporaires)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    success: bool
+    carte_project_id: str | None = None
+    carte_url: str | None = None
+    pdf_url: str | None = None
+    error: str | None = None
+    warnings: List[str] | None = None
+
+
+def _build_result_dict_from_rapport_payload(payload: RapportFonciereRequest) -> Dict[str, Any]:
+    """Construit le dict métier `result` pour la carte Folium et le PDF (identique à POST /rapport)."""
+    if payload.intersections:
+        ref_parcelle = payload.parcelle or "UNITE_FONCIERE"
+        result: Dict[str, Any] = {
+            "parcelle": ref_parcelle,
+            "commune": payload.commune,
+            "insee": payload.insee or "",
+            "nb_intersections": len(payload.intersections),
+            "intersections": [i.model_dump() for i in payload.intersections],
+        }
+        if payload.geometry is not None:
+            result["geometry"] = payload.geometry
+        if payload.srid is not None:
+            result["srid"] = payload.srid
+        pcs = payload.parcelles_cadastrales
+        if pcs:
+            result["parcelles_cadastrales"] = [p.model_dump() for p in pcs]
+        cs = payload.couches_synthese
+        if cs:
+            result["couches_synthese"] = [c.model_dump() for c in cs]
+        return result
+    if payload.geometry is not None:
+        result = analyser_identite_fonciere(
+            geometry=payload.geometry,
+            commune=payload.commune,
+            insee=payload.insee,
+            srid=payload.srid,
+        )
+        result["geometry"] = payload.geometry
+        if payload.srid is not None:
+            result["srid"] = payload.srid
+        pcs = payload.parcelles_cadastrales
+        if pcs:
+            result["parcelles_cadastrales"] = [p.model_dump() for p in pcs]
+        if payload.parcelle:
+            result["parcelle"] = payload.parcelle
+        cs = payload.couches_synthese
+        if cs:
+            result["couches_synthese"] = [c.model_dump() for c in cs]
+        return result
+    raise HTTPException(
+        status_code=400,
+        detail="Fournir `intersections` ou `geometry` pour générer le rapport.",
+    )
+
 
 # ------------------------------------------------------------
 # Endpoint
@@ -240,13 +406,113 @@ async def intersect_fonciere_stream(payload: IdentiteFonciereRequest):
     )
 
 
+@router_fonciere.get("/map/view/{token}", response_class=HTMLResponse)
+async def view_map_fonciere_html(token: str):
+    """
+    Affiche la carte Folium générée par POST /map (même contenu que le champ `html`).
+    Le jeton expire après IDENTITE_FONCIERE_MAP_CACHE_TTL_SEC (défaut 1 h).
+    """
+    html = _map_html_cache_get(token)
+    if not html:
+        raise HTTPException(status_code=404, detail="Carte expirée ou introuvable.")
+    return HTMLResponse(content=html)
+
+
+@router_fonciere.get("/public/if/{project_id}/{filename}")
+def proxy_identite_fonciere_depuis_storage(project_id: str, filename: str) -> Response:
+    """
+    Sert la carte HTML ou le PDF déposés dans le bucket identité foncière (Supabase Storage)
+    sous une URL de cette API (`…/identite-fonciere/public/if/...`) :
+    - liens « propres » sans domaine `*.supabase.co` dans le PDF ;
+    - **Content-Type** fiable (`text/html; charset=utf-8` pour la carte), car l’URL publique
+      Storage renvoie souvent un type incorrect et le navigateur affiche le HTML comme texte brut.
+    Voir `storage_et_urls.py` et `_prefer_identite_proxy_url`.
+    """
+    if not _IF_PROJECT_ID_RE.match(project_id.strip()):
+        raise HTTPException(status_code=404, detail="Ressource introuvable.")
+    fn = filename.strip()
+    if not _identite_fichier_public_autorise(fn):
+        raise HTTPException(status_code=404, detail="Ressource introuvable.")
+
+    path = object_path(project_id, fn)
+    src = public_object_url(path)
+
+    try:
+        r = requests.get(src, timeout=90)
+    except requests.RequestException as e:
+        raise HTTPException(status_code=502, detail=f"Stockage indisponible: {e!s}") from e
+
+    if r.status_code == 404:
+        raise HTTPException(status_code=404, detail="Fichier introuvable.")
+    if r.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"Erreur stockage ({r.status_code}).")
+
+    ct = r.headers.get("content-type", "").split(";")[0].strip()
+    if fn.endswith(".html"):
+        media = "text/html; charset=utf-8"
+    elif fn.endswith(".pdf"):
+        media = "application/pdf"
+    else:
+        media = ct or "application/octet-stream"
+
+    return Response(
+        content=r.content,
+        media_type=media,
+        headers={
+            "Cache-Control": "public, max-age=300",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+def _is_supabase_storage_public_url(url: str) -> bool:
+    """URL publique directe du bucket (GET sans signature)."""
+    u = url.lower()
+    return "supabase" in u and "/storage/v1/object/public/" in u
+
+
+def _proxy_identite_asset_url(request: Request, project_id: str, filename: str) -> str:
+    base = _public_api_base_url(request)
+    pid = project_id.strip()
+    fn = filename.strip().split("/")[-1]
+    return f"{base}/api/identite-fonciere/public/if/{pid}/{fn}"
+
+
+def _prefer_identite_proxy_url(request: Request, project_id: str, filename: str, url: str) -> str:
+    """
+    Supabase Storage renvoie souvent un Content-Type inadapté pour le HTML (ex. text/plain) :
+    le navigateur affiche le code source au lieu du rendu. L’URL proxy `/public/if/...` force
+    `text/html; charset=utf-8` ou `application/pdf` (voir `proxy_identite_fonciere_depuis_storage`).
+    Si l’URL renvoyée au client est encore l’URL directe Supabase, on la remplace par le proxy.
+    """
+    if not _is_supabase_storage_public_url(url):
+        return url
+    return _proxy_identite_asset_url(request, project_id, filename)
+
+
+def _identite_storage_upload_enabled() -> bool:
+    """Désactiver avec IDENTITE_FONCIERE_STORAGE_UPLOAD=0 (ex. dev sans clé service)."""
+    return os.getenv("IDENTITE_FONCIERE_STORAGE_UPLOAD", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
+
 @router_fonciere.post("/map", response_model=IdentiteFonciereMapResponse)
-async def map_fonciere(payload: IdentiteFonciereMapRequest):
+async def map_fonciere(request: Request, payload: IdentiteFonciereMapRequest):
     """
     Génère une carte 2D HTML minimale (Folium) :
     - unité foncière analysée
     - couches intersectées
     - légende simplifiée
+
+    Si Storage est configuré (`SUPABASE_URL` + clé service, bucket identité foncière),
+    le HTML est uploadé et `carte_url` pointe vers l’URL persistante (proxy Kerelia ou
+    URL directe Storage). Sinon, repli sur le lien temporaire `/map/view/{token}`.
+
+    Le champ `html` reste disponible pour intégration inline.
     """
     try:
         res = generate_identite_fonciere_map_html(
@@ -256,12 +522,41 @@ async def map_fonciere(payload: IdentiteFonciereMapRequest):
             srid=payload.srid,
             intersections=[i.model_dump() for i in payload.intersections] if payload.intersections else None,
         )
+        html = res["html"]
+        base = _public_api_base_url(request)
+        token = _map_html_cache_put(html)
+        carte_url_temp = f"{base}/api/identite-fonciere/map/view/{token}"
+
+        carte_project_id: str | None = None
+        carte_url = carte_url_temp
+
+        if _identite_storage_upload_enabled():
+            try:
+                carte_project_id = new_project_id()
+                carte_url = upload_html_carte(carte_project_id, html)
+                carte_url = _prefer_identite_proxy_url(
+                    request, carte_project_id, "carte.html", carte_url
+                )
+                _logger.info(
+                    "Carte identité foncière enregistrée Storage (project_id=%s)",
+                    carte_project_id,
+                )
+            except Exception as exc:
+                _logger.warning(
+                    "Upload Storage carte identité foncière indisponible, repli URL temporaire : %s",
+                    exc,
+                )
+                carte_url = carte_url_temp
+                carte_project_id = None
+
         return IdentiteFonciereMapResponse(
             success=True,
-            html=res["html"],
+            html=html,
             metadata=res["metadata"],
             intersections=res["intersections"],
             error=None,
+            carte_url=carte_url,
+            carte_project_id=carte_project_id,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -272,7 +567,122 @@ async def map_fonciere(payload: IdentiteFonciereMapRequest):
             metadata={},
             intersections=[],
             error=str(e),
+            carte_url=None,
+            carte_project_id=None,
         )
+
+
+@router_fonciere.get("/rapport/view/{token}")
+async def rapport_identite_pdf_view_temp(token: str):
+    """
+    Sert un PDF généré par POST /publier lorsque l’upload Storage a échoué (lien temporaire, TTL identique à la carte).
+    """
+    _prune_rapport_pdf_cache()
+    item = _RAPPORT_PDF_CACHE.get(token)
+    if not item:
+        raise HTTPException(status_code=404, detail="Rapport expiré ou introuvable.")
+    path, exp = item
+    if time.time() > exp:
+        del _RAPPORT_PDF_CACHE[token]
+        raise HTTPException(status_code=404, detail="Rapport expiré ou introuvable.")
+    p = Path(path)
+    if not p.is_file():
+        del _RAPPORT_PDF_CACHE[token]
+        raise HTTPException(status_code=404, detail="Rapport expiré ou introuvable.")
+    return FileResponse(
+        p,
+        media_type="application/pdf",
+        filename=p.name,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router_fonciere.post("/publier", response_model=PublierIdentiteResponse)
+async def publier_identite_fonciere(request: Request, payload: RapportFonciereRequest):
+    """
+    Génère la carte HTML et le rapport PDF, les dépose sur Storage (même `project_id`) et renvoie les URLs.
+    À appeler après l’analyse SSE (même corps que POST /rapport) : les boutons front n’ont plus qu’à ouvrir ces liens.
+
+    Si Storage est indisponible : `carte_url` / `pdf_url` pointent vers des URLs temporaires de cette API.
+    """
+    warnings: List[str] = []
+    try:
+        result = _build_result_dict_from_rapport_payload(payload)
+        geom = payload.geometry if payload.geometry is not None else result.get("geometry")
+        if not isinstance(geom, dict) or "type" not in geom:
+            raise HTTPException(
+                status_code=400,
+                detail="Géométrie GeoJSON requise pour publier la carte (envoyer `geometry` dans le corps).",
+            )
+
+        base = _public_api_base_url(request)
+        res_map = generate_identite_fonciere_map_html(
+            geometry=geom,
+            commune=payload.commune,
+            insee=payload.insee,
+            srid=payload.srid or result.get("srid"),
+            intersections=result.get("intersections"),
+        )
+        html = res_map["html"]
+        token_map = _map_html_cache_put(html)
+        carte_url_temp = f"{base}/api/identite-fonciere/map/view/{token_map}"
+
+        project_id = new_project_id()
+        carte_url = carte_url_temp
+        if _identite_storage_upload_enabled():
+            try:
+                carte_url = upload_html_carte(project_id, html)
+                carte_url = _prefer_identite_proxy_url(
+                    request, project_id, "carte.html", carte_url
+                )
+            except Exception as exc:
+                warnings.append(f"Carte Storage : {exc}")
+                _logger.warning("Upload Storage carte (publier) : %s", exc)
+                carte_url = carte_url_temp
+        else:
+            warnings.append("IDENTITE_FONCIERE_STORAGE_UPLOAD désactivé : URL carte temporaire.")
+
+        result["carte_web_url"] = carte_url
+
+        output_dir = payload.output_dir or "./rapports_identite"
+        pdf_path = generate_rapport_pdf(
+            result,
+            output_dir=output_dir,
+            catalogue=CATALOGUE,
+        )
+
+        pdf_url: str | None = None
+        if _identite_storage_upload_enabled():
+            try:
+                pdf_url = upload_pdf_rapport(project_id, pdf_path)
+                pdf_url = _prefer_identite_proxy_url(
+                    request,
+                    project_id,
+                    "rapport_identite_fonciere.pdf",
+                    pdf_url,
+                )
+            except Exception as exc:
+                warnings.append(f"PDF Storage : {exc}")
+                _logger.warning("Upload Storage PDF (publier) : %s", exc)
+                pdf_url = _rapport_pdf_cache_put(pdf_path, base)
+        else:
+            pdf_url = _rapport_pdf_cache_put(pdf_path, base)
+
+        return PublierIdentiteResponse(
+            success=True,
+            carte_project_id=project_id,
+            carte_url=carte_url,
+            pdf_url=pdf_url,
+            error=None,
+            warnings=warnings or None,
+        )
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        _logger.exception("Échec POST /publier identité foncière")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router_fonciere.post("/rapport")
@@ -283,41 +693,10 @@ async def rapport_fonciere(payload: RapportFonciereRequest):
     Sinon : lance l'analyse complète puis génère le PDF.
     """
     try:
-        if payload.intersections:
-            ref_parcelle = payload.parcelle or "UNITE_FONCIERE"
-            result = {
-                "parcelle": ref_parcelle,
-                "commune": payload.commune,
-                "insee": payload.insee or "",
-                "nb_intersections": len(payload.intersections),
-                "intersections": [i.model_dump() for i in payload.intersections],
-            }
-            pcs = payload.parcelles_cadastrales
-            if pcs:
-                result["parcelles_cadastrales"] = [p.model_dump() for p in pcs]
-            cs = payload.couches_synthese
-            if cs:
-                result["couches_synthese"] = [c.model_dump() for c in cs]
-        elif payload.geometry is not None:
-            result = analyser_identite_fonciere(
-                geometry=payload.geometry,
-                commune=payload.commune,
-                insee=payload.insee,
-                srid=payload.srid,
-            )
-            pcs = payload.parcelles_cadastrales
-            if pcs:
-                result["parcelles_cadastrales"] = [p.model_dump() for p in pcs]
-            if payload.parcelle:
-                result["parcelle"] = payload.parcelle
-            cs = payload.couches_synthese
-            if cs:
-                result["couches_synthese"] = [c.model_dump() for c in cs]
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail="Fournir `intersections` ou `geometry` pour générer le rapport.",
-            )
+        result = _build_result_dict_from_rapport_payload(payload)
+
+        if payload.carte_web_url and str(payload.carte_web_url).strip():
+            result["carte_web_url"] = str(payload.carte_web_url).strip()
 
         output_dir = payload.output_dir or "./rapports_identite"
         pdf_path = generate_rapport_pdf(
@@ -332,7 +711,10 @@ async def rapport_fonciere(payload: RapportFonciereRequest):
             filename=Path(pdf_path).name,
         )
 
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        _logger.exception("Échec génération rapport PDF identité foncière")
         raise HTTPException(status_code=500, detail=str(e))
