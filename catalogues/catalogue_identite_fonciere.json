@@ -1,19 +1,21 @@
 {
     "a4": {
-      "nom": "Servitudes A4",
+      "nom": "Servitudes A4 - Cours d'eau",
       "type": "servitude",
       "keep": [
-        "reglementation"
+        "reglementation",
+        "toponyme"
       ],
       "clean_attributes": [
-        "Réglementation"
+        "Réglementation",
+        "Nom"
       ],
       "origine": "shp",
       "article": "4",
       "geom_type": "lineaire"
     },
     "ac1": {
-      "nom": "Servitudes AC1",
+      "nom": "Servitudes AC1 - Monuments historiques",
       "type": "servitude",
       "keep": [
         "nomsuplitt",
@@ -125,7 +127,7 @@
       "geom_type": "lineaire"
     },
     "i1_hydrocarbure_chimique_gaz": {
-      "nom": "Servitudes I1 – Hydrocarbures, chimiques et gaz",
+      "nom": "Servitudes I1 – Hydrocarbures",
       "type": "servitude",
       "keep": [
         "cat_fluide",
@@ -140,7 +142,7 @@
       "geom_type": "surfacique"
     },
     "i6": {
-      "nom": "Servitudes I6 - Exploitation mines et carrières",
+      "nom": "Servitudes I6 - Mines et carrières",
       "type": "servitude",
       "keep": [
         "reglementation"
@@ -211,11 +213,13 @@
       "keep": [
         "zonage_reglement",
         "libelle_description",
+        "libelle",
         "reglementation"
       ],
       "clean_attributes": [
         "Zonage",
         "Description du libellé",
+        "Libellé",
         "Réglementation"
       ],
       "origine": "wfs",
@@ -271,7 +275,7 @@
       "geom_type": "surfacique"
     },
     "pt3": {
-      "nom": "Servitudes PT3",
+      "nom": "Servitudes PT3 - Réseaux télécommunications",
       "type": "servitude",
       "keep": [
         "nom_sup",
@@ -446,7 +450,7 @@
       "geom_type": "lineaire"
     },
     "zaenr_zones": {
-      "nom": "Zones ZAENR",
+      "nom": "Zone d'Accélération des Energies Renouvelables (ZAEnR)",
       "type": "information",
       "keep": [
         "detail_fil",
@@ -497,7 +501,7 @@
       "geom_type": "surfacique"
     },
     "seveso_buffers": {
-      "nom": "RISQUES TECHNOLOGIQUES - SEVESO",
+      "nom": "Périmètre SEVESO - Procédure de participation",
       "type": "information",
       "keep": [
         "nom_ets",
@@ -520,7 +524,7 @@
       "geom_type": "surfacique"
     },
     "el3_garonne": {
-      "nom": "Servitudes domaine public fluvial (EL3)",
+      "nom": "Servitude EL3 - Domaine public fluvial",
       "type": "servitude",
       "keep": [
         "reglementation"
@@ -541,7 +545,7 @@
         "reglementation"
       ],
       "clean_attributes": [
-        "Tension",
+        "Tension (kV)",
         "Type",
         "Réglementation"
       ],
@@ -587,7 +591,7 @@
     },
     "pprmvt_latresne": {
       "nom": "PPRMVT",
-      "type": "prescription",
+      "type": "information",
       "origine": "shp",
       "keep": [
         "etiquette",
@@ -609,7 +613,7 @@
         "Zone_Reg_1",
         "Réglementation"
       ],
-      "article": "5",
+      "article": "7",
       "geom_type": "surfacique"
     }
   }

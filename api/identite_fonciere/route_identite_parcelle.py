@@ -25,6 +25,7 @@ from .identite_fonciere import (
 from .carte_identite_fonciere import generate_identite_fonciere_map_html
 from .sse_identite_fonciere import iter_identite_fonciere_sse_chunks, sse_error_chunk
 from .pdf.rapport_identite_fonciere import generate_rapport_pdf
+from . import identite_fonciere_history as identite_fonciere_history_module
 from .storage_et_urls import (
     new_project_id,
     object_path,
@@ -212,6 +213,15 @@ class RapportFonciereRequest(BaseModel):
         default=None,
         validation_alias=AliasChoices("couches_synthese", "couchesSynthese"),
     )
+    # Optionnel : pour rattacher la publication à l’utilisateur (historique CIF, même logique que les pipelines CUA).
+    user_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("user_id", "userId"),
+    )
+    user_email: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("user_email", "userEmail"),
+    )
 
 
 class IdentiteFonciereMapResponse(BaseModel):
@@ -245,6 +255,10 @@ class PublierIdentiteResponse(BaseModel):
     pdf_url: str | None = None
     error: str | None = None
     warnings: List[str] | None = None
+    history_recorded: bool | None = Field(
+        default=None,
+        description="True si une ligne a été créée dans latresne.identite_fonciere_projects",
+    )
 
 
 def _build_result_dict_from_rapport_payload(payload: RapportFonciereRequest) -> Dict[str, Any]:
@@ -404,6 +418,39 @@ async def intersect_fonciere_stream(payload: IdentiteFonciereRequest):
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router_fonciere.get("/history/by_user")
+def identite_fonciere_history_by_user(user_id: str, limit: int = 50):
+    """
+    Liste les publications CIF d’un utilisateur (carte + PDF), avec centroïde pour la carte.
+    Même usage que GET /pipelines/by_user pour le front (session Supabase → user.id).
+    """
+    return identite_fonciere_history_module.list_identite_fonciere_projects_by_user(
+        user_id, limit=limit
+    )
+
+
+@router_fonciere.delete("/history/{project_id}")
+def delete_identite_fonciere_history_entry(project_id: str, user_id: str):
+    """
+    Supprime une publication CIF pour l’utilisateur : ligne `latresne.identite_fonciere_projects`
+    et fichiers du dossier Storage `{project_id}/` (carte HTML, PDF, etc.).
+    """
+    pid = project_id.strip()
+    if not _IF_PROJECT_ID_RE.match(pid):
+        raise HTTPException(status_code=404, detail="Ressource introuvable.")
+    uid = (user_id or "").strip()
+    if not uid:
+        raise HTTPException(status_code=400, detail="Paramètre user_id requis.")
+
+    res = identite_fonciere_history_module.delete_identite_fonciere_project_for_user(pid, uid)
+    if not res.get("success"):
+        err = str(res.get("error") or "Échec suppression")
+        if "introuvable" in err.lower() or "refusé" in err.lower():
+            raise HTTPException(status_code=404, detail=err)
+        raise HTTPException(status_code=400, detail=err)
+    return res
 
 
 @router_fonciere.get("/map/view/{token}", response_class=HTMLResponse)
@@ -682,6 +729,21 @@ async def publier_identite_fonciere(request: Request, payload: RapportFonciereRe
         else:
             pdf_url = _rapport_pdf_cache_put(pdf_path, base)
 
+        history_recorded = identite_fonciere_history_module.record_identite_fonciere_project(
+            project_id=project_id,
+            user_id=(payload.user_id or "").strip() or None,
+            user_email=(payload.user_email or "").strip() or None,
+            commune=str(payload.commune or ""),
+            insee=str(payload.insee or ""),
+            parcelle_label=(result.get("parcelle") or None),
+            parcelles_cadastrales=result.get("parcelles_cadastrales"),
+            geometry=geom,
+            srid=payload.srid or result.get("srid"),
+            carte_url=carte_url or "",
+            pdf_url=pdf_url or "",
+            nb_intersections=int(result.get("nb_intersections") or 0),
+        )
+
         return PublierIdentiteResponse(
             success=True,
             carte_project_id=project_id,
@@ -689,6 +751,7 @@ async def publier_identite_fonciere(request: Request, payload: RapportFonciereRe
             pdf_url=pdf_url,
             error=None,
             warnings=warnings or None,
+            history_recorded=history_recorded,
         )
     except HTTPException:
         raise

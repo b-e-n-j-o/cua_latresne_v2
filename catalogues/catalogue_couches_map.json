@@ -101,7 +101,7 @@
       "type": "Informations",
       "keep": [
         "libelle",
-        "laius_reglement"
+        "reglementation"
       ],
       "origine": "wfs",
       "article": "9",

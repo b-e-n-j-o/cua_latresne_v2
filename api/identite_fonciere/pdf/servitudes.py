@@ -3,7 +3,7 @@ Carte regroupée des couches « servitude » du catalogue identité foncière + 
 
 - Carte : fond satellite, UF, parcelles cadastrales de l’UF, tracés des entités (buffer).
 - Légende : une couleur par couche représentée sur la carte.
-- Tableau : une ligne par couche dont l’UF intersecte au moins une entité (sinon pas de section).
+- Tableau : une ligne par couche dont l’UF intersecte au moins une entité (libellé seul, sans comptage ; sinon pas de section).
 
 Le PPRI (`pm1_detaillee_gironde`) est exclu de cette carte (page PPRI dédiée).
 """
@@ -452,12 +452,12 @@ def build_servitudes_section_flowables(
     map_png_path: str,
     *,
     table_width: float,
-    rows: List[Tuple[str, int]],
+    layer_keys: List[str],
     display_names: Dict[str, str],
     c_kerelia_light: Any,
     c_border: Any,
 ) -> List[Any]:
-    """rows: (table_key, count) — uniquement couches intersectant l’UF."""
+    """layer_keys : clés catalogue des couches intersectant l’UF (ordre fourni)."""
     pp = Path(map_png_path)
     if not pp.is_file():
         return []
@@ -516,7 +516,7 @@ def build_servitudes_section_flowables(
     flow.append(Spacer(1, 10))
     flow.append(Image(str(pp), width=img_w, height=img_h))
 
-    if rows:
+    if layer_keys:
         flow.append(Spacer(1, 12))
         flow.append(
             Paragraph(
@@ -525,20 +525,12 @@ def build_servitudes_section_flowables(
             )
         )
         flow.append(Spacer(1, 4))
-        hdr = [
-            Paragraph(xml_escape("Servitude"), ps_lbl),
-            Paragraph(xml_escape("Nb Entités)"), ps_lbl),
-        ]
+        hdr = [Paragraph(xml_escape("Servitude"), ps_lbl)]
         trows: List[List[Any]] = [hdr]
-        for table_key, n in rows:
+        for table_key in layer_keys:
             nom = display_names.get(table_key, table_key)
-            trows.append(
-                [
-                    Paragraph(xml_escape(nom), ps_val),
-                    Paragraph(xml_escape(str(int(n))), ps_val),
-                ]
-            )
-        tbl = Table(trows, colWidths=[tw * 0.72, tw * 0.28])
+            trows.append([Paragraph(xml_escape(nom), ps_val)])
+        tbl = Table(trows, colWidths=[tw])
         tbl.setStyle(
             TableStyle(
                 [
@@ -567,10 +559,10 @@ def generate_servitudes_visuals_from_uf_geometry(
     insee: str = "",
     parcelles_cadastrales: Optional[list[dict[str, Any]]] = None,
     catalogue: Optional[Dict[str, Any]] = None,
-) -> Optional[Tuple[str, List[Tuple[str, int]], Dict[str, str]]]:
+) -> Optional[Tuple[str, List[str], Dict[str, str]]]:
     """
-    Retourne (chemin PNG, liste (table_key, count_UF), display_names) si au moins une
-    couche servitude intersecte l’UF ; sinon None.
+    Retourne (chemin PNG, clés des couches intersectant l’UF triées par libellé, display_names)
+    si au moins une couche servitude intersecte l’UF ; sinon None.
     """
     entries = servitude_catalog_entries(catalogue)
     if not entries:
@@ -666,17 +658,17 @@ def generate_servitudes_visuals_from_uf_geometry(
         parcelles_cadastrales_gdf=parcelles_pc_gdf if not parcelles_pc_gdf.empty else None,
     )
 
-    table_rows = sorted(
-        [(k, intersecting[k]) for k in intersecting],
-        key=lambda x: display_names.get(x[0], x[0]).lower(),
+    layer_keys_ordered = sorted(
+        intersecting.keys(),
+        key=lambda k: display_names.get(k, k).lower(),
     )
-    return map_path, table_rows, display_names
+    return map_path, layer_keys_ordered, display_names
 
 
 def build_servitudes_flowables_for_report(
     *,
     map_png_path: str,
-    table_rows: List[Tuple[str, int]],
+    layer_keys: List[str],
     display_names: Dict[str, str],
     table_width: float,
     c_kerelia_light: Any,
@@ -685,7 +677,7 @@ def build_servitudes_flowables_for_report(
     return build_servitudes_section_flowables(
         map_png_path,
         table_width=table_width,
-        rows=table_rows,
+        layer_keys=layer_keys,
         display_names=display_names,
         c_kerelia_light=c_kerelia_light,
         c_border=c_border,

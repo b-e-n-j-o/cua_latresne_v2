@@ -17,6 +17,7 @@ from admin_routes import router as admin_router
 from api.communes import router as communes_router
 from api.departements import router as departements_router
 from api.generate_dpe import router as dpe_router
+import api.identite_fonciere.identite_fonciere_history as identite_fonciere_history_module
 from api.identite_fonciere.route_identite_parcelle import (
     router as identite_parcelle_router,
     router_fonciere as identite_fonciere_router,
@@ -60,6 +61,7 @@ logging.basicConfig(
 
 cua_docx_viewer_routes.supabase = supabase
 centroid_history_module.supabase = supabase
+identite_fonciere_history_module.supabase = supabase
 suivi_module.supabase = supabase
 project_management_module.supabase = supabase
 project_directory_module.supabase = supabase

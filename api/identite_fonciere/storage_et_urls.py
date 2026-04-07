@@ -70,7 +70,7 @@ import os
 import re
 import uuid
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 # Client lazy pour éviter l’import au chargement du module si non utilisé
 _supabase_client: Any = None
@@ -227,6 +227,47 @@ def upload_html_carte_from_file(project_id: str, html_path: str | Path, *, filen
     return upload_html_carte(project_id, p.read_text(encoding="utf-8"), filename=name)
 
 
+def delete_identite_fonciere_storage_prefix(project_id: str) -> List[str]:
+    """
+    Supprime les objets sous `{project_id}/` dans le bucket identité foncière
+    (liste Storage + chemins connus carte.html / rapport PDF).
+    Retourne les chemins effectivement supprimés (relatifs au bucket).
+    """
+    pid = _sanitize_segment(project_id).strip("/")
+    if not pid:
+        return []
+    client = get_supabase_client()
+    bucket = _bucket_name()
+    storage = client.storage.from_(bucket)
+    paths_set: set[str] = set()
+    try:
+        entries = storage.list(pid)
+        for item in entries or []:
+            if isinstance(item, dict):
+                name = item.get("name")
+            else:
+                name = getattr(item, "name", None)
+            if name and str(name).strip():
+                paths_set.add(f"{pid}/{_sanitize_segment(str(name))}")
+    except Exception:
+        pass
+    paths_set.add(object_path(pid, "carte.html"))
+    paths_set.add(object_path(pid, "rapport_identite_fonciere.pdf"))
+    paths = list(paths_set)
+    removed: List[str] = []
+    try:
+        storage.remove(paths)
+        return paths
+    except Exception:
+        for p in paths:
+            try:
+                storage.remove([p])
+                removed.append(p)
+            except Exception:
+                continue
+        return removed
+
+
 __all__ = [
     "friendly_identite_asset_url",
     "get_supabase_client",
@@ -238,4 +279,5 @@ __all__ = [
     "upload_html_carte",
     "upload_pdf_rapport",
     "upload_html_carte_from_file",
+    "delete_identite_fonciere_storage_prefix",
 ]

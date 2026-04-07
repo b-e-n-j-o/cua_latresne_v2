@@ -1084,10 +1084,12 @@ def generate_rapport_pdf(
                 'carte_web_url' ou 'map_url' (lien https vers la carte 2D),
                 'surface_uf_m2' (nombre, sinon calcul depuis geometry).
                 Avec 'geometry', génération optionnelle du PNG PLU combiné (carte + légende)
-                sur une page dédiée après la page de garde, et filtrage des zonages sous 1 %
-                pour la couche plu_latresne (la carto conserve le buffer 50 m).
+                sur une page dédiée après la page de garde (tableau libellés / libellés détaillés /
+                descriptions après la carte, filtre ≥ 1 % comme le corps du rapport), et filtrage
+                des zonages sous 1 % pour la couche plu_latresne (la carto conserve le buffer 50 m).
                 Si l’UF intersecte le PPRI (`pm1_detaillee_gironde`), une page PPRI (carte +
-                légende % par codezone + laius) est insérée après la page PLU (typiquement page 3).
+                légende % par codezone, tableau d’absorption si des zones ont été absorbées, + laius)
+                est insérée après la page PLU (typiquement page 3).
                 Si au moins une couche « servitude » du catalogue intersecte l’UF, une page
                 regroupée (carte + légende + tableau) est insérée après le PPRI ; le PPRI cartographique
                 n’y figure pas (page PPRI dédiée).
@@ -1125,8 +1127,9 @@ def generate_rapport_pdf(
     pct_stats: Dict[str, float] = {}
     ppri_map_png_path: Optional[str] = None
     ppri_pct_stats: Dict[str, float] = {}
+    ppri_absorption: Any = None  # section_ppri.AbsorptionResult si visuels PPRI générés
     servitudes_map_png_path: Optional[str] = None
-    servitudes_table_rows: List[Tuple[str, int]] = []
+    servitudes_layer_keys: List[str] = []
     servitudes_display_names: Dict[str, str] = {}
     preemption_map_png_path: Optional[str] = None
     preemption_reglementation_texts: List[str] = []
@@ -1188,7 +1191,12 @@ def generate_rapport_pdf(
                 parcelles_cadastrales=pcs,
             )
             if ppri_out:
-                ppri_map_png_path, ppri_pct_stats, _ppri_par_detail = ppri_out
+                (
+                    ppri_map_png_path,
+                    ppri_pct_stats,
+                    _ppri_par_detail,
+                    ppri_absorption,
+                ) = ppri_out
                 result["ppri_map_png"] = ppri_map_png_path
                 result["ppri_pct_stats"] = ppri_pct_stats
         except Exception as exc:
@@ -1205,9 +1213,9 @@ def generate_rapport_pdf(
                 parcelles_cadastrales=pcs,
             )
             if serv_out:
-                servitudes_map_png_path, servitudes_table_rows, servitudes_display_names = serv_out
+                servitudes_map_png_path, servitudes_layer_keys, servitudes_display_names = serv_out
                 result["servitudes_map_png"] = servitudes_map_png_path
-                result["servitudes_table_rows"] = servitudes_table_rows
+                result["servitudes_table_rows"] = servitudes_layer_keys
                 result["servitudes_display_names"] = servitudes_display_names
         except Exception as exc:
             logger.warning("Visuels servitudes indisponibles : %s", exc, exc_info=True)
@@ -1319,14 +1327,16 @@ def generate_rapport_pdf(
     )
     if plu_map_png_path:
         story.append(PageBreak())
+        from .plu_visuels import (
+            MIN_PCT_ZONAGE_URBAIN,
+            fetch_laius_reglement_par_zonages,
+            plu_zonage_table_rows_from_intersections,
+        )
+
         plu_laius_map: Dict[str, str] = {}
+        plu_zonage_tbl = plu_zonage_table_rows_from_intersections(intersections)
         if pct_stats:
             try:
-                from .plu_visuels import (
-                    MIN_PCT_ZONAGE_URBAIN,
-                    fetch_laius_reglement_par_zonages,
-                )
-
                 # Même seuil que le filtre plu_latresne / réglementation : ≥ 1 % (surface UF)
                 zonages_pour_laius = [
                     z
@@ -1345,6 +1355,7 @@ def generate_rapport_pdf(
                 c_kerelia_green=C_KERELIA_GREEN,
                 c_kerelia_light=C_KERELIA_LIGHT,
                 zonage_laius=plu_laius_map or None,
+                plu_zonage_table_rows=plu_zonage_tbl or None,
                 c_border=C_BORDER,
                 c_laius_header_bg=C_BG_ARTICLE,
             )
@@ -1364,17 +1375,18 @@ def generate_rapport_pdf(
                 c_kerelia_light=C_KERELIA_LIGHT,
                 c_border=C_BORDER,
                 c_laius_header_bg=C_BG_ARTICLE,
+                absorption=ppri_absorption,
             )
         )
 
-    if servitudes_map_png_path and servitudes_table_rows:
+    if servitudes_map_png_path and servitudes_layer_keys:
         from .servitudes import build_servitudes_flowables_for_report
 
         story.append(PageBreak())
         story.extend(
             build_servitudes_flowables_for_report(
                 map_png_path=servitudes_map_png_path,
-                table_rows=servitudes_table_rows,
+                layer_keys=servitudes_layer_keys,
                 display_names=servitudes_display_names,
                 table_width=cover_w,
                 c_kerelia_light=C_KERELIA_LIGHT,

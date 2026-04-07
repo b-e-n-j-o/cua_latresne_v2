@@ -23,6 +23,7 @@ Intégration programmatique :
     from plu_visuels import generate_plu_visuals, generate_plu_visuals_from_uf_geometry
     map_path, map_png_compat, pct_stats = generate_plu_visuals(...)
     # UF + PDF : generate_plu_visuals_from_uf_geometry renvoie aussi parcelles_uf_detail (liste dicts).
+    # Le PDF page PLU peut enrichir avec plu_zonage_table_rows_from_intersections (tableau libellés).
 """
 
 from __future__ import annotations
@@ -188,6 +189,51 @@ def filter_plu_latresne_layer_for_report(
     if not kept and elems:
         out["_plu_all_zonages_below_min_pct"] = True
     return out
+
+
+def plu_zonage_table_rows_from_intersections(
+    intersections: List[dict[str, Any]],
+) -> List[dict[str, str]]:
+    """
+    Lignes pour le tableau PDF (page PLU après la carte) : une ligne par `zonage_reglement`
+    distinct parmi les éléments déjà filtrés (≥ seuil % surface UF, comme le corps du rapport).
+
+    Chaque dict contient : ``zonage_reglement``, ``libelle``, ``libelle_description``.
+    """
+    for layer in intersections:
+        if (layer.get("table") or "").strip() != PLU_LATRESNE_TABLE:
+            continue
+        if layer.get("_plu_all_zonages_below_min_pct"):
+            return []
+        order: list[str] = []
+        acc: dict[str, dict[str, str]] = {}
+        for el in layer.get("elements") or []:
+            if not isinstance(el, dict):
+                continue
+            z = el.get("zonage_reglement") if "zonage_reglement" in el else el.get("Zonage")
+            z = str(z).strip() if z is not None else ""
+            if not z:
+                continue
+            lib_raw = el.get("libelle")
+            lib = str(lib_raw).strip() if lib_raw is not None else ""
+            desc_raw = el.get("libelle_description")
+            desc = str(desc_raw).strip() if desc_raw is not None else ""
+            if z not in acc:
+                order.append(z)
+                acc[z] = {
+                    "zonage_reglement": z,
+                    "libelle": lib,
+                    "libelle_description": desc,
+                }
+            else:
+                if lib and not acc[z]["libelle"]:
+                    acc[z]["libelle"] = lib
+                if desc and not acc[z]["libelle_description"]:
+                    acc[z]["libelle_description"] = desc
+        rows = [acc[k] for k in order]
+        rows.sort(key=lambda r: r["zonage_reglement"].lower())
+        return rows
+    return []
 
 
 # ---------------------------------------------------------------------------
