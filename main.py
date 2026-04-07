@@ -8,6 +8,10 @@ load_dotenv()
 
 import logging
 import os
+import sys
+from datetime import datetime, timezone
+
+import requests
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -59,6 +63,37 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
 )
 
+_logger = logging.getLogger(__name__)
+
+
+def _slack_deploy_webhook() -> str:
+    """URL Slack Incoming Webhook (secret) — définir SLACK_DEPLOY_WEBHOOK sur Render, pas dans le code."""
+    return (os.getenv("SLACK_DEPLOY_WEBHOOK") or os.getenv("SLACK_WEBHOOK_URL") or "").strip()
+
+
+def notify_slack(message: str) -> None:
+    url = _slack_deploy_webhook()
+    if not url:
+        return
+    try:
+        requests.post(url, json={"text": message}, timeout=10)
+    except Exception as e:
+        _logger.warning("Slack notification failed: %s", e)
+
+
+def _slack_excepthook(exc_type, exc_value, exc_traceback):
+    if exc_type is KeyboardInterrupt:
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    try:
+        notify_slack(f"Erreur non gérée (processus principal) : {exc_value!s}")
+    except Exception:
+        pass
+    sys.__excepthook__(exc_type, exc_value, exc_traceback)
+
+
+sys.excepthook = _slack_excepthook
+
 cua_docx_viewer_routes.supabase = supabase
 centroid_history_module.supabase = supabase
 identite_fonciere_history_module.supabase = supabase
@@ -67,6 +102,13 @@ project_management_module.supabase = supabase
 project_directory_module.supabase = supabase
 
 app = FastAPI(title="Kerelia CUA API", version="2.1")
+
+
+@app.on_event("startup")
+async def notify_slack_deploy_ok():
+    """Un message à chaque démarrage réussi (déploiement Render ou redémarrage du service)."""
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    notify_slack(f"Backend Kerelia CUA démarré avec succès — {ts}")
 
 
 @app.on_event("startup")
