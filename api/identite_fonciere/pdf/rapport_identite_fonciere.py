@@ -672,19 +672,6 @@ def _build_layer_block(
                 "Intersection détectée (données attributaires non disponibles)",
                 styles["no_intersection"],
             )
-    elif not filtered_elements:
-        if layer.get("_plu_all_zonages_below_min_pct"):
-            attr_block = Paragraph(
-                "Les zonages PLU visibles sur la carte (contexte 50 m, page de garde) "
-                "représentent chacun moins de 1 % de la surface d'étude : le détail "
-                "réglementaire n'est pas reproduit ici.",
-                styles["no_intersection"],
-            )
-        else:
-            attr_block = Paragraph(
-                "Intersection détectée (données attributaires non disponibles)",
-                styles["no_intersection"],
-            )
     elif _pdf_keep_only_reglementation(layer):
         # Cas catalogue: keep ne contient que `reglementation` / `laius_reglement`.
         # On affiche un décompte simple (la réglementation détaillée reste en annexe).
@@ -712,6 +699,19 @@ def _build_layer_block(
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
             ("FONTSIZE", (0, 0), (-1, 0), 8),
         ]))
+    elif not filtered_elements:
+        if layer.get("_plu_all_zonages_below_min_pct"):
+            attr_block = Paragraph(
+                "Les zonages PLU visibles sur la carte (contexte 50 m, page de garde) "
+                "représentent chacun moins de 1 % de la surface d'étude : le détail "
+                "réglementaire n'est pas reproduit ici.",
+                styles["no_intersection"],
+            )
+        else:
+            attr_block = Paragraph(
+                "Intersection détectée (données attributaires non disponibles)",
+                styles["no_intersection"],
+            )
     else:
         table_elements = filtered_elements
         n_tab = len(filtered_elements)
