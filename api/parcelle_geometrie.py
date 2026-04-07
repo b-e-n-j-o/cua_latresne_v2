@@ -160,8 +160,8 @@ def uf_geometrie(payload: UFRequest):
     if not payload.parcelles:
         raise HTTPException(400, "Aucune parcelle fournie pour l'unité foncière")
 
-    if len(payload.parcelles) > 5:
-        raise HTTPException(400, "Une unité foncière ne peut pas dépasser 5 parcelles.")
+    if len(payload.parcelles) > 20:
+        raise HTTPException(400, "Une unité foncière ne peut pas dépasser 20 parcelles.")
 
     # Priorité au code INSEE si fourni, sinon utiliser le nom de commune
     if payload.code_insee:
