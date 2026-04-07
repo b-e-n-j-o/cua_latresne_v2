@@ -452,6 +452,20 @@ def _pdf_keep_effectif_vide(layer: Dict[str, Any]) -> bool:
     return not any(isinstance(k, str) and k.strip() for k in keep)
 
 
+def _pdf_keep_only_reglementation(layer: Dict[str, Any]) -> bool:
+    """
+    True si `keep` est renseigné mais ne contient QUE des attributs longs de réglementation
+    (ex. `reglementation`, `laius_reglement`) qui sont envoyés en annexe et pas dans le tableau.
+    """
+    keep = layer.get("keep")
+    if not isinstance(keep, list):
+        return False
+    keys = [str(k).strip().lower() for k in keep if isinstance(k, str) and str(k).strip()]
+    if not keys:
+        return False
+    return all(k in _PDF_TABLE_SKIP_LONG_ATTRS for k in keys)
+
+
 def _group_by_key_from_layer(layer: Dict[str, Any], elements: List[Dict[str, Any]]) -> Optional[str]:
     """
     Détermine la clé de groupement effective à utiliser dans le PDF.
@@ -671,6 +685,33 @@ def _build_layer_block(
                 "Intersection détectée (données attributaires non disponibles)",
                 styles["no_intersection"],
             )
+    elif _pdf_keep_only_reglementation(layer):
+        # Cas catalogue: keep ne contient que `reglementation` / `laius_reglement`.
+        # On affiche un décompte simple (la réglementation détaillée reste en annexe).
+        cnt = len(elements)
+        rows = [
+            [
+                Paragraph("<b>Couche</b>", styles["attr_key"]),
+                Paragraph("<b>Nombre d'entités intersectées</b>", styles["attr_key"]),
+            ],
+            [
+                Paragraph(xml_escape(str(display_name)), styles["attr_val"]),
+                Paragraph(str(cnt), styles["attr_val"]),
+            ],
+        ]
+        attr_block = Table(rows, colWidths=[inner_w * 0.68, inner_w * 0.32], repeatRows=1)
+        attr_block.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E8F5EE")),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CCDDCC")),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F7FCF9")]),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, 0), 8),
+        ]))
     else:
         table_elements = filtered_elements
         n_tab = len(filtered_elements)

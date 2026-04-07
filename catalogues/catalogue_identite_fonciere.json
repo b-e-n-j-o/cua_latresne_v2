@@ -102,11 +102,9 @@
       "nom": "Galeries et piliers souterrains",
       "type": "information",
       "keep": [
-        "objectid",
         "reglementation"
       ],
       "clean_attributes": [
-        "Galerie",
         "Réglementation"
       ],
       "origine": "wfs",
