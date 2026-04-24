@@ -20,8 +20,8 @@ Endpoints :
     GET /admin/parcelles/status/{job_id}       # suivre l'avancement
 """
 
+import logging
 import os
-import asyncio
 import uuid
 import time
 import requests
@@ -52,6 +52,8 @@ NOUVELLE_AQUITAINE = ["16", "17", "19", "23", "24", "33", "40", "47", "64", "79"
 
 # Store en mémoire des jobs (en prod : remplacer par Redis ou table Supabase)
 JOBS: dict[str, dict] = {}
+
+logger = logging.getLogger(__name__)
 
 # ─── ROUTER ───────────────────────────────────────────────────────────────────
 
@@ -88,20 +90,28 @@ def get_engine():
 
 
 def fetch_commune_geojson(insee: str) -> list[dict] | None:
+    url = ETALAB_COMMUNE.format(insee=insee)
     try:
-        r = requests.get(ETALAB_COMMUNE.format(insee=insee), timeout=120)
+        r = requests.get(url, timeout=120)
         r.raise_for_status()
-        return r.json().get("features", [])
+        feats = r.json().get("features", [])
+        logger.info("Etalab commune %s : %d features (HTTP %s)", insee, len(feats), r.status_code)
+        return feats
     except Exception as e:
+        logger.warning("Etalab commune %s échoué (%s) : %s", insee, url, e)
         return None
 
 
 def fetch_dep_geojson(dep: str) -> list[dict] | None:
+    url = ETALAB_DEP.format(dep=dep)
     try:
-        r = requests.get(ETALAB_DEP.format(dep=dep), timeout=600)
+        r = requests.get(url, timeout=600)
         r.raise_for_status()
-        return r.json().get("features", [])
+        feats = r.json().get("features", [])
+        logger.info("Etalab département %s : %d features (HTTP %s)", dep, len(feats), r.status_code)
+        return feats
     except Exception as e:
+        logger.warning("Etalab département %s échoué (%s) : %s", dep, url, e)
         return None
 
 
@@ -158,21 +168,46 @@ UPSERT_SQL = text(f"""
 """)
 
 
-def upsert_rows(rows: list[dict], engine, dry_run: bool) -> tuple[int, int]:
+def upsert_rows(
+    rows: list[dict],
+    engine,
+    dry_run: bool,
+    job_id: str | None = None,
+) -> tuple[int, int]:
     """Retourne (upserted, errors)"""
     if dry_run or not rows:
         return len(rows), 0
 
+    prefix = f"[parcelles_ingest job={job_id}] " if job_id else "[parcelles_ingest] "
+    total = len(rows)
+    n_batches = (total + BATCH_SIZE - 1) // BATCH_SIZE
     upserted = 0
-    errors   = 0
+    errors = 0
     with engine.begin() as conn:
-        for i in range(0, len(rows), BATCH_SIZE):
-            batch = rows[i:i + BATCH_SIZE]
+        for bi, i in enumerate(range(0, len(rows), BATCH_SIZE)):
+            batch = rows[i : i + BATCH_SIZE]
             try:
                 conn.execute(UPSERT_SQL, batch)
                 upserted += len(batch)
+                logger.info(
+                    "%supsert lot %d/%d : %d lignes (cumul %d/%d)",
+                    prefix,
+                    bi + 1,
+                    n_batches,
+                    len(batch),
+                    upserted,
+                    total,
+                )
             except Exception as e:
                 errors += len(batch)
+                logger.exception(
+                    "%supsert lot %d/%d échoué (%d lignes) : %s",
+                    prefix,
+                    bi + 1,
+                    n_batches,
+                    len(batch),
+                    e,
+                )
     return upserted, errors
 
 
@@ -194,8 +229,11 @@ def resolve_communes(req: IngestRequest) -> tuple[list[str], str]:
 
 def run_ingest_job(job_id: str, req: IngestRequest):
     job = JOBS[job_id]
-    job["status"]     = "running"
+    job["status"] = "running"
     job["started_at"] = datetime.utcnow().isoformat()
+
+    def log_job(msg: str) -> None:
+        logger.info("[parcelles_ingest job=%s] %s", job_id, msg)
 
     engine = get_engine()
 
@@ -204,43 +242,72 @@ def run_ingest_job(job_id: str, req: IngestRequest):
     except ValueError as e:
         job["status"] = "error"
         job["errors"].append(str(e))
+        logger.error("[parcelles_ingest job=%s] configuration invalide : %s", job_id, e)
         return
 
     job["communes_total"] = len(targets)
     job["log"].append(f"Mode: {mode} — {len(targets)} cibles — dry_run={req.dry_run}")
+    log_job(
+        f"démarrage mode={mode} cibles={len(targets)} dry_run={req.dry_run} "
+        f"table={TARGET_TABLE} batch_size={BATCH_SIZE}"
+    )
 
     for i, target in enumerate(targets):
         label = f"[{i+1}/{len(targets)}] {mode} {target}"
         job["log"].append(f"{label} — fetch...")
+        log_job(f"{label} — fetch Etalab…")
 
+        t0 = time.perf_counter()
         if mode == "departement":
             features = fetch_dep_geojson(target)
         else:
             features = fetch_commune_geojson(target)
+        fetch_s = time.perf_counter() - t0
 
         if features is None:
             msg = f"{label} — ❌ fetch échoué"
             job["log"].append(msg)
             job["errors"].append(msg)
             job["communes_done"] += 1
+            log_job(f"{label} — fetch échoué après {fetch_s:.1f}s")
             continue
 
         job["log"].append(f"{label} — {len(features)} features, conversion...")
-        rows = features_to_rows(features)
+        log_job(f"{label} — fetch OK en {fetch_s:.1f}s, {len(features)} features, conversion…")
 
-        upserted, errs = upsert_rows(rows, engine, req.dry_run)
+        t1 = time.perf_counter()
+        rows = features_to_rows(features)
+        conv_s = time.perf_counter() - t1
+        skipped = len(features) - len(rows)
+        if skipped:
+            log_job(
+                f"{label} — conversion OK en {conv_s:.1f}s : {len(rows)} lignes "
+                f"({skipped} features ignorées géométrie)"
+            )
+        else:
+            log_job(f"{label} — conversion OK en {conv_s:.1f}s : {len(rows)} lignes")
+
+        upserted, errs = upsert_rows(rows, engine, req.dry_run, job_id=job_id)
+        if errs:
+            log_job(f"{label} — upsert : {upserted} OK, {errs} erreurs (lignes comptées en erreur)")
         job["parcelles_upserted"] += upserted
-        job["communes_done"]      += 1
+        job["communes_done"] += 1
 
         suffix = "(dry run)" if req.dry_run else f"→ {upserted} upsertées"
         job["log"].append(f"{label} — ✅ {len(rows)} parcelles {suffix}")
+        log_job(f"{label} — terminé {suffix}")
 
         if mode == "departement" and i < len(targets) - 1:
+            log_job(f"pause {PAUSE_BETWEEN_DEP}s avant prochain département")
             time.sleep(PAUSE_BETWEEN_DEP)
 
-    job["status"]      = "done"
+    job["status"] = "done"
     job["finished_at"] = datetime.utcnow().isoformat()
     job["log"].append(f"✅ Terminé — {job['parcelles_upserted']} parcelles upsertées")
+    log_job(
+        f"job terminé status=done parcelles_upserted={job['parcelles_upserted']} "
+        f"errors={len(job['errors'])}"
+    )
 
 
 # ─── ENDPOINTS ────────────────────────────────────────────────────────────────
@@ -280,6 +347,14 @@ async def ingest_parcelles(req: IngestRequest, background_tasks: BackgroundTasks
     }
 
     background_tasks.add_task(run_ingest_job, job_id, req)
+    logger.info(
+        "[parcelles_ingest job=%s] tâche background enqueued (communes=%s departements=%s na=%s dry_run=%s)",
+        job_id,
+        req.communes,
+        req.departements,
+        req.nouvelle_aquitaine,
+        req.dry_run,
+    )
 
     return {
         "job_id":  job_id,
