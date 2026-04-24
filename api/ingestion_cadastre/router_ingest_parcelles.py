@@ -27,7 +27,7 @@ import time
 import requests
 import geopandas as gpd
 from datetime import datetime
-from shapely.geometry import shape
+from shapely.geometry import shape, MultiPolygon, Polygon
 from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
@@ -122,6 +122,9 @@ def features_to_rows(features: list[dict]) -> list[dict]:
         insee = p.get("commune", "")
         try:
             geom_4326 = shape(f["geometry"])
+            # Etalab : parfois Polygon alors que la colonne PG attend MultiPolygon
+            if isinstance(geom_4326, Polygon):
+                geom_4326 = MultiPolygon([geom_4326])
             # Reprojection via GeoDataFrame (une seule feature)
             gdf = gpd.GeoDataFrame([{"geometry": geom_4326}], crs="EPSG:4326")
             geom_2154 = gdf.to_crs("EPSG:2154").geometry[0]
