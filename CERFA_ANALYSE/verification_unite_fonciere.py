@@ -5,18 +5,32 @@ Vérifie que les parcelles extraites forment une seule unité foncière contigu�
 Renvoie un rapport JSON clair utilisable par l'orchestrator avant le CUA builder.
 """
 
-import io, json, requests
+import json
+import os
+import psycopg2
 import geopandas as gpd
 from shapely.geometry import Polygon, MultiPolygon
 from shapely.prepared import prep
 from pathlib import Path
 
 # ============================================================
-# CONFIGURATION WFS
+# CONFIGURATION DB
 # ============================================================
-ENDPOINT = "https://data.geopf.fr/wfs/ows"
-LAYER = "CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle"
 SRS = "EPSG:2154"
+SUPABASE_HOST = str(os.getenv("SUPABASE_HOST") or "").strip().strip('"').strip("'")
+SUPABASE_PORT = str(os.getenv("SUPABASE_PORT") or "5432").strip().strip('"').strip("'")
+if "pooler.supabase.com" in SUPABASE_HOST.lower() and SUPABASE_PORT == "5432":
+    SUPABASE_PORT = "6543"
+
+
+def get_db_connection():
+    return psycopg2.connect(
+        host=SUPABASE_HOST,
+        dbname=os.getenv("SUPABASE_DB"),
+        user=os.getenv("SUPABASE_USER"),
+        password=os.getenv("SUPABASE_PASSWORD"),
+        port=int(SUPABASE_PORT),
+    )
 
 # ============================================================
 # FONCTION PRINCIPALE
@@ -34,31 +48,95 @@ def verifier_unite_fonciere(cerfa_json_path: str, code_insee: str, out_dir: str 
     if nb_parcelles > 20:
         return {"success": False, "message": f"Trop de parcelles ({nb_parcelles}). Veuillez limiter à 5 par unité foncière.", "groupes": []}
 
-    # Construction du filtre CQL
-    parcelle_conditions = [
-        f"(section='{p['section']}' AND numero='{p['numero']}')" for p in parcelles
-    ]
-    cql_filter = f"code_insee='{code_insee}' AND ({' OR '.join(parcelle_conditions)})"
+    requested = []
+    seen = set()
+    for p in parcelles:
+        section = str(p.get("section", "")).upper().strip()
+        numero = str(p.get("numero", "")).strip().zfill(4)
+        if not section or not numero:
+            continue
+        key = (section, numero)
+        if key in seen:
+            continue
+        seen.add(key)
+        requested.append(key)
 
-    params = {
-        "service": "WFS", "version": "2.0.0", "request": "GetFeature",
-        "typeNames": LAYER, "srsName": SRS,
-        "outputFormat": "application/json",
-        "CQL_FILTER": cql_filter
-    }
+    if not requested:
+        return {"success": False, "message": "Aucune référence cadastrale exploitable.", "groupes": []}
 
+    values_sql = ", ".join(["(%s, %s)"] * len(requested))
+    sql_params = []
+    for section, numero in requested:
+        sql_params.extend([section, numero])
+    sql_params.append(code_insee)
+
+    conn = None
+    cur = None
     try:
-        r = requests.get(ENDPOINT, params=params, timeout=30)
-        r.raise_for_status()
-        gdf = gpd.read_file(io.BytesIO(r.content))
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            f"""
+            WITH requested(section, numero) AS (
+                VALUES {values_sql}
+            )
+            SELECT
+                p.section,
+                p.numero,
+                p.contenance,
+                ST_AsText(p.geom_2154) AS geom_wkt
+            FROM requested r
+            JOIN latresne.parcelles_latresne p
+              ON UPPER(TRIM(p.section)) = r.section
+             AND LPAD(TRIM(p.numero), 4, '0') = r.numero
+             AND p.code_insee = %s
+             AND p.geom_2154 IS NOT NULL
+            """,
+            tuple(sql_params),
+        )
+        rows = cur.fetchall()
     except Exception as e:
-        return {"success": False, "message": f"Erreur WFS : {e}", "groupes": []}
+        return {"success": False, "message": f"Erreur base parcelles_latresne : {e}", "groupes": []}
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+    if not rows:
+        return {"success": False, "message": "Aucune géométrie de parcelle trouvée.", "groupes": []}
+
+    found_keys = {f"{str(r[0]).upper().strip()}-{str(r[1]).strip().zfill(4)}" for r in rows}
+    requested_keys = {f"{s}-{n}" for s, n in requested}
+    missing = sorted(requested_keys - found_keys)
+    if missing:
+        missing_h = ", ".join(k.replace("-", " ") for k in missing[:5])
+        if len(missing) > 5:
+            missing_h += ", ..."
+        return {
+            "success": False,
+            "message": f"Parcelle(s) introuvable(s) en base ({code_insee}) : {missing_h}",
+            "groupes": [],
+        }
+
+    records = []
+    for section, numero, contenance, geom_wkt in rows:
+        records.append(
+            {
+                "section": str(section or "").upper().strip(),
+                "numero": str(numero or "").strip().zfill(4),
+                "contenance": contenance,
+                "geometry": geom_wkt,
+            }
+        )
+
+    gdf = gpd.GeoDataFrame(records)
+    gdf["geometry"] = gpd.GeoSeries.from_wkt(gdf["geometry"])
+    gdf = gdf.set_geometry("geometry")
+    gdf.set_crs(SRS, inplace=True)
 
     if gdf.empty:
         return {"success": False, "message": "Aucune géométrie de parcelle trouvée.", "groupes": []}
-
-    if gdf.crs is None or gdf.crs.to_string() != SRS:
-        gdf = gdf.to_crs(SRS)
 
     gdf = gdf.rename(columns={"geometry": "geom_2154"}).set_geometry("geom_2154")
     
@@ -83,7 +161,7 @@ def verifier_unite_fonciere(cerfa_json_path: str, code_insee: str, out_dir: str 
                     except (ValueError, TypeError):
                         pass
             superficie_indicative = round(superficie_indicative, 2)
-            print(f"✅ Superficie indicative (contenance IGN) : {superficie_indicative} m²")
+            print(f"✅ Superficie indicative (contenance base) : {superficie_indicative} m²")
     except Exception as e:
         print(f"⚠️ Erreur récupération contenance : {e}")
 
