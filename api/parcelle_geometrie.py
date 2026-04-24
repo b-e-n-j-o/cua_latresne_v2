@@ -88,6 +88,25 @@ def wfs_get(params):
     r.raise_for_status()
     return r.json()
 
+
+def resolve_insee_and_commune(code_insee: str | None, commune: str) -> tuple[str, str]:
+    """Résout (insee, libellé commune) depuis code_insee prioritaire ou nom de commune."""
+    if code_insee:
+        insee = code_insee.strip()
+        commune_name = None
+        for nom, code in COMMUNE_TO_INSEE.items():
+            if code == insee:
+                commune_name = nom.title()
+                break
+        if not commune_name:
+            commune_name = commune.title()
+        return insee, commune_name
+
+    commune_upper = commune.upper().strip()
+    if commune_upper not in COMMUNE_TO_INSEE:
+        raise HTTPException(404, f"Commune inconnue : {commune}")
+    return COMMUNE_TO_INSEE[commune_upper], commune.title()
+
 # ------------------------------------------------------------
 # Endpoints
 # ------------------------------------------------------------
@@ -102,24 +121,7 @@ def parcelle_geometrie(
     """Retourne la géométrie d'une parcelle (sans voisins) avec sa contenance."""
     section = section.upper().strip()
     numero = numero.zfill(4)
-
-    # Priorité au code INSEE si fourni, sinon utiliser le nom de commune
-    if code_insee:
-        insee = code_insee.strip()
-        # Récupérer le nom de commune depuis le code INSEE (pour la réponse)
-        commune_name = None
-        for nom, code in COMMUNE_TO_INSEE.items():
-            if code == insee:
-                commune_name = nom.title()
-                break
-        if not commune_name:
-            commune_name = commune.title()  # Fallback si pas trouvé
-    else:
-        commune_upper = commune.upper().strip()
-        if commune_upper not in COMMUNE_TO_INSEE:
-            raise HTTPException(404, f"Commune inconnue : {commune}")
-        insee = COMMUNE_TO_INSEE[commune_upper]
-        commune_name = commune.title()
+    insee, commune_name = resolve_insee_and_commune(code_insee, commune)
 
     cql = (
         f"code_insee='{insee}' AND "
@@ -172,6 +174,116 @@ def parcelle_geometrie(
         }
     }
 
+
+@router.get("/et-voisins")
+def parcelle_et_voisins(
+    section: str,
+    numero: str,
+    commune: str = "LATRESNE",
+    code_insee: str | None = None,
+):
+    """
+    Retourne la parcelle cible et ses voisines depuis PostGIS (latresne.parcelles_latresne).
+    """
+    section_norm = section.upper().strip()
+    numero_norm = numero.zfill(4)
+    insee, commune_name = resolve_insee_and_commune(code_insee, commune)
+
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            WITH target AS (
+                SELECT p.geom_2154
+                FROM latresne.parcelles_latresne p
+                WHERE p.code_insee = %s
+                  AND UPPER(TRIM(p.section)) = %s
+                  AND LPAD(TRIM(p.numero), 4, '0') = %s
+                  AND p.geom_2154 IS NOT NULL
+                LIMIT 1
+            ),
+            selected AS (
+                SELECT
+                    p.section,
+                    p.numero,
+                    p.nom_com,
+                    p.code_insee,
+                    p.contenance,
+                    p.geom_2154,
+                    (UPPER(TRIM(p.section)) = %s AND LPAD(TRIM(p.numero), 4, '0') = %s) AS is_target
+                FROM latresne.parcelles_latresne p, target t
+                WHERE p.code_insee = %s
+                  AND p.geom_2154 IS NOT NULL
+                  AND (
+                      (UPPER(TRIM(p.section)) = %s AND LPAD(TRIM(p.numero), 4, '0') = %s)
+                      OR ST_Touches(p.geom_2154, t.geom_2154)
+                  )
+            )
+            SELECT
+                section,
+                numero,
+                nom_com,
+                code_insee,
+                contenance,
+                is_target,
+                ST_AsGeoJSON(ST_Transform(geom_2154, 4326)) AS geom_json
+            FROM selected
+            ORDER BY is_target DESC, UPPER(TRIM(section)), LPAD(TRIM(numero), 4, '0')
+            """,
+            (
+                insee,
+                section_norm,
+                numero_norm,
+                section_norm,
+                numero_norm,
+                insee,
+                section_norm,
+                numero_norm,
+            ),
+        )
+        rows = cur.fetchall()
+    except Exception as exc:
+        raise HTTPException(500, f"Erreur lecture base parcelles_latresne: {exc}")
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+    if not rows:
+        raise HTTPException(
+            404,
+            f"Parcelle introuvable en base : {commune_name} {section_norm} {numero_norm} (INSEE: {insee})",
+        )
+
+    features = []
+    for row in rows:
+        sec, num, nom_com, code, contenance, is_target, geom_json = row
+        if not geom_json:
+            continue
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": json.loads(geom_json),
+                "properties": {
+                    "section": (sec or "").strip().upper(),
+                    "numero": str(num or "").strip().zfill(4),
+                    "commune": (nom_com or commune_name),
+                    "insee": (code or insee),
+                    "contenance": float(contenance) if contenance is not None else None,
+                    "is_target": bool(is_target),
+                },
+            }
+        )
+
+    return {
+        "type": "FeatureCollection",
+        "features": features,
+    }
+
 @router.post("/uf-geometrie")
 def uf_geometrie(payload: UFRequest):
     """Retourne la géométrie de l'union d'une unité foncière (sans voisins)."""
@@ -181,26 +293,8 @@ def uf_geometrie(payload: UFRequest):
     if len(payload.parcelles) > 20:
         raise HTTPException(400, "Une unité foncière ne peut pas dépasser 20 parcelles.")
 
-    # Priorité au code INSEE si fourni, sinon utiliser le nom de commune
-    if payload.code_insee:
-        insee = payload.code_insee.strip()
-        print(f"[uf-geometrie] Utilisation du code INSEE fourni: {insee}")
-        # Récupérer le nom de commune depuis le code INSEE (pour la réponse)
-        commune = None
-        for nom, code in COMMUNE_TO_INSEE.items():
-            if code == insee:
-                commune = nom.title()
-                break
-        if not commune:
-            commune = f"Commune {insee}"  # Fallback si pas trouvé
-        print(f"[uf-geometrie] Commune trouvée: {commune}")
-    else:
-        commune = payload.commune.upper().strip()
-        print(f"[uf-geometrie] Utilisation du nom de commune: {commune}")
-        if commune not in COMMUNE_TO_INSEE:
-            raise HTTPException(404, f"Commune inconnue : {commune}")
-        insee = COMMUNE_TO_INSEE[commune]
-        print(f"[uf-geometrie] Code INSEE résolu: {insee}")
+    insee, commune = resolve_insee_and_commune(payload.code_insee, payload.commune)
+    print(f"[uf-geometrie] Utilisation de la base locale pour INSEE={insee}, commune={commune}")
     
     print(f"[uf-geometrie] Traitement de {len(payload.parcelles)} parcelles avec INSEE={insee}")
     unique_parcelles = []
