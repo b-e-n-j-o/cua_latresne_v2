@@ -38,6 +38,7 @@ from api.tiles_generic import router as tiles_router
 from api.tiles_mbtiles import router as mbtiles_router
 from api.tiles_mbtiles_parcelles import router as tiles_parcelles
 from api.topography_consolidated import router as topo_router
+from api.ingestion_cadastre.router_ingest_parcelles import router as parcelles_ingest_router
 from app.deps import supabase
 from app.routers.cerfa import router as cerfa_router
 from app.routers.cua_pipeline import router as cua_pipeline_router
@@ -206,6 +207,7 @@ app.add_middleware(
 # --- Back-office / admin ---
 app.include_router(admin_router)
 app.include_router(cua_docx_viewer_routes.router)
+app.include_router(parcelles_ingest_router, prefix="/admin")
 
 
 # --- Données / carto ---
