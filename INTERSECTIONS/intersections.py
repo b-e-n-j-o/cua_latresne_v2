@@ -9,16 +9,10 @@ Analyse les intersections entre une parcelle et les couches du catalogue.
 import os
 import json
 import logging
-import io
-import requests
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
-try:
-    import geopandas as gpd
-except ImportError:
-    gpd = None
 
 load_dotenv()
 # WARNING pour limiter la RAM (logs verbeux désactivés temporairement)
@@ -52,66 +46,53 @@ with open(CATALOGUE_PATH, 'r', encoding='utf-8') as f:
     CATALOGUE = json.load(f)
 
 def fetch_superficie_indicative(parcelles: list, code_insee: str) -> float:
-    """Récupère la superficie indicative (contenance) depuis l'IGN."""
-    if gpd is None:
-        logger.warning("⚠️ geopandas non disponible, impossible de récupérer la contenance IGN")
-        return None
-    
+    """Récupère la superficie indicative (contenance) depuis la base locale."""
     try:
-        ENDPOINT = "https://data.geopf.fr/wfs/ows"
-        LAYER = "CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle"
-        SRS = "EPSG:2154"
-        
-        parcelle_conditions = [
-            f"(section='{p['section']}' AND numero='{p['numero']}')" 
-            for p in parcelles
-        ]
-        cql_filter = f"code_insee='{code_insee}' AND ({' OR '.join(parcelle_conditions)})"
-        
-        params = {
-            "service": "WFS",
-            "version": "2.0.0",
-            "request": "GetFeature",
-            "typeNames": LAYER,
-            "srsName": SRS,
-            "outputFormat": "application/json",
-            "CQL_FILTER": cql_filter,
-        }
-        
-        r = requests.get(ENDPOINT, params=params, timeout=30)
-        r.raise_for_status()
-        
-        gdf = gpd.read_file(io.BytesIO(r.content))
-        if gdf.empty:
-            logger.warning("⚠️ Aucune parcelle IGN trouvée")
+        requested = []
+        seen = set()
+        for p in parcelles:
+            section = str((p or {}).get("section", "")).upper().strip()
+            numero = str((p or {}).get("numero", "")).strip().zfill(4)
+            if not section or not numero:
+                continue
+            key = (section, numero)
+            if key in seen:
+                continue
+            seen.add(key)
+            requested.append(key)
+
+        if not requested:
             return None
-        
-        # Trouver colonne contenance
-        contenance_col = None
-        for col in gdf.columns:
-            if 'contenance' in col.lower() or 'contain' in col.lower():
-                contenance_col = col
-                break
-        
-        if not contenance_col:
-            logger.warning("⚠️ Colonne contenance non trouvée")
+
+        values_sql = ", ".join([f"(:s{i}, :n{i})" for i in range(len(requested))])
+        params = {"code_insee": code_insee}
+        for i, (section, numero) in enumerate(requested):
+            params[f"s{i}"] = section
+            params[f"n{i}"] = numero
+
+        q = text(
+            f"""
+            WITH requested(section, numero) AS (
+                VALUES {values_sql}
+            )
+            SELECT SUM(p.contenance) AS superficie_indicative
+            FROM requested r
+            JOIN latresne.parcelles_latresne p
+              ON UPPER(TRIM(p.section)) = r.section
+             AND LPAD(TRIM(p.numero), 4, '0') = r.numero
+             AND p.code_insee = :code_insee
+            """
+        )
+
+        with engine.connect() as conn:
+            superficie = conn.execute(q, params).scalar()
+
+        if superficie is None:
             return None
-        
-        superficie = 0.0
-        for _, row in gdf.iterrows():
-            val = row.get(contenance_col)
-            if val:
-                try:
-                    if isinstance(val, str):
-                        val = float(val.replace(',', '.').replace(' ', ''))
-                    superficie += float(val)
-                except (ValueError, TypeError):
-                    pass
-        
-        return round(superficie, 2)
-    
+        return round(float(superficie), 2)
+
     except Exception as e:
-        logger.warning(f"⚠️ Erreur récupération contenance IGN : {e}")
+        logger.warning(f"⚠️ Erreur récupération contenance base : {e}")
         return None
 
 def get_parcelle_geometry(section, numero):
