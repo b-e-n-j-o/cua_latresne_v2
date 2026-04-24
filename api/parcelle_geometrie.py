@@ -4,9 +4,11 @@ via WFS IGN.
 """
 
 import csv
+import json
 import os
 from typing import List
 
+import psycopg2
 import requests
 from fastapi import APIRouter, HTTPException
 
@@ -59,6 +61,22 @@ def load_commune_to_insee():
     return mapping_dict
 
 COMMUNE_TO_INSEE = load_commune_to_insee()
+
+SUPABASE_HOST = str(os.getenv("SUPABASE_HOST") or "").strip().strip('"').strip("'")
+SUPABASE_PORT = str(os.getenv("SUPABASE_PORT") or "5432").strip().strip('"').strip("'")
+if "pooler.supabase.com" in SUPABASE_HOST.lower() and SUPABASE_PORT == "5432":
+    SUPABASE_PORT = "6543"
+
+
+def get_db_connection():
+    return psycopg2.connect(
+        host=SUPABASE_HOST,
+        dbname=os.getenv("SUPABASE_DB"),
+        user=os.getenv("SUPABASE_USER"),
+        password=os.getenv("SUPABASE_PASSWORD"),
+        port=int(SUPABASE_PORT),
+    )
+
 
 def wfs_get(params):
     r = requests.get(
@@ -185,56 +203,82 @@ def uf_geometrie(payload: UFRequest):
         print(f"[uf-geometrie] Code INSEE résolu: {insee}")
     
     print(f"[uf-geometrie] Traitement de {len(payload.parcelles)} parcelles avec INSEE={insee}")
-    uf_geoms = []
-    uf_keys = set()
-
+    unique_parcelles = []
+    seen = set()
     for p in payload.parcelles:
         section = p.section.upper().strip()
         numero = p.numero.zfill(4)
         key = (section, numero)
-        
-        if key in uf_keys:
+        if key in seen:
             continue
+        seen.add(key)
+        unique_parcelles.append(key)
 
-        cql = (
-            f"code_insee='{insee}' AND "
-            f"section='{section}' AND "
-            f"numero='{numero}'"
-        )
+    if not unique_parcelles:
+        raise HTTPException(400, "Aucune parcelle valide fournie pour l'unité foncière")
 
-        target = wfs_get({
-            "service": "WFS",
-            "version": "2.0.0",
-            "request": "GetFeature",
-            "typeNames": CAD_LAYER,
-            "outputFormat": "application/json",
-            "srsName": "EPSG:2154",
-            "cql_filter": cql
-        })
+    values_sql = ", ".join(["(%s, %s)"] * len(unique_parcelles))
+    sql_params = []
+    for section, numero in unique_parcelles:
+        sql_params.extend([section, numero])
+    sql_params.append(insee)
 
-        if not target["features"]:
-            print(f"[uf-geometrie] ❌ Parcelle introuvable: INSEE={insee}, section={section}, numero={numero}")
-            raise HTTPException(
-                404,
-                f"Parcelle introuvable pour l'UF : {commune} {section} {numero} (INSEE: {insee})"
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            f"""
+            WITH requested(section, numero) AS (
+                VALUES {values_sql}
+            ),
+            matched AS (
+                SELECT
+                    r.section,
+                    r.numero,
+                    p.geom_2154
+                FROM requested r
+                JOIN latresne.parcelles_latresne p
+                  ON UPPER(TRIM(p.section)) = r.section
+                 AND LPAD(TRIM(p.numero), 4, '0') = r.numero
+                 AND p.code_insee = %s
+                 AND p.geom_2154 IS NOT NULL
             )
-        
-        print(f"[uf-geometrie] ✅ Parcelle trouvée: {section} {numero}")
+            SELECT
+                ST_AsGeoJSON(ST_Transform(ST_UnaryUnion(ST_Collect(geom_2154)), 4326)) AS union_geojson,
+                ARRAY_AGG(DISTINCT section || '-' || numero) AS matched_keys
+            FROM matched
+            """,
+            tuple(sql_params),
+        )
+        row = cur.fetchone()
+    except Exception as exc:
+        raise HTTPException(500, f"Erreur lecture base parcelles_latresne: {exc}")
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
-        geom = shape(target["features"][0]["geometry"])
-        uf_geoms.append(geom)
-        uf_keys.add(key)
+    union_geojson = row[0] if row else None
+    matched_keys = set(row[1] or []) if row else set()
+    requested_keys = {f"{section}-{numero}" for section, numero in unique_parcelles}
+    missing_keys = sorted(requested_keys - matched_keys)
 
-    union_geom = unary_union(uf_geoms)
-
-    if union_geom.geom_type != "Polygon":
+    if missing_keys:
+        missing_readable = ", ".join(key.replace("-", " ") for key in missing_keys[:5])
+        if len(missing_keys) > 5:
+            missing_readable += ", ..."
         raise HTTPException(
-            400,
-            "Les parcelles de l'unité foncière ne sont pas toutes contiguës "
-            "et forment plusieurs polygones distincts."
+            404,
+            f"Parcelle(s) introuvable(s) en base pour l'UF ({insee}) : {missing_readable}",
         )
 
-    union_geom_4326 = transform(to_4326, union_geom)
+    if not union_geojson:
+        raise HTTPException(404, f"Aucune géométrie trouvée en base pour l'UF (INSEE: {insee})")
+
+    union_geom_4326 = shape(json.loads(union_geojson))
 
     return {
         "type": "Feature",

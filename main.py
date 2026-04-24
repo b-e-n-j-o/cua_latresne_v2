@@ -27,6 +27,7 @@ from api.identite_fonciere.route_identite_parcelle import (
     router_fonciere as identite_fonciere_router,
 )
 from api.latresne.parcelles_geojson import router as parcelles_geojson_router
+from api.latresne.parcelles_via_adresse import router as parcelles_via_adresse_router
 from api.latresne.patrimoine import router as patrimoine_router
 from api.latresne.tiles_latresne import router as latresne_router
 from api.latresne.tiles_mbtiles import router as latresne_mbtiles_router
@@ -44,11 +45,6 @@ from app.routers.pipelines_supabase import router as pipelines_supabase_router
 from app.routers.product import router as product_router
 from app.routers.site_account import router as site_account_router
 from CUA.docx import cua_docx_viewer_routes
-from rag.cag_plu_routes import router as cag_plu_router
-from rag.rag_routes import router as rag_router
-from rag.rag_routes_meta import router as rag_meta_router
-from rag.rag_routes_parallel import router as rag_parallel_router
-from rag.rag_routes_plu import router as rag_plu_router
 from services.history.centroid_history import router as centroid_history_router
 import services.history.centroid_history as centroid_history_module
 from services.history.suivi import router as suivi_router
@@ -71,7 +67,19 @@ def _slack_deploy_webhook() -> str:
     return (os.getenv("SLACK_DEPLOY_WEBHOOK") or os.getenv("SLACK_WEBHOOK_URL") or "").strip()
 
 
+def _slack_notifications_allowed() -> bool:
+    """
+    Évite le spam en local : pas de Slack sauf sur Render (variable RENDER injectée par Render)
+    ou si SLACK_FORCE_NOTIFY=1 pour tester volontairement en local.
+    """
+    if os.getenv("SLACK_FORCE_NOTIFY", "").strip().lower() in ("1", "true", "yes", "on"):
+        return True
+    return (os.getenv("RENDER") or "").strip().lower() in ("true", "1", "yes")
+
+
 def notify_slack(message: str) -> None:
+    if not _slack_notifications_allowed():
+        return
     url = _slack_deploy_webhook()
     if not url:
         return
@@ -106,7 +114,7 @@ app = FastAPI(title="Kerelia CUA API", version="2.1")
 
 @app.on_event("startup")
 async def notify_slack_deploy_ok():
-    """Un message à chaque démarrage réussi (déploiement Render ou redémarrage du service)."""
+    """Message Slack à chaque démarrage réussi sur Render uniquement (voir _slack_notifications_allowed)."""
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     notify_slack(f"Backend Kerelia CUA démarré avec succès — {ts}")
 
@@ -185,6 +193,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
+        "http://localhost:5174",
         "http://localhost:3000",
         "https://www.kerelia.fr",
         "https://kerelia.fr",
@@ -198,12 +207,6 @@ app.add_middleware(
 app.include_router(admin_router)
 app.include_router(cua_docx_viewer_routes.router)
 
-# --- RAG / chat PLU ---
-app.include_router(rag_router)
-app.include_router(rag_plu_router)
-app.include_router(rag_meta_router)
-app.include_router(cag_plu_router)
-app.include_router(rag_parallel_router)
 
 # --- Données / carto ---
 app.include_router(communes_router)
@@ -219,6 +222,7 @@ app.include_router(identite_parcelle_router)
 app.include_router(identite_fonciere_router)
 app.include_router(latresne_router)
 app.include_router(parcelles_geojson_router)
+app.include_router(parcelles_via_adresse_router)
 app.include_router(patrimoine_router)
 app.include_router(parcelle_geometrie_router)
 app.include_router(tiles_parcelles)
