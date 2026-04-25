@@ -11,13 +11,18 @@ Montage dans main.py (cua_latresne_v4) :
 
 Endpoints :
     POST /admin/parcelles/ingest
-    Body: {
-        "communes":     ["33234", "33063"],   # option A
-        "departements": ["33", "17"],          # option B
-        "nouvelle_aquitaine": true             # option C (shortcut)
-    }
+    GET  /admin/parcelles/status/{job_id}
+    GET  /admin/parcelles/jobs
 
-    GET /admin/parcelles/status/{job_id}       # suivre l'avancement
+Notes index :
+    Avant un run massif, désactiver les index dans Supabase SQL editor :
+        DROP INDEX IF EXISTS parcelles.idx_parcelles_geom_2154;
+        DROP INDEX IF EXISTS parcelles.idx_parcelles_code_insee;
+        DROP INDEX IF EXISTS parcelles.idx_parcelles_section_num;
+    Après le run, recréer :
+        CREATE INDEX CONCURRENTLY idx_parcelles_geom_2154 ON parcelles.parcelles USING GIST (geom_2154);
+        CREATE INDEX CONCURRENTLY idx_parcelles_code_insee ON parcelles.parcelles (code_insee);
+        CREATE INDEX CONCURRENTLY idx_parcelles_section_num ON parcelles.parcelles (section, numero);
 """
 
 import logging
@@ -25,17 +30,16 @@ import os
 import uuid
 import time
 import io
-import csv
 import requests
 import geopandas as gpd
+import psycopg2
 from datetime import datetime
 from shapely.geometry import shape, MultiPolygon, Polygon
 from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.pool import NullPool
-import psycopg2
 
 # ─── CONFIG ───────────────────────────────────────────────────────────────────
 
@@ -45,45 +49,41 @@ DB_URL = (
 )
 DIRECT_URL = (os.getenv("SUPABASE_DIRECT_URL") or "").strip()
 
-ETALAB_COMMUNE    = "https://cadastre.data.gouv.fr/bundler/cadastre-etalab/communes/{insee}/geojson/parcelles"
-ETALAB_DEP        = "https://cadastre.data.gouv.fr/bundler/cadastre-etalab/departements/{dep}/geojson/parcelles"
-
-TARGET_TABLE      = "parcelles.parcelles"
-BATCH_SIZE        = 1500
-PAUSE_BETWEEN_DEP = 1.0  # secondes entre départements
+ETALAB_COM   = "https://cadastre.data.gouv.fr/bundler/cadastre-etalab/communes/{insee}/geojson/parcelles"
+GEO_API_DEP  = "https://geo.api.gouv.fr/departements/{dep}/communes?fields=code&format=json"
+TARGET_TABLE = "parcelles.parcelles"
+PAUSE_S      = 0.2
 
 NOUVELLE_AQUITAINE = ["16", "17", "19", "23", "24", "33", "40", "47", "64", "79", "86", "87"]
 
-# Store en mémoire des jobs (en prod : remplacer par Redis ou table Supabase)
 JOBS: dict[str, dict] = {}
-
 logger = logging.getLogger(__name__)
-
-# ─── ROUTER ───────────────────────────────────────────────────────────────────
-
 router = APIRouter(tags=["parcelles"])
+
+# ─── SCHEMAS ──────────────────────────────────────────────────────────────────
 
 
 class IngestRequest(BaseModel):
-    communes:            Optional[list[str]] = None   # codes INSEE ["33234", ...]
-    departements:        Optional[list[str]] = None   # codes dep ["33", "17"]
-    nouvelle_aquitaine:  bool = False                 # shortcut
-    dry_run:             bool = False
+    communes:           Optional[list[str]] = None
+    departements:       Optional[list[str]] = None
+    nouvelle_aquitaine: bool = False
+    dry_run:            bool = False
 
 
 class JobStatus(BaseModel):
-    job_id:       str
-    status:       str   # pending | running | done | error
-    started_at:   Optional[str]
-    finished_at:  Optional[str]
-    communes_done: int
-    communes_total: int
-    parcelles_upserted: int
-    errors:       list[str]
-    log:          list[str]
+    job_id:              str
+    status:              str
+    started_at:          Optional[str]
+    finished_at:         Optional[str]
+    communes_done:       int
+    communes_total:      int
+    parcelles_upserted:  int
+    errors:              list[str]
+    log:                 list[str]
 
 
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
+
 
 def get_engine():
     return create_engine(
@@ -93,50 +93,47 @@ def get_engine():
     )
 
 
+def get_communes_du_dep(dep: str) -> list[str]:
+    """Récupère les codes INSEE des communes d'un département via geo.api.gouv.fr."""
+    try:
+        r = requests.get(GEO_API_DEP.format(dep=dep), timeout=30)
+        r.raise_for_status()
+        return [c["code"] for c in r.json()]
+    except Exception as e:
+        logger.warning("geo.api.gouv.fr dep %s échoué : %s", dep, e)
+        return []
+
+
 def fetch_commune_geojson(insee: str) -> list[dict] | None:
-    url = ETALAB_COMMUNE.format(insee=insee)
     try:
-        r = requests.get(url, timeout=120)
+        r = requests.get(ETALAB_COM.format(insee=insee), timeout=120)
         r.raise_for_status()
         feats = r.json().get("features", [])
-        logger.info("Etalab commune %s : %d features (HTTP %s)", insee, len(feats), r.status_code)
+        logger.info("Etalab commune %s : %d features", insee, len(feats))
         return feats
     except Exception as e:
-        logger.warning("Etalab commune %s échoué (%s) : %s", insee, url, e)
-        return None
-
-
-def fetch_dep_geojson(dep: str) -> list[dict] | None:
-    url = ETALAB_DEP.format(dep=dep)
-    try:
-        r = requests.get(url, timeout=600)
-        r.raise_for_status()
-        feats = r.json().get("features", [])
-        logger.info("Etalab département %s : %d features (HTTP %s)", dep, len(feats), r.status_code)
-        return feats
-    except Exception as e:
-        logger.warning("Etalab département %s échoué (%s) : %s", dep, url, e)
+        logger.warning("Etalab commune %s échoué : %s", insee, e)
         return None
 
 
 def features_to_rows(features: list[dict]) -> list[dict]:
-    rows = []
+    """
+    Reprojection vectorisée : un seul GeoDataFrame pour toute la commune.
+    Peak RAM ~10 Mo par commune. del explicite pour libérer après.
+    """
+    props_list, geoms = [], []
+
     for f in features:
-        p = f["properties"]
+        p     = f["properties"]
         insee = p.get("commune", "")
         try:
-            geom_4326 = shape(f["geometry"])
-            # Etalab : parfois Polygon alors que la colonne PG attend MultiPolygon
-            if isinstance(geom_4326, Polygon):
-                geom_4326 = MultiPolygon([geom_4326])
-            # Reprojection via GeoDataFrame (une seule feature)
-            gdf = gpd.GeoDataFrame([{"geometry": geom_4326}], crs="EPSG:4326")
-            geom_2154 = gdf.to_crs("EPSG:2154").geometry[0]
-            geom_3857 = gdf.to_crs("EPSG:3857").geometry[0]
+            geom = shape(f["geometry"])
+            if isinstance(geom, Polygon):
+                geom = MultiPolygon([geom])
+            geoms.append(geom)
         except Exception:
             continue
-
-        rows.append({
+        props_list.append({
             "idu":        p.get("id"),
             "code_dep":   insee[:2] if len(insee) >= 2 else None,
             "code_insee": insee,
@@ -147,179 +144,99 @@ def features_to_rows(features: list[dict]) -> list[dict]:
             "contenance": p.get("contenance"),
             "arpente":    p.get("arpente"),
             "updated":    p.get("updated"),
-            "geom_2154":  geom_2154.wkt if geom_2154 else None,
-            "geom_3857":  geom_3857.wkt if geom_3857 else None,
         })
+
+    if not props_list:
+        return []
+
+    gdf      = gpd.GeoDataFrame(props_list, geometry=geoms, crs="EPSG:4326")
+    gdf_2154 = gdf.to_crs("EPSG:2154")
+
+    rows = []
+    for i in range(len(gdf_2154)):
+        g = gdf_2154.geometry.iloc[i]
+        if g is None or g.is_empty:
+            continue
+        row = {k: gdf_2154.iloc[i][k] for k in [
+            "idu", "code_dep", "code_insee", "section",
+            "numero", "com_abs", "contenance", "arpente", "updated", "feuille"
+        ]}
+        row["geom_2154"] = g.wkt
+        rows.append(row)
+
+    del gdf, gdf_2154
     return rows
 
 
-UPSERT_SQL = text(f"""
-    INSERT INTO {TARGET_TABLE}
-        (idu, code_dep, code_insee, section, numero, feuille, com_abs,
-         contenance, arpente, updated, geom_2154, geom_3857)
-    VALUES
-        (:idu, :code_dep, :code_insee, :section, :numero, :feuille, :com_abs,
-         :contenance, :arpente, :updated,
-         ST_GeomFromText(:geom_2154, 2154),
-         ST_GeomFromText(:geom_3857, 3857))
-    ON CONFLICT (idu, code_dep) DO UPDATE SET
-        section    = EXCLUDED.section,
-        numero     = EXCLUDED.numero,
-        com_abs    = EXCLUDED.com_abs,
-        contenance = EXCLUDED.contenance,
-        arpente    = EXCLUDED.arpente,
-        updated    = EXCLUDED.updated,
-        geom_2154  = EXCLUDED.geom_2154,
-        geom_3857  = EXCLUDED.geom_3857,
-        ingere_le  = now()
-""")
-
-
-def upsert_rows(
-    rows: list[dict],
-    engine,
-    dry_run: bool,
-    job_id: str | None = None,
-) -> tuple[int, int]:
-    """Retourne (upserted, errors)"""
+def upsert_rows_copy(rows: list[dict], dry_run: bool, job_id: str) -> tuple[int, int]:
+    """
+    Ingestion via COPY staging + INSERT SELECT ON CONFLICT.
+    Connexion directe PostgreSQL (bypass PgBouncer).
+    """
     if dry_run or not rows:
         return len(rows), 0
 
-    prefix = f"[parcelles_ingest job={job_id}] " if job_id else "[parcelles_ingest] "
-    if DIRECT_URL:
-        try:
-            return upsert_rows_copy(rows, DIRECT_URL, job_id=job_id)
-        except Exception as e:
-            logger.exception(
-                "%sCOPY+MERGE échoué, fallback batch SQLAlchemy : %s",
-                prefix,
-                e,
-            )
+    if not DIRECT_URL:
+        raise RuntimeError("SUPABASE_DIRECT_URL manquant")
 
-    total = len(rows)
-    n_batches = (total + BATCH_SIZE - 1) // BATCH_SIZE
-    upserted = 0
-    errors = 0
-    with engine.begin() as conn:
-        for bi, i in enumerate(range(0, len(rows), BATCH_SIZE)):
-            batch = rows[i : i + BATCH_SIZE]
-            try:
-                conn.execute(UPSERT_SQL, batch)
-                upserted += len(batch)
-                logger.info(
-                    "%supsert lot %d/%d : %d lignes (cumul %d/%d)",
-                    prefix,
-                    bi + 1,
-                    n_batches,
-                    len(batch),
-                    upserted,
-                    total,
-                )
-            except Exception as e:
-                errors += len(batch)
-                logger.exception(
-                    "%supsert lot %d/%d échoué (%d lignes) : %s",
-                    prefix,
-                    bi + 1,
-                    n_batches,
-                    len(batch),
-                    e,
-                )
-    return upserted, errors
-
-
-def upsert_rows_copy(rows: list[dict], conn_url: str, job_id: str | None = None) -> tuple[int, int]:
-    """
-    Ingestion massive :
-    1) COPY CSV vers table temporaire
-    2) MERGE via INSERT ... SELECT ... ON CONFLICT
-    """
-    if not rows:
-        return 0, 0
-
-    prefix = f"[parcelles_ingest job={job_id}] " if job_id else "[parcelles_ingest] "
-    started = time.perf_counter()
-    conn = psycopg2.connect(conn_url, sslmode="require")
+    t0   = time.perf_counter()
+    conn = psycopg2.connect(DIRECT_URL, sslmode="require")
     conn.autocommit = False
 
     try:
         with conn.cursor() as cur:
-            cur.execute(
-                """
+            cur.execute("""
                 CREATE TEMP TABLE parcelles_staging (
-                    idu text,
-                    code_dep text,
+                    idu        text,
+                    code_dep   text,
                     code_insee text,
-                    section text,
-                    numero text,
-                    feuille text,
-                    com_abs text,
-                    contenance text,
-                    arpente text,
-                    updated text,
-                    geom_2154 text,
-                    geom_3857 text
+                    section    text,
+                    numero     text,
+                    feuille    integer,
+                    com_abs    text,
+                    contenance double precision,
+                    arpente    boolean,
+                    updated    date,
+                    geom_2154  text
                 ) ON COMMIT DROP
-                """
-            )
+            """)
 
-            copy_t0 = time.perf_counter()
+            def val(v):
+                if v is None:
+                    return "\\N"
+                if isinstance(v, bool):
+                    return "true" if v else "false"
+                return str(v).replace("\t", " ").replace("\n", " ")
+
             buf = io.StringIO()
-            writer = csv.writer(buf, delimiter=",", quotechar='"', lineterminator="\n")
             for r in rows:
-                writer.writerow(
-                    [
-                        r.get("idu"),
-                        r.get("code_dep"),
-                        r.get("code_insee"),
-                        r.get("section"),
-                        r.get("numero"),
-                        r.get("feuille"),
-                        r.get("com_abs"),
-                        r.get("contenance"),
-                        r.get("arpente"),
-                        r.get("updated"),
-                        r.get("geom_2154"),
-                        r.get("geom_3857"),
-                    ]
-                )
+                buf.write("\t".join([
+                    val(r.get("idu")),        val(r.get("code_dep")),
+                    val(r.get("code_insee")), val(r.get("section")),
+                    val(r.get("numero")),     val(r.get("feuille")),
+                    val(r.get("com_abs")),    val(r.get("contenance")),
+                    val(r.get("arpente")),    val(r.get("updated")),
+                    val(r.get("geom_2154")),
+                ]) + "\n")
             buf.seek(0)
 
-            cur.copy_expert(
-                """
-                COPY parcelles_staging
-                (idu, code_dep, code_insee, section, numero, feuille, com_abs,
-                 contenance, arpente, updated, geom_2154, geom_3857)
-                FROM STDIN WITH (FORMAT CSV)
-                """,
-                buf,
-            )
-            copy_s = time.perf_counter() - copy_t0
+            t_copy = time.perf_counter()
+            cur.copy_from(buf, "parcelles_staging", sep="\t", null="\\N",
+                columns=["idu","code_dep","code_insee","section","numero",
+                         "feuille","com_abs","contenance","arpente","updated","geom_2154"])
+            copy_s = time.perf_counter() - t_copy
 
-            merge_t0 = time.perf_counter()
-            cur.execute(
-                f"""
+            t_merge = time.perf_counter()
+            cur.execute(f"""
                 INSERT INTO {TARGET_TABLE}
                     (idu, code_dep, code_insee, section, numero, feuille,
-                     com_abs, contenance, arpente, updated, geom_2154, geom_3857)
+                     com_abs, contenance, arpente, updated, geom_2154)
                 SELECT
-                    NULLIF(idu, ''),
-                    NULLIF(code_dep, ''),
-                    NULLIF(code_insee, ''),
-                    NULLIF(section, ''),
-                    NULLIF(numero, ''),
-                    NULLIF(feuille, '')::integer,
-                    NULLIF(com_abs, ''),
-                    NULLIF(contenance, '')::double precision,
-                    CASE
-                        WHEN lower(NULLIF(arpente, '')) IN ('true', 't', '1') THEN true
-                        WHEN lower(NULLIF(arpente, '')) IN ('false', 'f', '0') THEN false
-                        ELSE NULL
-                    END,
-                    NULLIF(updated, '')::date,
-                    ST_Multi(ST_GeomFromText(NULLIF(geom_2154, ''), 2154)),
-                    ST_Multi(ST_GeomFromText(NULLIF(geom_3857, ''), 3857))
+                    idu, code_dep, code_insee, section, numero, feuille,
+                    com_abs, contenance, arpente, updated,
+                    ST_Multi(ST_GeomFromText(geom_2154, 2154))
                 FROM parcelles_staging
+                WHERE geom_2154 IS NOT NULL
                 ON CONFLICT (idu, code_dep) DO UPDATE SET
                     section    = EXCLUDED.section,
                     numero     = EXCLUDED.numero,
@@ -328,23 +245,19 @@ def upsert_rows_copy(rows: list[dict], conn_url: str, job_id: str | None = None)
                     arpente    = EXCLUDED.arpente,
                     updated    = EXCLUDED.updated,
                     geom_2154  = EXCLUDED.geom_2154,
-                    geom_3857  = EXCLUDED.geom_3857,
                     ingere_le  = now()
-                """
-            )
-            merge_s = time.perf_counter() - merge_t0
-
+            """)
+            merge_s  = time.perf_counter() - t_merge
+            inserted = cur.rowcount
             conn.commit()
-            elapsed = time.perf_counter() - started
-            logger.info(
-                "%sCOPY+MERGE ok : %d lignes (copy=%.2fs merge=%.2fs total=%.2fs)",
-                prefix,
-                len(rows),
-                copy_s,
-                merge_s,
-                elapsed,
-            )
-            return len(rows), 0
+
+        logger.info(
+            "[parcelles_ingest job=%s] COPY+MERGE %d lignes "
+            "(copy=%.2fs merge=%.2fs total=%.2fs)",
+            job_id, inserted, copy_s, merge_s, time.perf_counter() - t0
+        )
+        return inserted, 0
+
     except Exception:
         conn.rollback()
         raise
@@ -352,124 +265,140 @@ def upsert_rows_copy(rows: list[dict], conn_url: str, job_id: str | None = None)
         conn.close()
 
 
-# ─── JOB BACKGROUND ───────────────────────────────────────────────────────────
+# ─── RÉSOLUTION DES CIBLES ────────────────────────────────────────────────────
 
-def resolve_communes(req: IngestRequest) -> tuple[list[str], str]:
+
+def resolve_communes(req: IngestRequest, job: dict) -> list[str]:
     """
-    Retourne (liste_insee, mode)
-    mode: 'commune' | 'departement'
+    Résout toujours en liste de codes INSEE commune par commune.
+    Départements → appel geo.api.gouv.fr.
+    Garantit que jamais un fichier département entier n'est chargé en RAM.
     """
     if req.nouvelle_aquitaine:
-        return NOUVELLE_AQUITAINE, "departement"
-    if req.departements:
-        return req.departements, "departement"
-    if req.communes:
-        return req.communes, "commune"
-    raise ValueError("Aucune cible spécifiée")
+        deps = NOUVELLE_AQUITAINE
+    elif req.departements:
+        deps = req.departements
+    else:
+        deps = []
+
+    communes = list(req.communes or [])
+
+    for dep in deps:
+        job["log"].append(f"Résolution communes dep {dep}...")
+        logger.info("[parcelles_ingest job=%s] résolution dep %s", job["job_id"], dep)
+        insee_list = get_communes_du_dep(dep)
+        if not insee_list:
+            job["log"].append(f"  ⚠️  Aucune commune pour dep {dep}")
+        else:
+            job["log"].append(f"  → {len(insee_list)} communes pour dep {dep}")
+            logger.info("[parcelles_ingest job=%s] dep %s → %d communes",
+                        job["job_id"], dep, len(insee_list))
+        communes.extend(insee_list)
+
+    return communes
+
+
+# ─── JOB BACKGROUND ───────────────────────────────────────────────────────────
 
 
 def run_ingest_job(job_id: str, req: IngestRequest):
-    job = JOBS[job_id]
-    job["status"] = "running"
+    job               = JOBS[job_id]
+    job["status"]     = "running"
     job["started_at"] = datetime.utcnow().isoformat()
+    engine            = get_engine()
 
-    def log_job(msg: str) -> None:
-        logger.info("[parcelles_ingest job=%s] %s", job_id, msg)
-
-    engine = get_engine()
-
-    try:
-        targets, mode = resolve_communes(req)
-    except ValueError as e:
+    communes = resolve_communes(req, job)
+    if not communes:
         job["status"] = "error"
-        job["errors"].append(str(e))
-        logger.error("[parcelles_ingest job=%s] configuration invalide : %s", job_id, e)
+        job["errors"].append("Aucune commune résolue")
         return
 
-    job["communes_total"] = len(targets)
-    job["log"].append(f"Mode: {mode} — {len(targets)} cibles — dry_run={req.dry_run}")
-    log_job(
-        f"démarrage mode={mode} cibles={len(targets)} dry_run={req.dry_run} "
-        f"table={TARGET_TABLE} batch_size={BATCH_SIZE}"
-    )
+    job["communes_total"] = len(communes)
+    job["log"].append(f"→ {len(communes)} communes à traiter — dry_run={req.dry_run}")
+    logger.info("[parcelles_ingest job=%s] démarrage : %d communes dry_run=%s",
+                job_id, len(communes), req.dry_run)
 
-    for i, target in enumerate(targets):
-        label = f"[{i+1}/{len(targets)}] {mode} {target}"
-        job["log"].append(f"{label} — fetch...")
-        log_job(f"{label} — fetch Etalab…")
+    for i, insee in enumerate(communes):
+        label = f"[{i+1}/{len(communes)}] {insee}"
 
-        t0 = time.perf_counter()
-        if mode == "departement":
-            features = fetch_dep_geojson(target)
-        else:
-            features = fetch_commune_geojson(target)
-        fetch_s = time.perf_counter() - t0
+        # Fetch
+        t0       = time.perf_counter()
+        features = fetch_commune_geojson(insee)
+        fetch_s  = round(time.perf_counter() - t0, 1)
 
         if features is None:
-            msg = f"{label} — ❌ fetch échoué"
+            msg = f"{label} ❌ fetch échoué"
             job["log"].append(msg)
             job["errors"].append(msg)
             job["communes_done"] += 1
-            log_job(f"{label} — fetch échoué après {fetch_s:.1f}s")
             continue
 
-        job["log"].append(f"{label} — {len(features)} features, conversion...")
-        log_job(f"{label} — fetch OK en {fetch_s:.1f}s, {len(features)} features, conversion…")
+        # Conversion vectorisée
+        t1     = time.perf_counter()
+        rows   = features_to_rows(features)
+        conv_s = round(time.perf_counter() - t1, 1)
 
-        t1 = time.perf_counter()
-        rows = features_to_rows(features)
-        conv_s = time.perf_counter() - t1
-        skipped = len(features) - len(rows)
-        if skipped:
-            log_job(
-                f"{label} — conversion OK en {conv_s:.1f}s : {len(rows)} lignes "
-                f"({skipped} features ignorées géométrie)"
-            )
-        else:
-            log_job(f"{label} — conversion OK en {conv_s:.1f}s : {len(rows)} lignes")
+        # Upsert COPY
+        try:
+            t2          = time.perf_counter()
+            upserted, _ = upsert_rows_copy(rows, req.dry_run, job_id)
+            ups_s       = round(time.perf_counter() - t2, 1)
+        except Exception as e:
+            msg = f"{label} ❌ upsert échoué : {str(e)[:120]}"
+            job["log"].append(msg)
+            job["errors"].append(msg)
+            logger.error("[parcelles_ingest job=%s] %s", job_id, msg)
+            job["communes_done"] += 1
+            continue
 
-        upserted, errs = upsert_rows(rows, engine, req.dry_run, job_id=job_id)
-        if errs:
-            log_job(f"{label} — upsert : {upserted} OK, {errs} erreurs (lignes comptées en erreur)")
         job["parcelles_upserted"] += upserted
-        job["communes_done"] += 1
+        job["communes_done"]      += 1
 
-        suffix = "(dry run)" if req.dry_run else f"→ {upserted} upsertées"
-        job["log"].append(f"{label} — ✅ {len(rows)} parcelles {suffix}")
-        log_job(f"{label} — terminé {suffix}")
+        suffix = "(dry run)" if req.dry_run else f"{upserted} upsertées"
+        job["log"].append(
+            f"{label} ✅ {len(rows)} parcelles — {suffix} "
+            f"(fetch={fetch_s}s conv={conv_s}s ups={ups_s}s)"
+        )
+        logger.info(
+            "[parcelles_ingest job=%s] %s — %s fetch=%.1fs conv=%.1fs ups=%.1fs",
+            job_id, label, suffix, fetch_s, conv_s, ups_s
+        )
 
-        if mode == "departement" and i < len(targets) - 1:
-            log_job(f"pause {PAUSE_BETWEEN_DEP}s avant prochain département")
-            time.sleep(PAUSE_BETWEEN_DEP)
+        # Progression tous les 50
+        if (i + 1) % 50 == 0:
+            pct = round((i + 1) / len(communes) * 100)
+            job["log"].append(
+                f"── Progression {i+1}/{len(communes)} ({pct}%) "
+                f"— {job['parcelles_upserted']:,} parcelles upsertées"
+            )
 
-    job["status"] = "done"
+        time.sleep(PAUSE_S)
+
+    job["status"]      = "done"
     job["finished_at"] = datetime.utcnow().isoformat()
-    job["log"].append(f"✅ Terminé — {job['parcelles_upserted']} parcelles upsertées")
-    log_job(
-        f"job terminé status=done parcelles_upserted={job['parcelles_upserted']} "
-        f"errors={len(job['errors'])}"
+    job["log"].append(f"✅ Terminé — {job['parcelles_upserted']:,} parcelles upsertées")
+    logger.info(
+        "[parcelles_ingest job=%s] job terminé status=done "
+        "parcelles_upserted=%d errors=%d",
+        job_id, job["parcelles_upserted"], len(job["errors"])
     )
 
 
 # ─── ENDPOINTS ────────────────────────────────────────────────────────────────
 
+
 @router.post("/parcelles/ingest")
 async def ingest_parcelles(req: IngestRequest, background_tasks: BackgroundTasks):
     """
-    Lance une ingestion en background.
-    Exemples de body :
+    Lance une ingestion en background sur Render.
+    Toujours commune par commune — peak RAM ~10 Mo/commune.
+    Upsert via COPY + connexion directe PostgreSQL (bypass PgBouncer).
 
-    # Une ou plusieurs communes
-    {"communes": ["33234", "33063"]}
-
-    # Un ou plusieurs départements
-    {"departements": ["33", "17"]}
-
-    # Toute la Nouvelle-Aquitaine
-    {"nouvelle_aquitaine": true}
-
-    # Dry run (pas d'insert)
-    {"departements": ["33"], "dry_run": true}
+    Exemples :
+        {"nouvelle_aquitaine": true}
+        {"departements": ["33", "17"]}
+        {"communes": ["33234", "33063"]}
+        {"departements": ["33"], "dry_run": true}
     """
     if not any([req.communes, req.departements, req.nouvelle_aquitaine]):
         raise HTTPException(400, "Spécifier communes, departements ou nouvelle_aquitaine=true")
@@ -489,24 +418,20 @@ async def ingest_parcelles(req: IngestRequest, background_tasks: BackgroundTasks
 
     background_tasks.add_task(run_ingest_job, job_id, req)
     logger.info(
-        "[parcelles_ingest job=%s] tâche background enqueued (communes=%s departements=%s na=%s dry_run=%s)",
-        job_id,
-        req.communes,
-        req.departements,
-        req.nouvelle_aquitaine,
-        req.dry_run,
+        "[parcelles_ingest job=%s] tâche background enqueued "
+        "(communes=%s departements=%s na=%s dry_run=%s)",
+        job_id, req.communes, req.departements, req.nouvelle_aquitaine, req.dry_run,
     )
 
     return {
-        "job_id":  job_id,
-        "message": "Ingestion lancée en background",
+        "job_id":     job_id,
+        "message":    "Ingestion lancée — commune par commune, COPY direct PostgreSQL",
         "status_url": f"/admin/parcelles/status/{job_id}",
     }
 
 
 @router.get("/parcelles/status/{job_id}", response_model=JobStatus)
 async def get_job_status(job_id: str):
-    """Suivre l'avancement d'un job d'ingestion."""
     if job_id not in JOBS:
         raise HTTPException(404, f"Job {job_id} introuvable")
     return JOBS[job_id]
@@ -514,7 +439,6 @@ async def get_job_status(job_id: str):
 
 @router.get("/parcelles/jobs")
 async def list_jobs():
-    """Lister tous les jobs en cours ou terminés."""
     return [
         {k: v for k, v in job.items() if k != "log"}
         for job in JOBS.values()
