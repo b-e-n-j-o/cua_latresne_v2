@@ -24,6 +24,8 @@ import logging
 import os
 import uuid
 import time
+import io
+import csv
 import requests
 import geopandas as gpd
 from datetime import datetime
@@ -33,6 +35,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
+import psycopg2
 
 # ─── CONFIG ───────────────────────────────────────────────────────────────────
 
@@ -40,6 +43,7 @@ DB_URL = (
     f"postgresql://{os.getenv('SUPABASE_USER')}:{os.getenv('SUPABASE_PASSWORD')}"
     f"@{os.getenv('SUPABASE_HOST')}:{os.getenv('SUPABASE_PORT', '5432')}/{os.getenv('SUPABASE_DB', 'postgres')}"
 )
+DIRECT_URL = (os.getenv("SUPABASE_DIRECT_URL") or "").strip()
 
 ETALAB_COMMUNE    = "https://cadastre.data.gouv.fr/bundler/cadastre-etalab/communes/{insee}/geojson/parcelles"
 ETALAB_DEP        = "https://cadastre.data.gouv.fr/bundler/cadastre-etalab/departements/{dep}/geojson/parcelles"
@@ -182,6 +186,16 @@ def upsert_rows(
         return len(rows), 0
 
     prefix = f"[parcelles_ingest job={job_id}] " if job_id else "[parcelles_ingest] "
+    if DIRECT_URL:
+        try:
+            return upsert_rows_copy(rows, DIRECT_URL, job_id=job_id)
+        except Exception as e:
+            logger.exception(
+                "%sCOPY+MERGE échoué, fallback batch SQLAlchemy : %s",
+                prefix,
+                e,
+            )
+
     total = len(rows)
     n_batches = (total + BATCH_SIZE - 1) // BATCH_SIZE
     upserted = 0
@@ -212,6 +226,130 @@ def upsert_rows(
                     e,
                 )
     return upserted, errors
+
+
+def upsert_rows_copy(rows: list[dict], conn_url: str, job_id: str | None = None) -> tuple[int, int]:
+    """
+    Ingestion massive :
+    1) COPY CSV vers table temporaire
+    2) MERGE via INSERT ... SELECT ... ON CONFLICT
+    """
+    if not rows:
+        return 0, 0
+
+    prefix = f"[parcelles_ingest job={job_id}] " if job_id else "[parcelles_ingest] "
+    started = time.perf_counter()
+    conn = psycopg2.connect(conn_url, sslmode="require")
+    conn.autocommit = False
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TEMP TABLE parcelles_staging (
+                    idu text,
+                    code_dep text,
+                    code_insee text,
+                    section text,
+                    numero text,
+                    feuille text,
+                    com_abs text,
+                    contenance text,
+                    arpente text,
+                    updated text,
+                    geom_2154 text,
+                    geom_3857 text
+                ) ON COMMIT DROP
+                """
+            )
+
+            copy_t0 = time.perf_counter()
+            buf = io.StringIO()
+            writer = csv.writer(buf, delimiter=",", quotechar='"', lineterminator="\n")
+            for r in rows:
+                writer.writerow(
+                    [
+                        r.get("idu"),
+                        r.get("code_dep"),
+                        r.get("code_insee"),
+                        r.get("section"),
+                        r.get("numero"),
+                        r.get("feuille"),
+                        r.get("com_abs"),
+                        r.get("contenance"),
+                        r.get("arpente"),
+                        r.get("updated"),
+                        r.get("geom_2154"),
+                        r.get("geom_3857"),
+                    ]
+                )
+            buf.seek(0)
+
+            cur.copy_expert(
+                """
+                COPY parcelles_staging
+                (idu, code_dep, code_insee, section, numero, feuille, com_abs,
+                 contenance, arpente, updated, geom_2154, geom_3857)
+                FROM STDIN WITH (FORMAT CSV)
+                """,
+                buf,
+            )
+            copy_s = time.perf_counter() - copy_t0
+
+            merge_t0 = time.perf_counter()
+            cur.execute(
+                f"""
+                INSERT INTO {TARGET_TABLE}
+                    (idu, code_dep, code_insee, section, numero, feuille,
+                     com_abs, contenance, arpente, updated, geom_2154, geom_3857)
+                SELECT
+                    NULLIF(idu, ''),
+                    NULLIF(code_dep, ''),
+                    NULLIF(code_insee, ''),
+                    NULLIF(section, ''),
+                    NULLIF(numero, ''),
+                    NULLIF(feuille, '')::integer,
+                    NULLIF(com_abs, ''),
+                    NULLIF(contenance, '')::double precision,
+                    CASE
+                        WHEN lower(NULLIF(arpente, '')) IN ('true', 't', '1') THEN true
+                        WHEN lower(NULLIF(arpente, '')) IN ('false', 'f', '0') THEN false
+                        ELSE NULL
+                    END,
+                    NULLIF(updated, '')::date,
+                    ST_Multi(ST_GeomFromText(NULLIF(geom_2154, ''), 2154)),
+                    ST_Multi(ST_GeomFromText(NULLIF(geom_3857, ''), 3857))
+                FROM parcelles_staging
+                ON CONFLICT (idu, code_dep) DO UPDATE SET
+                    section    = EXCLUDED.section,
+                    numero     = EXCLUDED.numero,
+                    com_abs    = EXCLUDED.com_abs,
+                    contenance = EXCLUDED.contenance,
+                    arpente    = EXCLUDED.arpente,
+                    updated    = EXCLUDED.updated,
+                    geom_2154  = EXCLUDED.geom_2154,
+                    geom_3857  = EXCLUDED.geom_3857,
+                    ingere_le  = now()
+                """
+            )
+            merge_s = time.perf_counter() - merge_t0
+
+            conn.commit()
+            elapsed = time.perf_counter() - started
+            logger.info(
+                "%sCOPY+MERGE ok : %d lignes (copy=%.2fs merge=%.2fs total=%.2fs)",
+                prefix,
+                len(rows),
+                copy_s,
+                merge_s,
+                elapsed,
+            )
+            return len(rows), 0
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 # ─── JOB BACKGROUND ───────────────────────────────────────────────────────────
