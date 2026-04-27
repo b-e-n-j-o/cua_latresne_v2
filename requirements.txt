@@ -34,3 +34,4 @@ mistralai==1.2.4
 mammoth
 PyPDF2
 laspy
+PyMuPDF==1.24.13
