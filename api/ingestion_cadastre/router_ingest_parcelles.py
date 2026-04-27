@@ -23,6 +23,10 @@ Notes index :
         CREATE INDEX CONCURRENTLY idx_parcelles_geom_2154 ON parcelles.parcelles USING GIST (geom_2154);
         CREATE INDEX CONCURRENTLY idx_parcelles_code_insee ON parcelles.parcelles (code_insee);
         CREATE INDEX CONCURRENTLY idx_parcelles_section_num ON parcelles.parcelles (section, numero);
+
+Lancer le run : 
+curl -X POST https://api.kerelia.fr/admin/parcelles/ingest \  -H "Content-Type: application/json" \
+  -d '{"departements": ["16", "17", "19", "23", "24", "40", "47", "64", "79", "86", "87"]}'
 """
 
 import logging

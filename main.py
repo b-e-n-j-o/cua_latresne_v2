@@ -26,6 +26,7 @@ from api.identite_fonciere.route_identite_parcelle import (
     router as identite_parcelle_router,
     router_fonciere as identite_fonciere_router,
 )
+from api.identite_fonciere.documents_urba.router_reglement import router as reglement_router
 from api.latresne.parcelles_geojson import router as parcelles_geojson_router
 from api.latresne.parcelles_via_adresse import router as parcelles_via_adresse_router
 from api.latresne.patrimoine import router as patrimoine_router
@@ -39,6 +40,7 @@ from api.tiles_mbtiles import router as mbtiles_router
 from api.tiles_mbtiles_parcelles import router as tiles_parcelles
 from api.topography_consolidated import router as topo_router
 from api.ingestion_cadastre.router_ingest_parcelles import router as parcelles_ingest_router
+from api.ingestion_cadastre.router_sync_parcelles import router as parcelles_sync_router
 from app.deps import supabase
 from app.routers.cerfa import router as cerfa_router
 from app.routers.cua_pipeline import router as cua_pipeline_router
@@ -54,6 +56,7 @@ from services.history.project_management import router as project_management_rou
 import services.history.project_management as project_management_module
 from services.history.project_directory import router as project_directory_router
 import services.history.project_directory as project_directory_module
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -208,6 +211,7 @@ app.add_middleware(
 app.include_router(admin_router)
 app.include_router(cua_docx_viewer_routes.router)
 app.include_router(parcelles_ingest_router, prefix="/admin")
+app.include_router(parcelles_sync_router, prefix="/admin")
 
 
 # --- Données / carto ---
@@ -222,6 +226,7 @@ app.include_router(plu_router)
 app.include_router(chat_router)
 app.include_router(identite_parcelle_router)
 app.include_router(identite_fonciere_router)
+app.include_router(reglement_router)
 app.include_router(latresne_router)
 app.include_router(parcelles_geojson_router)
 app.include_router(parcelles_via_adresse_router)
@@ -247,3 +252,4 @@ app.include_router(product_router)
 
 # --- Site / compte (santé, leads, auth) ---
 app.include_router(site_account_router)
+
