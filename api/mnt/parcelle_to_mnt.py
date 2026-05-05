@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from __future__ import annotations
 
 """
 parcelle_topo_3d.py
@@ -11,23 +12,24 @@ d'une parcelle cadastrale donnée par :
 - numéro
 
 Pipeline :
-1) Récupération géométrie parcellaire via WFS IGN
-2) Sélection des dalles MNT dans Supabase (ST_Intersects)
-3) Téléchargement depuis Supabase Storage
-4) Merge + clip raster
-5) Export HTML Plotly (autonome, mobile-friendly)
+1) Géométrie parcellaire depuis Supabase (latresne.parcelles_latresne, Lambert 93)
+2) Parcelles contiguës (ST_Touches) pour élargir l'emprise terrain
+3) Sélection des dalles MNT dans Supabase (ST_Intersects sur l'union)
+4) Téléchargement depuis Supabase Storage, merge + clip sur l'union
+5) Export Plotly : surface contexte + contour 3D de la parcelle cible
 """
 
 import os
-import io
 import tempfile
 import requests
 import numpy as np
-import geopandas as gpd
 import rasterio
 from rasterio.merge import merge
 from rasterio.mask import mask
-from shapely.geometry import mapping
+from rasterio.transform import rowcol
+from shapely.geometry import mapping, Polygon, MultiPolygon
+from shapely.ops import unary_union
+from shapely import wkt as shapely_wkt
 from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
 import plotly.graph_objects as go
@@ -58,44 +60,126 @@ DB_ENGINE = create_engine(
 
 SUPABASE_KEY = os.getenv("SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
-IGN_WFS_ENDPOINT = "https://data.geopf.fr/wfs/ows"
-IGN_LAYER = "CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle"
-SRS = "EPSG:2154"
-
 # ============================================================
 # FONCTIONS
 # ============================================================
 
+def _largest_polygon(geom):
+    """Retourne le polygone principal (surface cadastre en général)."""
+    if geom is None or geom.is_empty:
+        raise ValueError("Géométrie vide")
+    if geom.geom_type == "Polygon":
+        return geom
+    if geom.geom_type == "MultiPolygon":
+        return max(geom.geoms, key=lambda p: p.area)
+    raise ValueError(f"Type géométrique inattendu : {geom.geom_type}")
+
+
 def fetch_parcelle_geometry(code_insee, section, numero):
-    """Récupère la géométrie officielle IGN d'une parcelle."""
-    logger.info(f"Récupération de la géométrie parcellaire : {code_insee} - {section} - {numero}")
-    cql = f"code_insee='{code_insee}' AND section='{section}' AND numero='{numero}'"
-    logger.debug(f"Filtre CQL : {cql}")
+    """
+    Récupère la géométrie Lambert 93 de la parcelle cible depuis
+    latresne.parcelles_latresne (Supabase).
+    """
+    section_n = (section or "").strip().upper()
+    numero_n = (numero or "").strip()
+    code_insee_n = (code_insee or "").strip()
 
-    params = {
-        "service": "WFS",
-        "version": "2.0.0",
-        "request": "GetFeature",
-        "typeNames": IGN_LAYER,
-        "srsName": SRS,
-        "outputFormat": "application/json",
-        "CQL_FILTER": cql
-    }
+    logger.info(
+        "Récupération parcelle (Supabase latresne.parcelles_latresne) : "
+        f"{code_insee_n} / {section_n} / {numero_n}"
+    )
 
-    logger.info(f"Requête WFS IGN : {IGN_WFS_ENDPOINT}")
-    r = requests.get(IGN_WFS_ENDPOINT, params=params)
-    r.raise_for_status()
-    logger.info("Réponse WFS reçue avec succès")
+    sql = """
+    SELECT ST_AsText(ST_MakeValid(geom_2154)) AS wkt, idu
+    FROM latresne.parcelles_latresne
+    WHERE code_insee = :code_insee
+      AND upper(trim(section)) = :section
+      AND trim(numero) = :numero
+    LIMIT 1;
+    """
 
-    gdf = gpd.read_file(io.BytesIO(r.content))
-    logger.info(f"Géométrie chargée : {len(gdf)} feature(s)")
+    with DB_ENGINE.connect() as conn:
+        row = conn.execute(
+            text(sql),
+            {
+                "code_insee": code_insee_n,
+                "section": section_n,
+                "numero": numero_n,
+            },
+        ).mappings().first()
 
-    if gdf.empty:
-        raise ValueError("Parcelle introuvable via l'IGN")
+    if not row or not row["wkt"]:
+        raise ValueError(
+            "Parcelle introuvable en base (latresne.parcelles_latresne) pour cette référence"
+        )
 
-    geom = gdf.geometry.iloc[0]
-    logger.info(f"Géométrie récupérée : surface = {geom.area:.2f} m²")
+    geom = shapely_wkt.loads(row["wkt"])
+    geom = _largest_polygon(geom)
+    logger.info(
+        "Géométrie cible : surface = %.2f m² (idu=%s)",
+        geom.area,
+        row.get("idu") or "—",
+    )
     return geom
+
+
+def fetch_parcelles_contigues(geom_cible, code_insee: str):
+    """
+    Parcelles qui partagent un côté avec la cible (ST_Touches), même commune INSEE.
+    Retourne (liste de Polygons pour l'union MNT, nombre de parcelles cadastrales voisines).
+    """
+    code_insee_n = (code_insee or "").strip()
+    wkt = geom_cible.wkt
+
+    sql = """
+    SELECT ST_AsText(ST_MakeValid(geom_2154)) AS wkt, section, numero, idu
+    FROM latresne.parcelles_latresne
+    WHERE code_insee = :code_insee
+      AND ST_Touches(
+        geom_2154,
+        ST_SetSRID(ST_GeomFromText(:wkt_cible, 2154), 2154)
+      );
+    """
+
+    with DB_ENGINE.connect() as conn:
+        rows = conn.execute(
+            text(sql),
+            {"code_insee": code_insee_n, "wkt_cible": wkt},
+        ).mappings().all()
+
+    out = []
+    labels = []
+    for r in rows:
+        if not r["wkt"]:
+            continue
+        labels.append(f"{(r.get('section') or '').strip()}{(r.get('numero') or '').strip()}")
+        g = shapely_wkt.loads(r["wkt"])
+        if g.geom_type == "Polygon":
+            out.append(g)
+        elif g.geom_type == "MultiPolygon":
+            out.extend(list(g.geoms))
+        else:
+            logger.warning("Voisin ignoré (type %s, idu=%s)", g.geom_type, r.get("idu"))
+
+    n_parcelles = len(rows)
+    preview = ", ".join(labels[:12])
+    if len(labels) > 12:
+        preview += f", … (+{len(labels) - 12})"
+    logger.info("%d parcelle(s) contiguë(s) : %s", n_parcelles, preview or "—")
+
+    return out, n_parcelles
+
+
+def build_emprise_mnt(geom_cible, voisins: list) -> object:
+    """Union de la parcelle cible et des voisins pour le MNT (terrain environnant)."""
+    parts = [geom_cible] + list(voisins)
+    u = unary_union(parts)
+    logger.info(
+        "Emprise MNT : %d polygone(s) fusionnés, aire totale ≈ %.2f m²",
+        len(parts),
+        u.area,
+    )
+    return u
 
 
 def fetch_mnt_from_geometry(geometry):
@@ -159,7 +243,7 @@ def fetch_mnt_from_geometry(geometry):
             logger.info("Une seule dalle, pas de fusion nécessaire")
             src = srcs[0]
 
-        logger.info("Clippage du MNT selon la géométrie de la parcelle...")
+        logger.info("Clippage du MNT selon l'emprise (cible + voisins éventuels)...")
         out, transform = mask(
             src,
             [mapping(geometry)],
@@ -179,12 +263,98 @@ def fetch_mnt_from_geometry(geometry):
     return data, transform, resolution
 
 
-def export_plotly_3d(geometry, mnt, transform, resolution,
-                     code_insee, section, numero,
-                     output_dir="./out_3d",
-                     exaggeration=1.5):
+def _densify_ring_xy(poly: Polygon, step_m: float) -> list[tuple[float, float]]:
+    """Points le long du pourtour extérieur, espacés d'environ step_m."""
+    ring = poly.exterior
+    length = ring.length
+    if length <= 0:
+        return []
+    pts = []
+    d = 0.0
+    while d < length:
+        p = ring.interpolate(d)
+        pts.append((float(p.x), float(p.y)))
+        d += step_m
+    c0 = ring.coords[0]
+    pts.append((float(c0[0]), float(c0[1])))
+    return pts
 
-    logger.info(f"Génération de la visualisation 3D...")
+
+def _sample_z_dem(
+    dem: np.ndarray,
+    transform,
+    x: float,
+    y: float,
+) -> float | None:
+    """Lit Z sur la grille MNT ; fenêtre 3×3 si nodata."""
+    r, c = rowcol(transform, x, y)
+    h, w = dem.shape
+    if 0 <= r < h and 0 <= c < w:
+        z = dem[r, c]
+        if z == z and not np.isnan(z):
+            return float(z)
+
+    vals = []
+    for dr in (-1, 0, 1):
+        for dc in (-1, 0, 1):
+            rr, cc = r + dr, c + dc
+            if 0 <= rr < h and 0 <= cc < w:
+                z = dem[rr, cc]
+                if z == z and not np.isnan(z):
+                    vals.append(float(z))
+    if vals:
+        return float(np.median(vals))
+    return None
+
+
+def _boundary_xyz(
+    geometry_target,
+    dem: np.ndarray,
+    transform,
+    resolution: float,
+    exaggeration: float,
+) -> tuple[list[float], list[float], list[float]] | None:
+    """Polyline 3D suivant le bord de la parcelle cible, Z = MNT."""
+    try:
+        poly = _largest_polygon(geometry_target)
+    except ValueError:
+        return None
+    if not isinstance(poly, Polygon):
+        return None
+
+    step_m = max(float(resolution) * 2.0, 2.0)
+    xy = _densify_ring_xy(poly, step_m)
+    if len(xy) < 2:
+        return None
+
+    xs, ys, zs = [], [], []
+    for x, y in xy:
+        z = _sample_z_dem(dem, transform, x, y)
+        if z is None:
+            continue
+        xs.append(x)
+        ys.append(y)
+        zs.append(z * exaggeration)
+
+    if len(xs) < 2:
+        return None
+    return xs, ys, zs
+
+
+def export_plotly_3d(
+    geometry_target,
+    mnt,
+    transform,
+    resolution,
+    code_insee,
+    section,
+    numero,
+    output_dir="./out_3d",
+    exaggeration=1.5,
+    n_voisins: int = 0,
+):
+
+    logger.info("Génération de la visualisation 3D...")
     logger.info(f"Répertoire de sortie : {output_dir}")
     os.makedirs(output_dir, exist_ok=True)
 
@@ -201,24 +371,53 @@ def export_plotly_3d(geometry, mnt, transform, resolution,
     Xs, Ys, Zs = X[::step, ::step], Y[::step, ::step], Z[::step, ::step]
     logger.info(f"Points de surface : {Xs.shape}")
 
+    titre = f"Topographie 3D – {section} {numero} (cible)"
+    if n_voisins > 0:
+        titre += f" + {n_voisins} parcelle(s) voisine(s)"
+
     logger.info("Création de la figure Plotly...")
-    fig = go.Figure(go.Surface(
-        x=Xs,
-        y=Ys,
-        z=Zs,
-        colorscale="Earth",
-        showscale=True
-    ))
+    fig = go.Figure(
+        go.Surface(
+            x=Xs,
+            y=Ys,
+            z=Zs,
+            colorscale="Earth",
+            showscale=True,
+            name="MNT",
+        )
+    )
+
+    bxyz = _boundary_xyz(geometry_target, mnt, transform, resolution, exaggeration)
+    if bxyz:
+        bx, by, bz = bxyz
+        fig.add_trace(
+            go.Scatter3d(
+                x=bx,
+                y=by,
+                z=bz,
+                mode="lines",
+                line=dict(color="#ffea00", width=10),
+                name="Limite parcelle cible",
+                showlegend=True,
+            )
+        )
+        logger.info("Contour 3D parcelle cible : %d points", len(bx))
+    else:
+        logger.warning("Contour parcelle cible non tracé (échantillonnage vide ou hors grille)")
+
+    z_title = "Altitude (m)"
+    if exaggeration != 1.0:
+        z_title += f" × {exaggeration}"
 
     fig.update_layout(
-        title=f"Topographie 3D – Parcelle {section}{numero}",
+        title=titre,
         scene=dict(
-            xaxis_title="X (m)",
-            yaxis_title="Y (m)",
-            zaxis_title="Altitude (m)",
-            aspectmode="data"
+            xaxis_title="X Lambert 93 (m)",
+            yaxis_title="Y Lambert 93 (m)",
+            zaxis_title=z_title,
+            aspectmode="data",
         ),
-        margin=dict(l=0, r=0, t=40, b=0)
+        margin=dict(l=0, r=0, t=48, b=0),
     )
 
     filename = f"parcelle_3d_{code_insee}_{section}{numero}.html"
@@ -230,10 +429,16 @@ def export_plotly_3d(geometry, mnt, transform, resolution,
 
     result = {
         "path": path,
-        "surface_m2": float(geometry.area),
-        "resolution_m": resolution
+        "surface_m2": float(geometry_target.area),
+        "resolution_m": resolution,
+        "n_voisins": int(n_voisins),
     }
-    logger.info(f"Résultat : surface = {result['surface_m2']:.2f} m², résolution = {result['resolution_m']:.2f} m")
+    logger.info(
+        "Résultat : surface cible = %.2f m², résolution = %.2f m, voisins = %d",
+        result["surface_m2"],
+        result["resolution_m"],
+        result["n_voisins"],
+    )
     return result
 
 # ============================================================
@@ -261,17 +466,19 @@ if __name__ == "__main__":
     logger.info("")
 
     try:
-        logger.info("Étape 1/3 : Récupération de la géométrie parcellaire")
-        geom = fetch_parcelle_geometry(CODE_INSEE, SECTION, NUMERO)
-        logger.info("✓ Géométrie récupérée\n")
+        logger.info("Étape 1/4 : Parcelle cible + voisins (Supabase)")
+        geom_cible = fetch_parcelle_geometry(CODE_INSEE, SECTION, NUMERO)
+        voisins, n_vois = fetch_parcelles_contigues(geom_cible, CODE_INSEE)
+        emprise = build_emprise_mnt(geom_cible, voisins)
+        logger.info("✓ Emprise MNT OK (%d voisin(s))\n", n_vois)
 
-        logger.info("Étape 2/3 : Récupération et traitement du MNT")
-        mnt, transform, res = fetch_mnt_from_geometry(geom)
+        logger.info("Étape 2/4 : Récupération et traitement du MNT")
+        mnt, transform, res = fetch_mnt_from_geometry(emprise)
         logger.info("✓ MNT récupéré et clippé\n")
 
-        logger.info("Étape 3/3 : Génération de la visualisation 3D")
+        logger.info("Étape 3/4 : Génération de la visualisation 3D")
         result = export_plotly_3d(
-            geom,
+            geom_cible,
             mnt,
             transform,
             res,
@@ -279,7 +486,8 @@ if __name__ == "__main__":
             SECTION,
             NUMERO,
             OUTPUT_DIR,
-            EXAGGERATION
+            EXAGGERATION,
+            n_voisins=n_vois,
         )
         logger.info("✓ Visualisation générée\n")
 

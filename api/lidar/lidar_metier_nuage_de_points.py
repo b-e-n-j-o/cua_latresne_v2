@@ -151,6 +151,25 @@ def fetch_parcelle_geometry(code_insee: str, section: str, numero: str):
     return gdf.geometry.iloc[0]
 
 
+def geometry_with_buffer(geom, buffer_m: float):
+    """
+    Étend une géométrie Lambert 93 (mètres) d'un tampon homogène.
+    buffer_m <= 0 : retourne la géométrie inchangée (parcelle seule).
+    """
+    if buffer_m is None or buffer_m <= 0:
+        return geom
+    b = geom.buffer(float(buffer_m))
+    if not b.is_valid:
+        b = b.buffer(0)
+    logger.info(
+        "Tampon contexte : +%.1f m → surface zone clip ≈ %.0f m² (était %.0f m²)",
+        float(buffer_m),
+        b.area,
+        geom.area,
+    )
+    return b
+
+
 def select_intersecting_tiles(parcelle_geom, tif_paths: list[Path]) -> list[Path]:
     selected = []
     for tif in tif_paths:
@@ -258,9 +277,10 @@ def resolve_laz_input(laz_url: str | None, laz_file: str | None) -> tuple[Path, 
     raise ValueError("En mode laz, fournir --laz-file ou --laz-url.")
 
 
-def fetch_lidar_tiles_for_parcelle(parcelle_geom) -> list[dict]:
+def fetch_lidar_tiles_for_parcelle(zone_geom) -> list[dict]:
+    """zone_geom : emprise utile (parcelle ou parcelle + tampon) en EPSG:2154."""
     logger.info("Etape 2/4 - Interrogation couche IGN des dalles LiDAR HD")
-    minx, miny, maxx, maxy = parcelle_geom.bounds
+    minx, miny, maxx, maxy = zone_geom.bounds
     params = {
         "service": "WFS",
         "version": "2.0.0",
@@ -277,9 +297,9 @@ def fetch_lidar_tiles_for_parcelle(parcelle_geom) -> list[dict]:
         logger.info("Aucune dalle retournee par l'API dans la bbox.")
         return []
 
-    intersects = gdf[gdf.geometry.intersects(parcelle_geom)].copy()
+    intersects = gdf[gdf.geometry.intersects(zone_geom)].copy()
     if intersects.empty:
-        logger.info("Aucune dalle n'intersecte exactement la parcelle.")
+        logger.info("Aucune dalle n'intersecte la zone demandée.")
         return []
 
     tiles: list[dict] = []
@@ -449,7 +469,11 @@ def build_pyvista_plotter(
     return plotter
 
 
-def laz_to_point_cloud(laz_path: Path, parcelle_geom, max_points: int) -> pv.PolyData:
+def laz_to_point_cloud(laz_path: Path, clip_geom, max_points: int) -> pv.PolyData:
+    """
+    clip_geom : polygone Lambert 93 (parcelle seule ou parcelle tamponnée)
+    dans lequel on conserve les points LiDAR.
+    """
     logger.info("Etape 3/4 - Lecture et filtrage du nuage LAZ")
     las = laspy.read(laz_path)
     xs = np.asarray(las.x)
@@ -460,11 +484,11 @@ def laz_to_point_cloud(laz_path: Path, parcelle_geom, max_points: int) -> pv.Pol
         raise ValueError("Le fichier LAZ est vide.")
 
     # Préfiltre bbox pour éviter de tester tous les points au polygone
-    minx, miny, maxx, maxy = parcelle_geom.bounds
+    minx, miny, maxx, maxy = clip_geom.bounds
     bbox_mask = (xs >= minx) & (xs <= maxx) & (ys >= miny) & (ys <= maxy)
     if not np.any(bbox_mask):
-        raise ValueError("Aucun point LAZ dans la bbox de la parcelle.")
-    logger.info("Points dans bbox parcelle: %d / %d", int(np.count_nonzero(bbox_mask)), xs.size)
+        raise ValueError("Aucun point LAZ dans la bbox de la zone de clip.")
+    logger.info("Points dans bbox zone clip: %d / %d", int(np.count_nonzero(bbox_mask)), xs.size)
 
     xb = xs[bbox_mask]
     yb = ys[bbox_mask]
@@ -472,13 +496,13 @@ def laz_to_point_cloud(laz_path: Path, parcelle_geom, max_points: int) -> pv.Pol
 
     # Test point-in-polygon exact sur les points de bbox
     pip_mask = np.fromiter(
-        (parcelle_geom.covers(Point(x, y)) for x, y in zip(xb, yb)),
+        (clip_geom.covers(Point(x, y)) for x, y in zip(xb, yb)),
         dtype=bool,
         count=xb.size,
     )
     if not np.any(pip_mask):
-        raise ValueError("Aucun point LAZ à l'intérieur de la parcelle.")
-    logger.info("Points dans polygone parcelle: %d", int(np.count_nonzero(pip_mask)))
+        raise ValueError("Aucun point LAZ à l'intérieur de la zone de clip.")
+    logger.info("Points dans polygone zone clip: %d", int(np.count_nonzero(pip_mask)))
 
     x_in = xb[pip_mask]
     y_in = yb[pip_mask]
@@ -522,6 +546,12 @@ def main():
     parser.add_argument("--html-max-points", type=int, default=0, help="Nombre max de points dans l'export HTML. 0 = tous les points")
     parser.add_argument("--deck-point-size", type=float, default=1.0, help="Taille des points dans l'export HTML deck.gl")
     parser.add_argument("--point-size", type=float, default=3.0, help="Taille des points PyVista")
+    parser.add_argument(
+        "--context-buffer-m",
+        type=float,
+        default=0.0,
+        help="Tampon (m) autour de la parcelle pour MNT/LAZ/dalles IGN. 0 = parcelle seule.",
+    )
     args = parser.parse_args()
     logger.info("==== Demarrage visualisation parcelle %s %s%s (mode=%s) ====", args.code_insee, args.section, args.numero, args.mode)
 
@@ -529,12 +559,13 @@ def main():
     ram_monitor.start()
 
     parcelle_geom = fetch_parcelle_geometry(args.code_insee, args.section, args.numero)
+    zone_geom = geometry_with_buffer(parcelle_geom, args.context_buffer_m)
     laz_path: Path | None = None
     laz_is_temp = False
 
     try:
         if args.mode == "ign-tiles":
-            tiles = fetch_lidar_tiles_for_parcelle(parcelle_geom)
+            tiles = fetch_lidar_tiles_for_parcelle(zone_geom)
             if not tiles:
                 return
             if args.download_tiles_dir:
@@ -547,14 +578,14 @@ def main():
 
         if args.mode == "laz":
             laz_path, laz_is_temp = resolve_laz_input(args.laz_url, args.laz_file)
-            cloud = laz_to_point_cloud(laz_path, parcelle_geom, args.max_points)
+            cloud = laz_to_point_cloud(laz_path, zone_geom, args.max_points)
         else:
             tif_paths = sorted(
                 p for p in MNT_DIR.glob("*.tif")
                 if not p.name.startswith("._")
             )
             logger.info("Etape 2/4 - Dalles MNT candidates: %d", len(tif_paths))
-            clipped_arr, clipped_transform = build_clipped_mnt(parcelle_geom, tif_paths)
+            clipped_arr, clipped_transform = build_clipped_mnt(zone_geom, tif_paths)
             cloud = mnt_to_point_cloud(clipped_arr, clipped_transform)
 
         plot_title = (

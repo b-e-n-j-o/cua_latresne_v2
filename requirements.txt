@@ -11,6 +11,7 @@ shapely==2.1.1
 folium==0.20.0
 plotly==6.3.1
 numpy==2.2.6
+scipy>=1.11.0
 pandas==2.2.3
 pyproj==3.7.1
 SQLAlchemy==2.0.36
