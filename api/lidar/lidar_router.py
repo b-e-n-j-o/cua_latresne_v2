@@ -24,7 +24,7 @@ from pydantic import BaseModel
 
 # --- Import des fonctions du script existant ---
 # On suppose que affichage_nuage_parcelle.py est dans le même dossier
-from lidar_metier_nuage_de_points import (
+from api.lidar.lidar_metier_nuage_de_points import (
     fetch_parcelle_geometry,
     fetch_lidar_tiles_for_parcelle,
     download_lidar_tiles,
