@@ -27,6 +27,11 @@ Notes index :
 Lancer le run : 
 curl -X POST https://api.kerelia.fr/admin/parcelles/ingest \  -H "Content-Type: application/json" \
   -d '{"departements": ["16", "17", "19", "23", "24", "40", "47", "64", "79", "86", "87"]}'
+
+Watch le run :
+watch -n 3 "curl -s https://api.kerelia.fr/admin/parcelles/status/$JOB_ID | python3 -m json.tool"
+
+
 """
 
 import logging

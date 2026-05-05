@@ -35,6 +35,7 @@ from api.latresne.tiles_mbtiles import router as latresne_mbtiles_router
 from api.parcelle_geometrie import router as parcelle_geometrie_router
 from api.plu.chat import router as chat_router
 from api.plu.fetch_plu import router as plu_router
+from api.lidar.lidar_router import router as lidar_router
 from api.tiles_generic import router as tiles_router
 from api.tiles_mbtiles import router as mbtiles_router
 from api.tiles_mbtiles_parcelles import router as tiles_parcelles
@@ -246,6 +247,9 @@ app.include_router(cua_pipeline_router)
 
 # --- Pipelines Supabase + debug ---
 app.include_router(pipelines_supabase_router)
+
+# --- LiDAR HD (nuage de points) ---
+app.include_router(lidar_router, prefix="/lidar")
 
 # --- Utilitaires produit (résumé IA CUA) ---
 app.include_router(product_router)
