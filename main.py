@@ -203,9 +203,10 @@ app.add_middleware(
         "https://www.kerelia.fr",
         "https://kerelia.fr",
     ],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Center-X", "X-Center-Y", "X-N-Points"],
 )
 
 # --- Back-office / admin ---
