@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import io
 import logging
+import shutil
 import tempfile
 from pathlib import Path
 from typing import List, Optional
@@ -96,6 +97,7 @@ async def get_points(body: PointsRequest):
       6. Sérialisation Apache Arrow IPC (Float32, coordonnées relatives)
     Retourne un flux binaire application/octet-stream.
     """
+    job_dir: Path | None = None
     try:
         from shapely.ops import unary_union
 
@@ -200,6 +202,14 @@ async def get_points(body: PointsRequest):
     except Exception as e:
         logger.exception("Erreur /lidar/points")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        # Nettoyage systématique des dalles .laz téléchargées
+        if job_dir is not None and job_dir.exists():
+            try:
+                shutil.rmtree(job_dir, ignore_errors=True)
+                logger.info("Nettoyage temporaire termine: %s", job_dir)
+            except Exception as cleanup_error:
+                logger.warning("Impossible de supprimer le dossier temporaire %s: %s", job_dir, cleanup_error)
 
 
 # ────────────────────────────────────────────────
