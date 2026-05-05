@@ -11,12 +11,14 @@ from __future__ import annotations
 import hashlib
 import io
 import logging
+import os
 import shutil
 import tempfile
 from pathlib import Path
 from typing import List, Optional
 
 import numpy as np
+import psutil
 import pyarrow as pa
 import pyarrow.ipc as ipc
 from fastapi import APIRouter, HTTPException
@@ -37,6 +39,16 @@ router = APIRouter()
 
 TEMP_DIR = Path(tempfile.gettempdir()) / "kerelia_lidar"
 TEMP_DIR.mkdir(exist_ok=True)
+
+
+def log_ram(step: str):
+    process = psutil.Process(os.getpid())
+    rss = process.memory_info().rss / 1e6
+    vm = psutil.virtual_memory()
+    logger.info(
+        "RAM [%s] process=%.0f Mo | systeme=%.0f/%.0f Mo (%.0f%%)",
+        step, rss, vm.used / 1e6, vm.total / 1e6, vm.percent
+    )
 
 
 # ────────────────────────────────────────────────
@@ -100,6 +112,7 @@ async def get_points(body: PointsRequest):
     job_dir: Path | None = None
     try:
         from shapely.ops import unary_union
+        log_ram("debut requete")
 
         # 1. Géométries
         logger.info("Récupération de %d géométrie(s) parcellaire(s)", len(body.parcelles))
@@ -110,11 +123,17 @@ async def get_points(body: PointsRequest):
 
         study_geom = unary_union(geoms) if len(geoms) > 1 else geoms[0]
         logger.info("Géométrie d'étude : surface=%.2f m²", study_geom.area)
+        logger.info("Parcelle : surface=%.0f m², bbox=%s", study_geom.area, study_geom.bounds)
+        log_ram("apres geometrie")
 
         # 2. Dalles IGN
         tiles = fetch_lidar_tiles_for_parcelle(study_geom)
         if not tiles:
             raise HTTPException(status_code=404, detail="Aucune dalle LiDAR trouvée pour cette zone.")
+        logger.info("Dalles intersectées : %d", len(tiles))
+        for t in tiles:
+            logger.info("  -> %s", t.get("url"))
+        log_ram("apres fetch tiles IGN")
 
         # 3. Téléchargement dans un sous-dossier temporaire unique
         job_id = hashlib.md5(
@@ -125,22 +144,30 @@ async def get_points(body: PointsRequest):
 
         laz_paths = download_lidar_tiles(tiles, job_dir)
         logger.info("%d dalle(s) téléchargée(s)", len(laz_paths))
+        total_mb = sum(p.stat().st_size for p in laz_paths) / 1e6
+        logger.info("Dalles téléchargées : %d fichier(s), %.1f Mo total", len(laz_paths), total_mb)
+        log_ram("apres telechargement")
 
         # 4. Clip + merge de toutes les dalles
         import pyvista as pv
 
         all_points: list[np.ndarray] = []
         all_classes: list[np.ndarray] = []
+        points_bruts_total = 0
 
         for laz_path in laz_paths:
             try:
                 cloud = laz_to_point_cloud(laz_path, study_geom, body.max_points)
                 pts = np.asarray(cloud.points)
+                points_in_tile = int(pts.shape[0])
+                points_bruts_total += points_in_tile
+                logger.info("Dalle %s : %d points bruts dans bbox/clip", laz_path.name, points_in_tile)
                 all_points.append(pts)
                 if "classification" in cloud.array_names:
                     all_classes.append(np.asarray(cloud["classification"]))
                 else:
                     all_classes.append(np.zeros(pts.shape[0], dtype=np.uint8))
+                log_ram("apres clip dalle")
             except ValueError as e:
                 logger.warning("Dalle ignorée (%s) : %s", laz_path.name, e)
 
@@ -157,6 +184,8 @@ async def get_points(body: PointsRequest):
             classes = classes[idx]
 
         logger.info("Total points après merge/clip : %d", points.shape[0])
+        logger.info("Points finaux après merge+clip : %d", points.shape[0])
+        log_ram("avant serialisation Arrow")
 
         # 5. Normalisation relative (évite le jittering Float32 sur Lambert-93)
         cx, cy = float(points[:, 0].mean()), float(points[:, 1].mean())
@@ -185,6 +214,8 @@ async def get_points(body: PointsRequest):
 
         arrow_bytes = sink.getvalue().to_pybytes()
         logger.info("Arrow IPC sérialisé : %.2f Mo", len(arrow_bytes) / 1e6)
+        logger.info("Arrow IPC : %.1f Mo", len(arrow_bytes) / 1e6)
+        log_ram("fin requete")
 
         return Response(
             content=arrow_bytes,
@@ -193,7 +224,11 @@ async def get_points(body: PointsRequest):
                 "X-Center-X": str(cx),
                 "X-Center-Y": str(cy),
                 "X-N-Points": str(points.shape[0]),
-                "Access-Control-Expose-Headers": "X-Center-X, X-Center-Y, X-N-Points",
+                "X-Superficie-M2": str(round(study_geom.area, 1)),
+                "X-N-Tiles": str(len(tiles)),
+                "X-Tiles-Mb": str(round(total_mb, 1)),
+                "X-Points-Bruts": str(int(points_bruts_total)),
+                "Access-Control-Expose-Headers": "X-Center-X,X-Center-Y,X-N-Points,X-Superficie-M2,X-N-Tiles,X-Tiles-Mb,X-Points-Bruts",
             },
         )
 
