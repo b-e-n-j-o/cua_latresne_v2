@@ -39,3 +39,4 @@ pyarrow
 pyvista
 pydeck
 PyMuPDF==1.24.13
+Pillow

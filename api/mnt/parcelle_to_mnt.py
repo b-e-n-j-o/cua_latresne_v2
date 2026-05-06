@@ -343,6 +343,7 @@ def _boundary_xyz(
 
 def export_plotly_3d(
     geometry_target,
+    contour_geometries,
     mnt,
     transform,
     resolution,
@@ -387,8 +388,11 @@ def export_plotly_3d(
         )
     )
 
-    bxyz = _boundary_xyz(geometry_target, mnt, transform, resolution, exaggeration)
-    if bxyz:
+    contours_ok = 0
+    for idx, geom in enumerate(contour_geometries or [geometry_target]):
+        bxyz = _boundary_xyz(geom, mnt, transform, resolution, exaggeration)
+        if not bxyz:
+            continue
         bx, by, bz = bxyz
         fig.add_trace(
             go.Scatter3d(
@@ -397,13 +401,15 @@ def export_plotly_3d(
                 z=bz,
                 mode="lines",
                 line=dict(color="#ffea00", width=10),
-                name="Limite parcelle cible",
-                showlegend=True,
+                name="Limites parcelles cible" if idx == 0 else None,
+                showlegend=(idx == 0),
             )
         )
-        logger.info("Contour 3D parcelle cible : %d points", len(bx))
+        contours_ok += 1
+    if contours_ok > 0:
+        logger.info("Contour(s) 3D parcelle(s) cible(s) : %d tracé(s)", contours_ok)
     else:
-        logger.warning("Contour parcelle cible non tracé (échantillonnage vide ou hors grille)")
+        logger.warning("Aucun contour parcellaire tracé (échantillonnage vide ou hors grille)")
 
     z_title = "Altitude (m)"
     if exaggeration != 1.0:
@@ -479,6 +485,7 @@ if __name__ == "__main__":
         logger.info("Étape 3/4 : Génération de la visualisation 3D")
         result = export_plotly_3d(
             geom_cible,
+            [geom_cible],
             mnt,
             transform,
             res,
