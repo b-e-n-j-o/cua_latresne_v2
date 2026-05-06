@@ -18,9 +18,12 @@ from __future__ import annotations
 
 import base64
 import logging
+import math
+import os
 
 import numpy as np
 import pyproj
+import psutil
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -39,6 +42,21 @@ router = APIRouter()
 
 _to_2154 = pyproj.Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
 UF_CONTEXT_BUFFER_M = 100.0
+MAX_VERTICES = 200_000  # budget fluide pour navigateur / GPU intégré
+
+
+def log_ram(step: str):
+    p = psutil.Process(os.getpid())
+    rss = p.memory_info().rss / 1e6
+    vm = psutil.virtual_memory()
+    logger.info(
+        "RAM [%s] process=%.0fMo | système=%.0f/%.0fMo (%.0f%%)",
+        step,
+        rss,
+        vm.used / 1e6,
+        vm.total / 1e6,
+        vm.percent,
+    )
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -105,6 +123,8 @@ async def get_terrain_data(body: MntTerrainRequest):
       exaggeration        : valeur passée par le front
     """
     try:
+        log_ram("start")
+
         # 1. Géométrie cible
         if body.union_geometry:
             geom_cible = _geom_to_2154(shapely_shape(body.union_geometry))
@@ -145,7 +165,22 @@ async def get_terrain_data(body: MntTerrainRequest):
 
         # 4. MNT
         mnt, transform, resolution = fetch_mnt_from_geometry(emprise)
+        log_ram("after_fetch_mnt")
         rows, cols = mnt.shape
+        total = rows * cols
+        if total > MAX_VERTICES:
+            step = math.ceil(math.sqrt(total / MAX_VERTICES))
+            mnt = mnt[::step, ::step]
+            resolution = resolution * step
+            rows, cols = mnt.shape
+            logger.info(
+                "MNT décimé ×%d → %dx%d px (%.0fk vertices)",
+                step,
+                cols,
+                rows,
+                (rows * cols) / 1000,
+            )
+            log_ram("after_decimation")
         elev_min = float(np.nanmin(mnt))
         elev_max = float(np.nanmax(mnt))
         logger.info("MNT %dx%d px, résolution=%.2fm, alt=[%.2f, %.2f]",
@@ -161,6 +196,7 @@ async def get_terrain_data(body: MntTerrainRequest):
 
         # 6. Float32 base64
         elevations_b64 = _encode_elevations(mnt)
+        log_ram("after_encode_base64")
         logger.info("Float32 b64 : %.0f Ko", len(elevations_b64) / 1024)
 
         # 7. Contours relatifs
@@ -171,7 +207,7 @@ async def get_terrain_data(body: MntTerrainRequest):
             except Exception as e:
                 logger.warning("Contour non convertible : %s", e)
 
-        return JSONResponse(content={
+        response = JSONResponse(content={
             "width":          cols,
             "height":         rows,
             "resolution_m":   round(resolution, 4),
@@ -185,6 +221,8 @@ async def get_terrain_data(body: MntTerrainRequest):
             "n_voisins":      n_voisins,
             "exaggeration":   body.exaggeration,
         })
+        log_ram("before_return")
+        return response
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
