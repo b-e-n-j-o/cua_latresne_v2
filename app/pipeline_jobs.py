@@ -22,14 +22,22 @@ async def run_pipeline_from_parcelles_async(
     out_dir: str | None = None,
     demandeur: dict | None = None,
 ):
-    """Exécute INTERSECTIONS/pipeline_from_parcelles.py et met à jour JOBS pour suivi via polling."""
+    """Exécute le script pipeline_from_parcelles.py et met à jour JOBS pour suivi via polling."""
     try:
         print(
             f"🟢 [run_pipeline_from_parcelles] START job_id={job_id}, "
             f"parcelles={len(parcelles)}, insee={code_insee}, out_dir={out_dir}"
         )
 
-        pipeline_script = PROJECT_ROOT / "INTERSECTIONS" / "pipeline_from_parcelles.py"
+        pipeline_script = (
+            PROJECT_ROOT
+            / "api"
+            / "communes"
+            / "latresne"
+            / "cuas"
+            / "INTERSECTIONS"
+            / "pipeline_from_parcelles.py"
+        )
 
         job = JOBS.get(job_id, {})
         job.update({

@@ -6,11 +6,13 @@ via WFS IGN.
 import csv
 import json
 import os
+from pathlib import Path
 from typing import List
 
 import psycopg2
 import requests
 from fastapi import APIRouter, HTTPException
+from psycopg2 import sql
 
 from .ssl_utils import ssl_verify_for_requests
 from pydantic import BaseModel
@@ -25,7 +27,7 @@ router = APIRouter(prefix="/parcelle", tags=["Cadastre"])
 # Config
 # ------------------------------------------------------------
 
-CSV_COMMUNES = os.path.join("CONFIG", "v_commune_2025.csv")
+CSV_COMMUNES = str(Path(__file__).resolve().parent.parent / "config" / "v_commune_2025.csv")
 WFS_URL = "https://data.geopf.fr/wfs"
 CAD_LAYER = "CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle"
 
@@ -61,6 +63,54 @@ def load_commune_to_insee():
     return mapping_dict
 
 COMMUNE_TO_INSEE = load_commune_to_insee()
+
+
+def _normalize_commune_key(value: str | None) -> str:
+    return (value or "").strip().upper().replace("-", " ")
+
+
+def _load_cadastre_tables() -> dict[str, tuple[str, str]]:
+    """
+    Whitelist des tables cadastrales.
+    Format env optionnel CADASTRE_COMMUNES_TABLES:
+    {"latresne":"latresne.parcelles_latresne","argeles":"argeles.parcelles"}
+    """
+    default_mapping = {
+        "LATRESNE": ("latresne", "parcelles_latresne"),
+        "ARGELES": ("argeles", "parcelles"),
+        "ARGELES SUR MER": ("argeles", "parcelles"),
+    }
+    raw = (os.getenv("CADASTRE_COMMUNES_TABLES") or "").strip()
+    if not raw:
+        return default_mapping
+
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return default_mapping
+
+    if not isinstance(parsed, dict):
+        return default_mapping
+
+    cleaned: dict[str, tuple[str, str]] = {}
+    for slug, value in parsed.items():
+        if not isinstance(slug, str) or not isinstance(value, str) or "." not in value:
+            continue
+        schema_name, table_name = value.split(".", 1)
+        schema_name = schema_name.strip()
+        table_name = table_name.strip()
+        if not schema_name or not table_name:
+            continue
+        cleaned[_normalize_commune_key(slug)] = (schema_name, table_name)
+
+    return cleaned or default_mapping
+
+
+CADASTRE_TABLES = _load_cadastre_tables()
+INSEE_TO_COMMUNE_KEY = {
+    "33234": "LATRESNE",
+    "66008": "ARGELES SUR MER",
+}
 
 SUPABASE_HOST = str(os.getenv("SUPABASE_HOST") or "").strip().strip('"').strip("'")
 SUPABASE_PORT = str(os.getenv("SUPABASE_PORT") or "5432").strip().strip('"').strip("'")
@@ -106,6 +156,21 @@ def resolve_insee_and_commune(code_insee: str | None, commune: str) -> tuple[str
     if commune_upper not in COMMUNE_TO_INSEE:
         raise HTTPException(404, f"Commune inconnue : {commune}")
     return COMMUNE_TO_INSEE[commune_upper], commune.title()
+
+
+def resolve_cadastre_table(insee: str, commune_name: str) -> tuple[str, str]:
+    key_from_insee = INSEE_TO_COMMUNE_KEY.get((insee or "").strip())
+    if key_from_insee and key_from_insee in CADASTRE_TABLES:
+        return CADASTRE_TABLES[key_from_insee]
+
+    key_from_commune = _normalize_commune_key(commune_name)
+    if key_from_commune in CADASTRE_TABLES:
+        return CADASTRE_TABLES[key_from_commune]
+
+    raise HTTPException(
+        404,
+        f"Aucune table cadastrale configuree pour la commune '{commune_name}' (INSEE: {insee})",
+    )
 
 # ------------------------------------------------------------
 # Endpoints
@@ -183,22 +248,23 @@ def parcelle_et_voisins(
     code_insee: str | None = None,
 ):
     """
-    Retourne la parcelle cible et ses voisines depuis PostGIS (latresne.parcelles_latresne).
+    Retourne la parcelle cible et ses voisines depuis PostGIS.
     """
     section_norm = section.upper().strip()
     numero_norm = numero.zfill(4)
     insee, commune_name = resolve_insee_and_commune(code_insee, commune)
+    schema_name, table_name = resolve_cadastre_table(insee, commune_name)
 
     conn = None
     cur = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute(
+        query = sql.SQL(
             """
             WITH target AS (
                 SELECT p.geom_2154
-                FROM latresne.parcelles_latresne p
+                FROM {}.{} p
                 WHERE p.code_insee = %s
                   AND UPPER(TRIM(p.section)) = %s
                   AND LPAD(TRIM(p.numero), 4, '0') = %s
@@ -214,7 +280,7 @@ def parcelle_et_voisins(
                     p.contenance,
                     p.geom_2154,
                     (UPPER(TRIM(p.section)) = %s AND LPAD(TRIM(p.numero), 4, '0') = %s) AS is_target
-                FROM latresne.parcelles_latresne p, target t
+                FROM {}.{} p, target t
                 WHERE p.code_insee = %s
                   AND p.geom_2154 IS NOT NULL
                   AND (
@@ -232,7 +298,15 @@ def parcelle_et_voisins(
                 ST_AsGeoJSON(ST_Transform(geom_2154, 4326)) AS geom_json
             FROM selected
             ORDER BY is_target DESC, UPPER(TRIM(section)), LPAD(TRIM(numero), 4, '0')
-            """,
+            """
+        ).format(
+            sql.Identifier(schema_name),
+            sql.Identifier(table_name),
+            sql.Identifier(schema_name),
+            sql.Identifier(table_name),
+        )
+        cur.execute(
+            query,
             (
                 insee,
                 section_norm,
@@ -246,7 +320,7 @@ def parcelle_et_voisins(
         )
         rows = cur.fetchall()
     except Exception as exc:
-        raise HTTPException(500, f"Erreur lecture base parcelles_latresne: {exc}")
+        raise HTTPException(500, f"Erreur lecture base cadastrale {schema_name}.{table_name}: {exc}")
     finally:
         if cur:
             cur.close()
@@ -294,7 +368,11 @@ def uf_geometrie(payload: UFRequest):
         raise HTTPException(400, "Une unité foncière ne peut pas dépasser 20 parcelles.")
 
     insee, commune = resolve_insee_and_commune(payload.code_insee, payload.commune)
-    print(f"[uf-geometrie] Utilisation de la base locale pour INSEE={insee}, commune={commune}")
+    schema_name, table_name = resolve_cadastre_table(insee, commune)
+    print(
+        f"[uf-geometrie] Utilisation de la base locale pour INSEE={insee}, "
+        f"commune={commune}, table={schema_name}.{table_name}"
+    )
     
     print(f"[uf-geometrie] Traitement de {len(payload.parcelles)} parcelles avec INSEE={insee}")
     unique_parcelles = []
@@ -322,7 +400,7 @@ def uf_geometrie(payload: UFRequest):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute(
+        query = sql.SQL(
             f"""
             WITH requested(section, numero) AS (
                 VALUES {values_sql}
@@ -333,7 +411,7 @@ def uf_geometrie(payload: UFRequest):
                     r.numero,
                     p.geom_2154
                 FROM requested r
-                JOIN latresne.parcelles_latresne p
+                JOIN {{}}.{{}} p
                   ON UPPER(TRIM(p.section)) = r.section
                  AND LPAD(TRIM(p.numero), 4, '0') = r.numero
                  AND p.code_insee = %s
@@ -343,12 +421,18 @@ def uf_geometrie(payload: UFRequest):
                 ST_AsGeoJSON(ST_Transform(ST_UnaryUnion(ST_Collect(geom_2154)), 4326)) AS union_geojson,
                 ARRAY_AGG(DISTINCT section || '-' || numero) AS matched_keys
             FROM matched
-            """,
+            """
+        ).format(
+            sql.Identifier(schema_name),
+            sql.Identifier(table_name),
+        )
+        cur.execute(
+            query,
             tuple(sql_params),
         )
         row = cur.fetchone()
     except Exception as exc:
-        raise HTTPException(500, f"Erreur lecture base parcelles_latresne: {exc}")
+        raise HTTPException(500, f"Erreur lecture base cadastrale {schema_name}.{table_name}: {exc}")
     finally:
         if cur:
             cur.close()

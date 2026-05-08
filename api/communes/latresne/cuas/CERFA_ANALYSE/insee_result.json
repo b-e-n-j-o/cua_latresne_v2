@@ -1,0 +1,21 @@
+{
+  "insee": "33234",
+  "confidence": "low",
+  "method": "name_only",
+  "commune_nom_officiel": "Latresne",
+  "model_used": "mistral-large-latest",
+  "details": {
+    "llm_raw": {
+      "header_dept": null,
+      "header_commune": null,
+      "commune_nom": "Latresne",
+      "code_postal": "33360"
+    },
+    "checks": {
+      "header_format": false,
+      "name_found": true
+    },
+    "name_candidates": 1,
+    "commune_officiel": "Latresne"
+  }
+}

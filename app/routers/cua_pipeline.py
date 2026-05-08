@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from CERFA_ANALYSE.auth_utils import get_user_insee_list
+from api.communes.latresne.cuas.CERFA_ANALYSE.auth_utils import get_user_insee_list
 from app.pipeline_jobs import run_pipeline_from_parcelles_async
 from app.state import JOBS
 

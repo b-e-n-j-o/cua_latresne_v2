@@ -1,0 +1,75 @@
+# api/latresne/tiles_mbtiles.py
+import sqlite3
+from fastapi import APIRouter, Response, HTTPException
+from functools import lru_cache
+from pathlib import Path
+
+router = APIRouter(prefix="/latresne/mbtiles")
+
+MBTILES_DIR = Path(__file__).parent / "mbtiles"
+
+print("🚀 MBTILES ROUTER LOADED")
+
+
+# -------------------------------------------------------------------
+# Connexion SQLite cachée (1 par fichier MBTiles)
+# -------------------------------------------------------------------
+@lru_cache(maxsize=5)
+def get_conn(name: str) -> sqlite3.Connection:
+    path = MBTILES_DIR / f"{name}.mbtiles"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"MBTiles '{name}' not found")
+    return sqlite3.connect(path, check_same_thread=False)
+
+
+# -------------------------------------------------------------------
+# Endpoint tuile vectorielle MVT
+# -------------------------------------------------------------------
+@router.get("/{name}/{z}/{x}/{y}.mvt")
+def get_tile(name: str, z: int, x: int, y: int):
+    conn = get_conn(name)
+
+    # MBTiles = schéma TMS (y inversé)
+    y_tms = (2 ** z - 1) - y
+
+    row = conn.execute(
+        """
+        SELECT tile_data
+        FROM tiles
+        WHERE zoom_level = ?
+          AND tile_column = ?
+          AND tile_row = ?
+        """,
+        (z, x, y_tms)
+    ).fetchone()
+
+    # ---------------------------------------------------------------
+    # Tuile absente → 204 No Content (OBLIGATOIRE)
+    # ---------------------------------------------------------------
+    if not row or not row[0]:
+        return Response(status_code=204)
+
+    tile_bytes: bytes = row[0]
+
+    # ---------------------------------------------------------------
+    # Headers HTTP corrects
+    # ---------------------------------------------------------------
+    headers = {
+        "Content-Type": "application/x-protobuf",
+        "Cache-Control": "public, max-age=31536000, immutable"
+    }
+
+    # gzip uniquement si la tuile est réellement gzip
+    # magic number gzip = 1F 8B
+    if tile_bytes[:2] == b"\x1f\x8b":
+        headers["Content-Encoding"] = "gzip"
+
+    return Response(content=tile_bytes, headers=headers)
+
+
+# -------------------------------------------------------------------
+# Healthcheck
+# -------------------------------------------------------------------
+@router.get("/_ping")
+def ping():
+    return {"mbtiles": "ok"}

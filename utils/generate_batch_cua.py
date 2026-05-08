@@ -3,7 +3,7 @@ import json
 import logging
 import time
 from pathlib import Path
-from INTERSECTIONS.pipeline_from_parcelles import run_pipeline_from_parcelles
+from api.communes.latresne.cuas.INTERSECTIONS.pipeline_from_parcelles import run_pipeline_from_parcelles
 
 # 1. Configuration du Logging
 logging.basicConfig(

@@ -18,7 +18,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, text
 
 from admin_routes import router as admin_router
-from api.communes import router as communes_router
 from api.departements import router as departements_router
 from api.generate_dpe import router as dpe_router
 import api.identite_fonciere.identite_fonciere_history as identite_fonciere_history_module
@@ -26,12 +25,15 @@ from api.identite_fonciere.route_identite_parcelle import (
     router as identite_parcelle_router,
     router_fonciere as identite_fonciere_router,
 )
-from api.identite_fonciere.documents_urba.router_reglement import router as reglement_router
-from api.latresne.parcelles_geojson import router as parcelles_geojson_router
-from api.latresne.parcelles_via_adresse import router as parcelles_via_adresse_router
-from api.latresne.patrimoine import router as patrimoine_router
-from api.latresne.tiles_latresne import router as latresne_router
-from api.latresne.tiles_mbtiles import router as latresne_mbtiles_router
+from api.documents_urba.router_reglement import router as reglement_router
+from api.communes.latresne.parcelles_geojson import (
+    router as parcelles_geojson_router,
+    communes_router as communes_parcelles_geojson_router,
+)
+from api.communes.latresne.parcelles_via_adresse import router as parcelles_via_adresse_router
+from api.communes.latresne.patrimoine import router as patrimoine_router
+from api.communes.latresne.tiles_latresne import router as latresne_router
+from api.communes.latresne.tiles_mbtiles import router as latresne_mbtiles_router
 from api.parcelle_geometrie import router as parcelle_geometrie_router
 from api.plu.chat import router as chat_router
 from api.plu.fetch_plu import router as plu_router
@@ -41,15 +43,15 @@ from api.tiles_generic import router as tiles_router
 from api.tiles_mbtiles import router as mbtiles_router
 from api.tiles_mbtiles_parcelles import router as tiles_parcelles
 from api.topography_consolidated import router as topo_router
-from api.ingestion_cadastre.router_ingest_parcelles import router as parcelles_ingest_router
-from api.ingestion_cadastre.router_sync_parcelles import router as parcelles_sync_router
+from services.ingestion_cadastre.router_ingest_parcelles import router as parcelles_ingest_router
+from services.ingestion_cadastre.router_sync_parcelles import router as parcelles_sync_router
 from app.deps import supabase
 from app.routers.cerfa import router as cerfa_router
 from app.routers.cua_pipeline import router as cua_pipeline_router
 from app.routers.pipelines_supabase import router as pipelines_supabase_router
 from app.routers.product import router as product_router
 from app.routers.site_account import router as site_account_router
-from CUA.docx import cua_docx_viewer_routes
+from api.communes.latresne.cuas.CUA.docx import cua_docx_viewer_routes
 from services.history.centroid_history import router as centroid_history_router
 import services.history.centroid_history as centroid_history_module
 from services.history.suivi import router as suivi_router
@@ -218,7 +220,6 @@ app.include_router(parcelles_sync_router, prefix="/admin")
 
 
 # --- Données / carto ---
-app.include_router(communes_router)
 app.include_router(departements_router)
 app.include_router(latresne_mbtiles_router)
 app.include_router(tiles_router)
@@ -232,6 +233,7 @@ app.include_router(identite_fonciere_router)
 app.include_router(reglement_router)
 app.include_router(latresne_router)
 app.include_router(parcelles_geojson_router)
+app.include_router(communes_parcelles_geojson_router)
 app.include_router(parcelles_via_adresse_router)
 app.include_router(patrimoine_router)
 app.include_router(parcelle_geometrie_router)

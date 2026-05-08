@@ -73,13 +73,15 @@ SERVITUDE_LAYER_COLORS = [
 def _catalogue_path() -> Path:
     root = Path(__file__).resolve().parents[3]
     for rel in (
+        ("api", "identite_fonciere", "catalogues", "catalogue_identite_fonciere_latresne.json"),
+        ("api", "identite_fonciere", "catalogues", "catalogue_identite_fonciere.json"),
         ("catalogues", "catalogue_identite_fonciere.json"),
         ("CATALOGUES", "catalogue_identite_fonciere.json"),
     ):
         p = root.joinpath(*rel)
         if p.is_file():
             return p
-    return root / "catalogues" / "catalogue_identite_fonciere.json"
+    return root / "api" / "identite_fonciere" / "catalogues" / "catalogue_identite_fonciere_latresne.json"
 
 
 def load_catalogue_identite_fonciere() -> Dict[str, Any]:

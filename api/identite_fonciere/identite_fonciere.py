@@ -50,8 +50,7 @@ IGN_LAYER = "CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle"
 
 # Chargement catalogue identité foncière (source de vérité dédiée)
 CATALOGUE_CANDIDATES = [
-    Path(__file__).parents[2] / "catalogues" / "catalogue_identite_fonciere.json",
-    Path(__file__).parents[2] / "CATALOGUES" / "catalogue_identite_fonciere.json",
+    Path(__file__).parents[0] / "catalogues" / "catalogue_identite_fonciere_latresne.json",
 ]
 
 CATALOGUE_PATH = next((p for p in CATALOGUE_CANDIDATES if p.exists()), None)
