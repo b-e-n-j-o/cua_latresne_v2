@@ -5,6 +5,7 @@ via WFS IGN.
 
 import csv
 import json
+import logging
 import os
 from pathlib import Path
 from typing import List
@@ -27,7 +28,14 @@ router = APIRouter(prefix="/parcelle", tags=["Cadastre"])
 # Config
 # ------------------------------------------------------------
 
-CSV_COMMUNES = str(Path(__file__).resolve().parent.parent / "config" / "v_commune_2025.csv")
+logger = logging.getLogger(__name__)
+
+CSV_COMMUNES = str(
+    Path(
+        os.getenv("CSV_COMMUNES_PATH")
+        or (Path(__file__).resolve().parent.parent / "config" / "v_commune_2025.csv")
+    )
+)
 WFS_URL = "https://data.geopf.fr/wfs"
 CAD_LAYER = "CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle"
 
@@ -56,7 +64,12 @@ class UFRequest(BaseModel):
 
 def load_commune_to_insee():
     mapping_dict = {}
-    with open(CSV_COMMUNES, newline="", encoding="utf-8") as f:
+    csv_path = Path(CSV_COMMUNES)
+    if not csv_path.exists():
+        logger.warning("CSV communes introuvable: %s (fallback mapping vide)", csv_path)
+        return mapping_dict
+
+    with open(csv_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             mapping_dict[row["LIBELLE"].upper()] = row["COM"]
@@ -73,12 +86,13 @@ def _load_cadastre_tables() -> dict[str, tuple[str, str]]:
     """
     Whitelist des tables cadastrales.
     Format env optionnel CADASTRE_COMMUNES_TABLES:
-    {"latresne":"latresne.parcelles_latresne","argeles":"argeles.parcelles"}
+    {"latresne":"latresne.parcelles_latresne","argeles":"argeles.parcelles","mios":"mios.parcelles"}
     """
     default_mapping = {
         "LATRESNE": ("latresne", "parcelles_latresne"),
         "ARGELES": ("argeles", "parcelles"),
         "ARGELES SUR MER": ("argeles", "parcelles"),
+        "MIOS": ("mios", "parcelles"),
     }
     raw = (os.getenv("CADASTRE_COMMUNES_TABLES") or "").strip()
     if not raw:
@@ -110,6 +124,7 @@ CADASTRE_TABLES = _load_cadastre_tables()
 INSEE_TO_COMMUNE_KEY = {
     "33234": "LATRESNE",
     "66008": "ARGELES SUR MER",
+    "33284": "MIOS",
 }
 
 SUPABASE_HOST = str(os.getenv("SUPABASE_HOST") or "").strip().strip('"').strip("'")
