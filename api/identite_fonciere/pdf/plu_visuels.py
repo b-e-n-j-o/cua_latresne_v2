@@ -29,9 +29,9 @@ Intégration programmatique :
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
+import re
 import warnings
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
@@ -166,29 +166,11 @@ def filter_plu_latresne_layer_for_report(
     Filtre la couche catalogue `plu_latresne` : ne garde que les éléments dont le zonage
     représente >= min_pct % de la surface d’étude. Met des drapeaux si tout est sous le seuil.
     """
-    if (layer.get("table") or "").strip() != PLU_LATRESNE_TABLE:
-        return layer
-    if not pct_stats:
-        return layer
+    from ..identite_fonciere import get_catalogue, get_identite_db_schema
+    from .plu_zonage_rapport import filter_zonage_page_layer_for_report, resolve_plu_zonage_page_config
 
-    allowed = zonages_urbains_pour_rapport(pct_stats, min_pct)
-    out = dict(layer)
-    elems = [e for e in (layer.get("elements") or []) if isinstance(e, dict)]
-
-    if not allowed:
-        out["elements"] = []
-        out["_plu_all_zonages_below_min_pct"] = True
-        return out
-
-    def _zone(el: dict[str, Any]) -> str:
-        z = el.get("zonage_reglement") if "zonage_reglement" in el else el.get("Zonage")
-        return str(z).strip() if z is not None else ""
-
-    kept = [e for e in elems if _zone(e) in allowed]
-    out["elements"] = kept
-    if not kept and elems:
-        out["_plu_all_zonages_below_min_pct"] = True
-    return out
+    cfg = resolve_plu_zonage_page_config(get_identite_db_schema(), get_catalogue())
+    return filter_zonage_page_layer_for_report(layer, pct_stats, cfg, min_pct=min_pct)
 
 
 def plu_zonage_table_rows_from_intersections(
@@ -199,41 +181,13 @@ def plu_zonage_table_rows_from_intersections(
     distinct parmi les éléments déjà filtrés (≥ seuil % surface UF, comme le corps du rapport).
 
     Chaque dict contient : ``zonage_reglement``, ``libelle``, ``libelle_description``.
+    Délègue à ``plu_zonage_rapport.zonage_page_table_rows_from_intersections``.
     """
-    for layer in intersections:
-        if (layer.get("table") or "").strip() != PLU_LATRESNE_TABLE:
-            continue
-        if layer.get("_plu_all_zonages_below_min_pct"):
-            return []
-        order: list[str] = []
-        acc: dict[str, dict[str, str]] = {}
-        for el in layer.get("elements") or []:
-            if not isinstance(el, dict):
-                continue
-            z = el.get("zonage_reglement") if "zonage_reglement" in el else el.get("Zonage")
-            z = str(z).strip() if z is not None else ""
-            if not z:
-                continue
-            lib_raw = el.get("libelle")
-            lib = str(lib_raw).strip() if lib_raw is not None else ""
-            desc_raw = el.get("libelle_description")
-            desc = str(desc_raw).strip() if desc_raw is not None else ""
-            if z not in acc:
-                order.append(z)
-                acc[z] = {
-                    "zonage_reglement": z,
-                    "libelle": lib,
-                    "libelle_description": desc,
-                }
-            else:
-                if lib and not acc[z]["libelle"]:
-                    acc[z]["libelle"] = lib
-                if desc and not acc[z]["libelle_description"]:
-                    acc[z]["libelle_description"] = desc
-        rows = [acc[k] for k in order]
-        rows.sort(key=lambda r: r["zonage_reglement"].lower())
-        return rows
-    return []
+    from ..identite_fonciere import get_catalogue, get_identite_db_schema
+    from .plu_zonage_rapport import resolve_plu_zonage_page_config, zonage_page_table_rows_from_intersections
+
+    cfg = resolve_plu_zonage_page_config(get_identite_db_schema(), get_catalogue())
+    return zonage_page_table_rows_from_intersections(intersections, cfg)
 
 
 # ---------------------------------------------------------------------------
@@ -242,51 +196,12 @@ def plu_zonage_table_rows_from_intersections(
 
 
 def fetch_laius_reglement_par_zonages(zonages: list[str]) -> dict[str, str]:
-    """
-    Pour chaque `zonage_reglement` demandé, retourne le texte `laius_reglement`
-    (un exemplaire par zone, même logique que les entités cartographiques).
-    """
-    cleaned = sorted({str(z).strip() for z in zonages if z is not None and str(z).strip()})
-    if not cleaned:
-        return {}
+    """Rétrocompat : laius SQL uniquement pour flux legacy ``plu_latresne`` (voir ``plu_zonage_rapport``)."""
+    from ..identite_fonciere import get_catalogue, get_identite_db_schema
+    from .plu_zonage_rapport import fetch_zonage_laius_for_page, resolve_plu_zonage_page_config
 
-    conn = None
-    try:
-        conn = psycopg2.connect(**_db_params())
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT DISTINCT ON (zonage_reglement)
-                    zonage_reglement,
-                    laius_reglement
-                FROM latresne.plu_latresne
-                WHERE zonage_reglement = ANY(%s)
-                  AND laius_reglement IS NOT NULL
-                  AND TRIM(COALESCE(laius_reglement::text, '')) <> ''
-                  AND geom_invalid IS NOT TRUE
-                ORDER BY zonage_reglement, id;
-                """,
-                (cleaned,),
-            )
-            rows = cur.fetchall()
-    except Exception as exc:
-        print(f"  ⚠ fetch_laius_reglement_par_zonages : {exc}")
-        return {}
-    finally:
-        if conn is not None:
-            conn.close()
-
-    out: dict[str, str] = {}
-    for z, laius in rows:
-        if z is None:
-            continue
-        ks = str(z).strip()
-        if laius is None:
-            continue
-        txt = str(laius).strip()
-        if txt:
-            out[ks] = txt
-    return out
+    cfg = resolve_plu_zonage_page_config(get_identite_db_schema(), get_catalogue())
+    return fetch_zonage_laius_for_page(zonages, cfg)
 
 
 # ---------------------------------------------------------------------------
@@ -358,19 +273,30 @@ def _parcelles_cadastre_keys(
     return pairs
 
 
-def fetch_parcelles_latresne_uf(
+def fetch_parcelles_uf_for_schema(
+    db_schema: str,
     insee: str,
     uf_gdf_4326: gpd.GeoDataFrame,
     parcelles_cadastrales: Optional[list[dict[str, Any]]],
 ) -> Tuple[gpd.GeoDataFrame, List[dict[str, Any]]]:
     """
-    Parcelles cadastrales de l’UF (géométries distinctes + métadonnées).
-    Priorité : `parcelles_cadastrales` + `code_insee` ; sinon intersection géométrique UF × commune.
-    Retourne (GeoDataFrame EPSG:4326 avec colonnes utiles, liste dicts pour le PDF).
+    Parcelles cadastrales de l’UF dans ``{db_schema}.parcelles`` ou ``…parcelles_latresne`` (legacy Latresne).
+    Même logique que l’ancien nom ``fetch_parcelles_latresne_uf``, avec schéma explicite.
     """
+    from ..identite_fonciere import _parcelles_table_for_schema
+
+    sch = (db_schema or "latresne").strip().lower()
+    if not re.match(r"^[a-z_][a-z0-9_]*$", sch):
+        return gpd.GeoDataFrame(), []
+
     insee_clean = (insee or "").strip()
     if not insee_clean:
         return gpd.GeoDataFrame(), []
+
+    tbl = _parcelles_table_for_schema(sch)
+    if not re.match(r"^[a-z_][a-z0-9_]*$", tbl):
+        return gpd.GeoDataFrame(), []
+    fq = f'"{sch}"."{tbl}"'
 
     conn = psycopg2.connect(**_db_params())
     rows: list[tuple[Any, ...]] = []
@@ -379,7 +305,6 @@ def fetch_parcelles_latresne_uf(
         with conn.cursor() as cur:
             keys = _parcelles_cadastre_keys(parcelles_cadastrales)
             if keys:
-                # (section|numero) pour une clause ANY sûre
                 key_sql: list[str] = []
                 params: list[Any] = [insee_clean]
                 for sec, num in keys:
@@ -394,7 +319,7 @@ def fetch_parcelles_latresne_uf(
                         idu,
                         contenance,
                         ST_AsGeoJSON(ST_Transform(geom_2154, 4326)) AS geom_json
-                    FROM latresne.parcelles_latresne
+                    FROM {fq}
                     WHERE code_insee = %s
                       AND geom_2154 IS NOT NULL
                       AND ({where_keys})
@@ -406,26 +331,47 @@ def fetch_parcelles_latresne_uf(
                 uf_3857 = uf_gdf_4326.to_crs(epsg=3857)
                 uf_union = unary_union(uf_3857.geometry)
                 wkt = uf_union.wkt
-                cur.execute(
-                    """
-                    SELECT
-                        section,
-                        numero,
-                        idu,
-                        contenance,
-                        ST_AsGeoJSON(ST_Transform(geom_2154, 4326)) AS geom_json
-                    FROM latresne.parcelles_latresne
-                    WHERE code_insee = %s
-                      AND geom_3857 IS NOT NULL
-                      AND ST_Intersects(geom_3857, ST_GeomFromText(%s, 3857))
-                    ORDER BY UPPER(TRIM(section)), LPAD(TRIM(numero), 4, '0');
-                    """,
-                    (insee_clean, wkt),
-                )
+                if sch == "latresne" and tbl == "parcelles_latresne":
+                    cur.execute(
+                        f"""
+                        SELECT
+                            section,
+                            numero,
+                            idu,
+                            contenance,
+                            ST_AsGeoJSON(ST_Transform(geom_2154, 4326)) AS geom_json
+                        FROM {fq}
+                        WHERE code_insee = %s
+                          AND geom_3857 IS NOT NULL
+                          AND ST_Intersects(geom_3857, ST_GeomFromText(%s, 3857))
+                        ORDER BY UPPER(TRIM(section)), LPAD(TRIM(numero), 4, '0');
+                        """,
+                        (insee_clean, wkt),
+                    )
+                else:
+                    cur.execute(
+                        f"""
+                        SELECT
+                            section,
+                            numero,
+                            idu,
+                            contenance,
+                            ST_AsGeoJSON(ST_Transform(geom_2154, 4326)) AS geom_json
+                        FROM {fq}
+                        WHERE code_insee = %s
+                          AND geom_2154 IS NOT NULL
+                          AND ST_Intersects(
+                              ST_Transform(geom_2154, 3857),
+                              ST_GeomFromText(%s, 3857)
+                          )
+                        ORDER BY UPPER(TRIM(section)), LPAD(TRIM(numero), 4, '0');
+                        """,
+                        (insee_clean, wkt),
+                    )
             rows = cur.fetchall()
             cols = [d[0] for d in cur.description] if cur.description else []
     except Exception as exc:
-        print(f"  ⚠ fetch_parcelles_latresne_uf : {exc}")
+        print(f"  ⚠ fetch_parcelles_uf_for_schema({sch}) : {exc}")
         return gpd.GeoDataFrame(), []
     finally:
         conn.close()
@@ -493,6 +439,20 @@ def fetch_parcelles_latresne_uf(
         )
 
     return gdf, detail_out
+
+
+def fetch_parcelles_latresne_uf(
+    insee: str,
+    uf_gdf_4326: gpd.GeoDataFrame,
+    parcelles_cadastrales: Optional[list[dict[str, Any]]],
+) -> Tuple[gpd.GeoDataFrame, List[dict[str, Any]]]:
+    """Rétrocompat : équivalent à ``fetch_parcelles_uf_for_schema(\"latresne\", ...)``."""
+    return fetch_parcelles_uf_for_schema(
+        "latresne",
+        insee,
+        uf_gdf_4326,
+        parcelles_cadastrales,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -701,6 +661,7 @@ def _populate_map_axis(
     color_map: dict[str, str],
     *,
     parcelles_cadastrales_gdf: Optional[gpd.GeoDataFrame] = None,
+    zonage_label_column: str = "zonage_reglement",
 ) -> None:
     """Carte satellite + PLU + périmètre UF ; optionnellement limites fines entre parcelles cadastrales."""
     parc_3857 = parcelle_gdf.to_crs(epsg=3857)
@@ -809,10 +770,12 @@ def _populate_map_axis(
                 continue
             try:
                 cx_, cy_ = geom.centroid.x, geom.centroid.y
+                col = zonage_label_column if zonage_label_column in plu_gdf.columns else "zonage_reglement"
+                lbl = row.get(col) if hasattr(row, "get") else row[col]
                 ax.text(
                     cx_,
                     cy_,
-                    str(row["zonage_reglement"]),
+                    str(lbl),
                     fontsize=6.5,
                     ha="center",
                     va="center",
@@ -835,6 +798,8 @@ def _draw_zonage_legend_panel(
     pct_min_affiche: float,
     *,
     zonage_to_typezone: Optional[dict[str, str]] = None,
+    title: Optional[str] = None,
+    label_map: Optional[dict[str, str]] = None,
 ) -> None:
     """Légende des zonages : pourcentages et couleurs selon type CNIG."""
     ax_leg.cla()
@@ -861,11 +826,13 @@ def _draw_zonage_legend_panel(
     labels = list(filtre.keys())
     values = [filtre[l] for l in labels]
     z2t = zonage_to_typezone or {}
+    lm = label_map or {}
     legend_labels: list[str] = []
     for l, v in zip(labels, values):
         lk = str(l).strip()
         tz = z2t.get(lk)
-        legend_labels.append(f"{lk}  {v:.1f} %")
+        display = lm.get(lk) or lk
+        legend_labels.append(f"{display}  {v:.1f} %")
 
     handles = [
         mpatches.Patch(
@@ -884,7 +851,7 @@ def _draw_zonage_legend_panel(
         framealpha=0.9,
         edgecolor="#cccccc",
         facecolor="#fafafa",
-        title="Zonage réglementaire",
+        title=title or "Zonage réglementaire",
         title_fontsize=9,
     )
 
@@ -899,6 +866,10 @@ def render_combined_plu_visual(
     *,
     pct_min_affiche: float = MIN_PCT_ZONAGE_URBAIN,
     parcelles_cadastrales_gdf: Optional[gpd.GeoDataFrame] = None,
+    map_zonage_label_column: str = "zonage_reglement",
+    legend_panel_title: Optional[str] = None,
+    legend_color_map: Optional[dict[str, str]] = None,
+    legend_label_map: Optional[dict[str, str]] = None,
 ) -> str:
     """
     Une seule figure : carte carrée à gauche, légende « Zonage réglementaire » à droite (PNG).
@@ -928,13 +899,16 @@ def render_combined_plu_visual(
         plu_gdf,
         color_map,
         parcelles_cadastrales_gdf=parcelles_cadastrales_gdf,
+        zonage_label_column=map_zonage_label_column,
     )
     _draw_zonage_legend_panel(
         ax_leg,
         pct_stats,
-        color_map,
+        legend_color_map or color_map,
         pct_min_affiche,
         zonage_to_typezone=_zonage_reglement_to_typezone(plu_gdf),
+        title=legend_panel_title,
+        label_map=legend_label_map,
     )
 
     fig.savefig(out_path, dpi=dpi, bbox_inches="tight", facecolor="white", pad_inches=0.12)
@@ -961,43 +935,23 @@ def generate_plu_visuals_from_uf_geometry(
     Image unique (carte + légende zonages) à partir du GeoJSON d’étude (UF), même logique SQL que la parcelle DB.
     Retourne (chemin PNG, doublon compat. API, stats % par zonage, détail parcelles cadastrales pour le PDF).
     """
-    out = Path(out_dir)
-    out.mkdir(parents=True, exist_ok=True)
-    sub = out / "plu_visuels_assets"
-    sub.mkdir(parents=True, exist_ok=True)
-    h = hashlib.sha256(
-        json.dumps(geometry, sort_keys=True, ensure_ascii=False).encode("utf-8")
-    ).hexdigest()[:16]
-    tag = f"uf_{h}"
-    map_path = str(sub / f"plu_map_{tag}.png")
-
-    parcelle_gdf = parcelle_gdf_from_geojson(geometry, srid)
-    plu_gdf = fetch_plu_context(parcelle_gdf, buffer_m=buffer_m)
-    pct_stats = compute_intersection_stats(parcelle_gdf, plu_gdf)
-
-    parcelles_pc_gdf, parcelles_detail = fetch_parcelles_latresne_uf(
-        insee,
-        parcelle_gdf,
-        parcelles_cadastrales,
+    from ..identite_fonciere import get_catalogue, get_identite_db_schema
+    from .plu_zonage_rapport import (
+        generate_plu_zonage_page_visuals_from_uf_geometry,
+        resolve_plu_zonage_page_config,
     )
 
-    color_map = _merge_color_map_for_stats(
-        _color_map_from_plu_gdf(plu_gdf),
-        pct_stats,
-        plu_gdf,
-    )
-
-    render_combined_plu_visual(
-        parcelle_gdf,
-        plu_gdf,
-        color_map,
-        pct_stats,
-        map_path,
+    cfg = resolve_plu_zonage_page_config(get_identite_db_schema(), get_catalogue())
+    return generate_plu_zonage_page_visuals_from_uf_geometry(
+        geometry,
+        out_dir,
+        cfg,
+        srid=srid,
+        buffer_m=buffer_m,
         dpi=dpi,
-        pct_min_affiche=MIN_PCT_ZONAGE_URBAIN,
-        parcelles_cadastrales_gdf=parcelles_pc_gdf if not parcelles_pc_gdf.empty else None,
+        insee=insee,
+        parcelles_cadastrales=parcelles_cadastrales,
     )
-    return map_path, map_path, pct_stats, parcelles_detail
 
 
 def generate_plu_visuals(

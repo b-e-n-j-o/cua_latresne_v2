@@ -8,6 +8,8 @@ import json
 import requests
 import io
 import logging
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple, Iterator
 from dataclasses import dataclass
@@ -48,20 +50,158 @@ engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 IGN_WFS_ENDPOINT = "https://data.geopf.fr/wfs/ows"
 IGN_LAYER = "CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle"
 
-# Chargement catalogue identité foncière (source de vérité dédiée)
-CATALOGUE_CANDIDATES = [
-    Path(__file__).parents[0] / "catalogues" / "catalogue_identite_fonciere_latresne.json",
-]
+# Chargement catalogues identité foncière
+# — Par défaut : schéma effectif `latresne` → catalogue étendu (données locales + GPU) ;
+#   tout autre schéma (ex. argeles) → catalogue réduit Géoportail / GPU.
+# — Surcharge : IDENTITE_FONCIERE_CATALOGUE_PATH = un seul .json imposé pour tous les schémas.
+_CATALOG_DIR = Path(__file__).resolve().parent / "catalogues"
+_CATALOG_LATRESNE_PATH = _CATALOG_DIR / "catalogue_identite_fonciere_latresne.json"
+_CATALOG_GEOPORTAIL_PATH = _CATALOG_DIR / "catalogue_identite_fonciere_geoportail.json"
 
-CATALOGUE_PATH = next((p for p in CATALOGUE_CANDIDATES if p.exists()), None)
-if CATALOGUE_PATH is None:
-    raise FileNotFoundError("catalogue_identite_fonciere.json introuvable")
+_CATALOGUE_OVERRIDE: Optional[Dict[str, Any]] = None
+CATALOGUE_LATRESNE: Dict[str, Any]
+CATALOGUE_GEOPORTAIL: Dict[str, Any]
 
-with open(CATALOGUE_PATH, "r", encoding="utf-8") as f:
-    CATALOGUE = json.load(f)
+_ov_raw = (os.getenv("IDENTITE_FONCIERE_CATALOGUE_PATH") or "").strip()
+if _ov_raw:
+    _ov_path = Path(_ov_raw)
+    if not _ov_path.is_file():
+        raise FileNotFoundError(
+            f"IDENTITE_FONCIERE_CATALOGUE_PATH introuvable ou non fichier: {_ov_path}"
+        )
+    with open(_ov_path.resolve(), "r", encoding="utf-8") as f:
+        _CATALOGUE_OVERRIDE = json.load(f)
+    CATALOGUE_LATRESNE = _CATALOGUE_OVERRIDE
+    CATALOGUE_GEOPORTAIL = _CATALOGUE_OVERRIDE
+    CATALOGUE_PATH = str(_ov_path.resolve())
+else:
+    if not _CATALOG_LATRESNE_PATH.is_file():
+        raise FileNotFoundError(f"Catalogue Latresne absent: {_CATALOG_LATRESNE_PATH}")
+    if not _CATALOG_GEOPORTAIL_PATH.is_file():
+        raise FileNotFoundError(f"Catalogue Géoportail absent: {_CATALOG_GEOPORTAIL_PATH}")
+    with open(_CATALOG_LATRESNE_PATH, "r", encoding="utf-8") as f:
+        CATALOGUE_LATRESNE = json.load(f)
+    with open(_CATALOG_GEOPORTAIL_PATH, "r", encoding="utf-8") as f:
+        CATALOGUE_GEOPORTAIL = json.load(f)
+    CATALOGUE_PATH = f"{_CATALOG_LATRESNE_PATH} | {_CATALOG_GEOPORTAIL_PATH} (choix selon schéma)"
 
-# Schéma PostgreSQL des couches cartographiques (Latresne en base, pas `carto`)
+
+# Compat : import `CATALOGUE` = catalogue Latresne (scripts hors contexte requête).
+CATALOGUE = CATALOGUE_LATRESNE
+
+# Schéma PostgreSQL des couches cartographiques (défaut déploiement ; surcharge requête possible)
 IDENTITE_DB_SCHEMA = os.getenv("IDENTITE_FONCIERE_DB_SCHEMA", "latresne").strip()
+
+_identite_schema_override: ContextVar[Optional[str]] = ContextVar(
+    "identite_fonciere_db_schema_override", default=None
+)
+
+
+def get_identite_db_schema() -> str:
+    """Schéma effectif : `db_schema` du corps de requête si fourni, sinon IDENTITE_FONCIERE_DB_SCHEMA."""
+    o = _identite_schema_override.get()
+    return o if o is not None else IDENTITE_DB_SCHEMA
+
+
+@contextmanager
+def identite_fonciere_request_context(db_schema: Optional[str] = None):
+    """
+    Fixe le schéma PostGIS pour la durée d'une requête API (multi-communes / multi-schémas).
+    Le catalogue suit le schéma : `latresne` → catalogue étendu, sinon catalogue Géoportail,
+    sauf si IDENTITE_FONCIERE_CATALOGUE_PATH impose un fichier unique.
+    """
+    if not db_schema or not str(db_schema).strip():
+        yield
+        return
+    s = str(db_schema).strip()
+    _sql_ident(s)
+    tok = _identite_schema_override.set(s)
+    try:
+        yield
+    finally:
+        _identite_schema_override.reset(tok)
+
+
+def get_catalogue() -> Dict[str, Any]:
+    """
+    Catalogue JSON actif : override env, sinon `latresne` → étendu, sinon GPU réduit.
+    """
+    if _CATALOGUE_OVERRIDE is not None:
+        return _CATALOGUE_OVERRIDE
+    if get_identite_db_schema() == "latresne":
+        return CATALOGUE_LATRESNE
+    return CATALOGUE_GEOPORTAIL
+
+
+def _parcelles_table_for_schema(schema: str) -> str:
+    """Table des parcelles cadastrales dans le schéma (convention Kerelia / legacy Latresne)."""
+    if (schema or "").strip() == "latresne":
+        return "parcelles_latresne"
+    return "parcelles"
+
+
+def fetch_parcelle_geometry_geojson_from_db(
+    *,
+    idu: Optional[str] = None,
+    parcelle_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Lit `geom_2154` sur la parcelle et renvoie un GeoJSON géométrie seule en WGS84 (EPSG:4326).
+    Nécessite que le schéma courant (`get_identite_db_schema`) soit déjà fixé (contexte requête ou env).
+    """
+    schema = get_identite_db_schema()
+    _sql_ident(schema)
+    tbl = _parcelles_table_for_schema(schema)
+    _sql_ident(tbl)
+
+    if parcelle_id is not None:
+        q = text(
+            f"""
+            SELECT ST_AsGeoJSON(ST_Transform(geom_2154, 4326))::text AS gj
+            FROM {_pg_quote_ident(schema)}.{_pg_quote_ident(tbl)}
+            WHERE geom_2154 IS NOT NULL AND id = :pid
+            LIMIT 1
+            """
+        )
+        params: Dict[str, Any] = {"pid": int(parcelle_id)}
+    elif idu and str(idu).strip():
+        q = text(
+            f"""
+            SELECT ST_AsGeoJSON(ST_Transform(geom_2154, 4326))::text AS gj
+            FROM {_pg_quote_ident(schema)}.{_pg_quote_ident(tbl)}
+            WHERE geom_2154 IS NOT NULL AND idu = :idu
+            LIMIT 1
+            """
+        )
+        params = {"idu": str(idu).strip()}
+    else:
+        raise ValueError("idu ou parcelle_id requis pour charger la géométrie depuis la base.")
+
+    with engine.connect() as conn:
+        row = conn.execute(q, params).mappings().first()
+    if not row or not row.get("gj"):
+        raise ValueError(
+            "Parcelle introuvable ou sans géométrie (geom_2154) pour ce schéma et cette référence."
+        )
+    geom = json.loads(row["gj"])
+    if not isinstance(geom, dict) or "type" not in geom:
+        raise ValueError("Géométrie lue en base invalide.")
+    return geom
+
+
+def resolve_identite_fonciere_geometry(
+    geometry: Optional[Dict[str, Any]] = None,
+    *,
+    idu: Optional[str] = None,
+    parcelle_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    GeoJSON UF : soit fourni dans `geometry`, soit chargé depuis `{schema}.parcelles` (ou parcelles_latresne).
+    """
+    if isinstance(geometry, dict) and geometry.get("type"):
+        return geometry
+    return fetch_parcelle_geometry_geojson_from_db(idu=idu, parcelle_id=parcelle_id)
+
 
 # Textes longs (réglementation, laius Markdown…) : non exposés par défaut sauf présents dans `keep`.
 _IDENTITE_LONG_TEXT_ATTRS = frozenset({"reglementation", "laius_reglement"})
@@ -206,13 +346,13 @@ def fetch_parcelle_geometry_ign(section: str, numero: str, insee: str) -> str:
 
 def get_carto_tables() -> List[str]:
     """
-    Liste des couches à tester : clés du catalogue JSON (tables dans le schéma IDENTITE_DB_SCHEMA).
+    Liste des couches à tester : clés du catalogue JSON (tables dans le schéma courant, voir get_identite_db_schema()).
     
     Returns:
         List[str]: Liste des noms de tables actives
     """
     logger.info("📊 Récupération des tables depuis le catalogue JSON...")
-    tables = list(CATALOGUE.keys())
+    tables = list(get_catalogue().keys())
     logger.info(f"✅ {len(tables)} tables cataloguées")
     return tables
 
@@ -278,10 +418,11 @@ def _attempt_geometry_only_intersection(
     display_name: str,
     article: Any,
     attr_disc: Optional[str],
+    db_schema: Optional[str] = None,
 ) -> GeoJsonLayerAttempt:
     """Compte les intersections sans lecture d’attributs (keep vide ou seulement réglementation)."""
     n = _count_broad_intersect(
-        conn, geom_json, table_name, parcelle_geom_sql, geom_col
+        conn, geom_json, table_name, parcelle_geom_sql, geom_col, db_schema=db_schema
     )
     if n is None:
         return GeoJsonLayerAttempt(
@@ -328,11 +469,13 @@ def calculate_intersections_detailed(parcelle_wkt: str, tables: List[str] = None
     if not tables:
         return []
     
+    schema_snap = get_identite_db_schema()
+    catalogue_snap = get_catalogue()
     logger.info(f"🧩 Test avec attributs sur {len(tables)} tables...")
     
     def test_table(table_name):
         try:
-            config = CATALOGUE.get(table_name)
+            config = catalogue_snap.get(table_name)
             if not config:
                 return None
             
@@ -352,7 +495,7 @@ def calculate_intersections_detailed(parcelle_wkt: str, tables: List[str] = None
             
             with engine.connect() as conn:
                 _sql_ident(table_name)
-                geom_col = _find_geom_column(conn, table_name, IDENTITE_DB_SCHEMA)
+                geom_col = _find_geom_column(conn, table_name, schema_snap)
                 if not geom_col:
                     return None
 
@@ -366,7 +509,7 @@ def calculate_intersections_detailed(parcelle_wkt: str, tables: List[str] = None
                     row[0]
                     for row in conn.execute(
                         existing_cols_query,
-                        {"tbl": table_name, "schema": IDENTITE_DB_SCHEMA},
+                        {"tbl": table_name, "schema": schema_snap},
                     )
                 }
                 selected_attrs = [attr for attr in keep_attrs if attr in existing_cols]
@@ -384,7 +527,7 @@ def calculate_intersections_detailed(parcelle_wkt: str, tables: List[str] = None
                     selected_attrs if has_reg else _attrs_sans_reglementation(selected_attrs)
                 )
                 if not output_attrs:
-                    n = _count_wkt_intersect(conn, table_name, parcelle_wkt, geom_col)
+                    n = _count_wkt_intersect(conn, table_name, parcelle_wkt, geom_col, db_schema=schema_snap)
                     if not n:
                         return None
                     logger.info(
@@ -406,7 +549,7 @@ def calculate_intersections_detailed(parcelle_wkt: str, tables: List[str] = None
                 )
                 query = text(f"""
                     SELECT DISTINCT {selected_expr}
-                    FROM {IDENTITE_DB_SCHEMA}.{table_name} t
+                    FROM {schema_snap}.{table_name} t
                     WHERE t.{geom_col} && ST_Expand(ST_GeomFromText(:wkt, 2154), 1000)
                     AND ST_Intersects(t.{geom_col}, ST_GeomFromText(:wkt, 2154))
                 """)
@@ -518,16 +661,20 @@ def _count_broad_intersect(
     table_name: str,
     parcelle_geom_sql: str,
     geom_col: str,
+    *,
+    db_schema: Optional[str] = None,
 ) -> Optional[int]:
     """Compte les lignes qui intersectent (sans filtre attributs), pour le diagnostic spatial."""
+    sch = db_schema if db_schema is not None else get_identite_db_schema()
     _sql_ident(table_name)
     _sql_ident(geom_col)
+    _sql_ident(sch)
     q = text(f"""
         WITH parcelle AS (
             SELECT {parcelle_geom_sql} AS geom_2154
         )
         SELECT COUNT(*)::int AS n
-        FROM {IDENTITE_DB_SCHEMA}.{table_name} t, parcelle p
+        FROM {sch}.{table_name} t, parcelle p
         WHERE t.{geom_col} && ST_Expand(p.geom_2154, 1000)
         AND ST_Intersects(t.{geom_col}, p.geom_2154)
     """)
@@ -543,13 +690,17 @@ def _count_wkt_intersect(
     table_name: str,
     parcelle_wkt: str,
     geom_col: str,
+    *,
+    db_schema: Optional[str] = None,
 ) -> Optional[int]:
     """Compte les lignes intersectant la parcelle (WKT 2154), sans filtre attributs."""
+    sch = db_schema if db_schema is not None else get_identite_db_schema()
     _sql_ident(table_name)
     _sql_ident(geom_col)
+    _sql_ident(sch)
     q = text(f"""
         SELECT COUNT(*)::int AS n
-        FROM {IDENTITE_DB_SCHEMA}.{table_name} t
+        FROM {sch}.{table_name} t
         WHERE t.{geom_col} && ST_Expand(ST_GeomFromText(:wkt, 2154), 1000)
         AND ST_Intersects(t.{geom_col}, ST_GeomFromText(:wkt, 2154))
     """)
@@ -618,13 +769,23 @@ def process_geojson_layer(
     parcelle_geom_sql: str,
     *,
     debug: bool = False,
+    db_schema: Optional[str] = None,
+    catalogue: Optional[Dict[str, Any]] = None,
 ) -> GeoJsonLayerAttempt:
     """
     Intersection catalogue + GeoJSON pour une seule table.
     Utilisé par le calcul parallèle et le flux SSE (progression couche par couche).
+
+    `db_schema` : schéma SQL explicite (ex. capturé dans le thread principal) ; requis pour
+    ThreadPoolExecutor car les ContextVar ne sont pas propagés aux workers.
+
+    `catalogue` : dict catalogue explicite (même motif : get_catalogue() dépend du schéma via ContextVar).
     """
+    schema = db_schema if db_schema is not None else get_identite_db_schema()
+    cat = catalogue if catalogue is not None else get_catalogue()
+    _sql_ident(schema)
     try:
-        config = CATALOGUE.get(table_name)
+        config = cat.get(table_name)
         if not config:
             if debug:
                 logger.info("   [debug] skip %s: absent du catalogue", table_name)
@@ -649,7 +810,7 @@ def process_geojson_layer(
 
         with engine.connect() as conn:
             _sql_ident(table_name)
-            geom_col = _find_geom_column(conn, table_name, IDENTITE_DB_SCHEMA)
+            geom_col = _find_geom_column(conn, table_name, schema)
             if not geom_col:
                 if debug:
                     logger.info(
@@ -679,6 +840,7 @@ def process_geojson_layer(
                     display_name=display_name,
                     article=article,
                     attr_disc=attr_disc,
+                    db_schema=schema,
                 )
 
             existing_cols_query = text(
@@ -693,7 +855,7 @@ def process_geojson_layer(
                 row[0]
                 for row in conn.execute(
                     existing_cols_query,
-                    {"tbl": table_name, "schema": IDENTITE_DB_SCHEMA},
+                    {"tbl": table_name, "schema": schema},
                 )
             }
             selected_attrs = [attr for attr in keep_attrs if attr in existing_cols]
@@ -732,6 +894,7 @@ def process_geojson_layer(
                     display_name=display_name,
                     article=article,
                     attr_disc=attr_disc,
+                    db_schema=schema,
                 )
 
             q = _pg_quote_ident
@@ -743,7 +906,7 @@ def process_geojson_layer(
                     SELECT {parcelle_geom_sql} AS geom_2154
                 )
                 SELECT DISTINCT {selected_expr}
-                FROM {IDENTITE_DB_SCHEMA}.{table_name} t, parcelle p
+                FROM {schema}.{table_name} t, parcelle p
                 WHERE t.{geom_col} && ST_Expand(p.geom_2154, 1000)
                 AND ST_Intersects(t.{geom_col}, p.geom_2154)
             """)
@@ -752,7 +915,7 @@ def process_geojson_layer(
             rows = list(result.mappings())
             if debug and not rows:
                 n_raw = _count_broad_intersect(
-                    conn, geom_json, table_name, parcelle_geom_sql, geom_col
+                    conn, geom_json, table_name, parcelle_geom_sql, geom_col, db_schema=schema
                 )
                 logger.info(
                     "   [debug] %s: 0 ligne DISTINCT mais intersect géom=%s (si géom>0, attrs tous NULL ?)",
@@ -840,12 +1003,14 @@ def calculate_intersections_detailed_from_geojson(
         return []
 
     debug = _debug_identite_fonciere()
+    schema_snap = get_identite_db_schema()
+    catalogue_snap = get_catalogue()
     logger.info(f"🧩 Test avec attributs sur {len(tables)} tables (GeoJSON)...")
     geom_json = json.dumps(parcelle_geometry, ensure_ascii=False)
     input_srid = _detect_input_srid(parcelle_geometry, srid)
     parcelle_geom_sql = _build_parcelle_geom_sql(input_srid)
     logger.info(f"   → SRID entrée détecté: EPSG:{input_srid} (reprojection vers EPSG:2154)")
-    logger.info(f"   → Schéma BDD des couches: {IDENTITE_DB_SCHEMA}")
+    logger.info(f"   → Schéma BDD des couches: {schema_snap}")
 
     if debug:
         logger.info(
@@ -857,21 +1022,26 @@ def calculate_intersections_detailed_from_geojson(
         with engine.connect() as conn:
             _diagnostic_parcelle_geojson(conn, geom_json, parcelle_geom_sql)
             # Couche de référence souvent présente en base
-            for ref in ("plu_latresne", "prescriptions_surf_latresne", "debroussaillement"):
-                if ref in CATALOGUE:
-                    gcol = _find_geom_column(conn, ref, IDENTITE_DB_SCHEMA)
+            for ref in ("zonage_plu", "prescriptions_surf", "infos_surf", "plu_latresne", "prescriptions_surf_latresne"):
+                if ref in catalogue_snap:
+                    gcol = _find_geom_column(conn, ref, schema_snap)
                     if not gcol:
                         logger.info("   [debug] pas de colonne géom pour %s", ref)
                         break
                     n = _count_broad_intersect(
-                        conn, geom_json, ref, parcelle_geom_sql, gcol
+                        conn, geom_json, ref, parcelle_geom_sql, gcol, db_schema=schema_snap
                     )
                     logger.info("   [debug] intersect brut (sans attrs) %s → %s lignes", ref, n)
                     break
 
     def test_table(table_name):
         att = process_geojson_layer(
-            table_name, geom_json, parcelle_geom_sql, debug=debug
+            table_name,
+            geom_json,
+            parcelle_geom_sql,
+            debug=debug,
+            db_schema=schema_snap,
+            catalogue=catalogue_snap,
         )
         if att.status == "intersected" and att.intersection:
             return att.intersection
@@ -979,9 +1149,10 @@ def iter_identite_fonciere_sse_events(
         raise ValueError("La géométrie GeoJSON est invalide")
 
     tables = get_carto_tables()
+    catalogue_snap = get_catalogue()
     layers_meta = []
     for t in tables:
-        cfg = CATALOGUE.get(t) or {}
+        cfg = catalogue_snap.get(t) or {}
         layers_meta.append(
             {
                 "table": t,
@@ -997,6 +1168,7 @@ def iter_identite_fonciere_sse_events(
         "layers": layers_meta,
     }
 
+    schema_snap = get_identite_db_schema()
     geom_json = json.dumps(parcelle_geometry, ensure_ascii=False)
     input_srid = _detect_input_srid(parcelle_geometry, srid)
     parcelle_geom_sql = _build_parcelle_geom_sql(input_srid)
@@ -1005,7 +1177,12 @@ def iter_identite_fonciere_sse_events(
     intersections_accum: List[Dict[str, Any]] = []
     for table_name in tables:
         att = process_geojson_layer(
-            table_name, geom_json, parcelle_geom_sql, debug=debug
+            table_name,
+            geom_json,
+            parcelle_geom_sql,
+            debug=debug,
+            db_schema=schema_snap,
+            catalogue=catalogue_snap,
         )
         yield {
             "type": "layer_done",

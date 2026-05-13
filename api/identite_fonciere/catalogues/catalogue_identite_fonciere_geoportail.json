@@ -1,0 +1,399 @@
+{
+  "zonage_plu": {
+    "nom": "Zonage PLU (GPU)",
+    "type": "prescription",
+    "keep": [
+      "typezone",
+      "libelle",
+      "libelong"
+    ],
+    "clean_attributes": [
+      "Type de zone",
+      "Libellé",
+      "Libellé long"
+    ],
+    "origine": "wfs",
+    "article": "3",
+    "geom_type": "surfacique",
+    "group_by": [
+      "typezone"
+    ]
+  },
+  "prescriptions_surf": {
+    "nom": "Prescriptions surfaciques (GPU)",
+    "type": "prescription",
+    "keep": [
+      "libelle",
+      "txt",
+      "typepsc",
+      "stypepsc",
+      "insee"
+    ],
+    "clean_attributes": [
+      "Libellé",
+      "Texte",
+      "Type de prescription",
+      "Sous-type",
+      "INSEE"
+    ],
+    "origine": "wfs",
+    "article": "7",
+    "geom_type": "surfacique"
+  },
+  "prescriptions_lineaires": {
+    "nom": "Prescriptions linéaires (GPU)",
+    "type": "prescription",
+    "keep": [
+      "libelle",
+      "txt",
+      "typepsc",
+      "stypepsc",
+      "insee"
+    ],
+    "clean_attributes": [
+      "Libellé",
+      "Texte",
+      "Type de prescription",
+      "Sous-type",
+      "INSEE"
+    ],
+    "origine": "wfs",
+    "article": "7",
+    "geom_type": "lineaire"
+  },
+  "prescriptions_ponctuelles": {
+    "nom": "Prescriptions ponctuelles (GPU)",
+    "type": "prescription",
+    "keep": [
+      "libelle",
+      "txt",
+      "typepsc",
+      "stypepsc",
+      "insee"
+    ],
+    "clean_attributes": [
+      "Libellé",
+      "Texte",
+      "Type de prescription",
+      "Sous-type",
+      "INSEE"
+    ],
+    "origine": "wfs",
+    "article": "7",
+    "geom_type": "ponctuel"
+  },
+  "infos_surf": {
+    "nom": "Informations surfaciques (GPU)",
+    "type": "information",
+    "keep": [
+      "libelle",
+      "txt",
+      "typeinf",
+      "stypeinf",
+      "insee"
+    ],
+    "clean_attributes": [
+      "Libellé",
+      "Texte",
+      "Type d'information",
+      "Sous-type",
+      "INSEE"
+    ],
+    "origine": "wfs",
+    "article": "7",
+    "geom_type": "surfacique"
+  },
+  "infos_lin": {
+    "nom": "Informations linéaires (GPU)",
+    "type": "information",
+    "keep": [
+      "libelle",
+      "txt",
+      "typeinf",
+      "stypeinf",
+      "insee"
+    ],
+    "clean_attributes": [
+      "Libellé",
+      "Texte",
+      "Type d'information",
+      "Sous-type",
+      "INSEE"
+    ],
+    "origine": "wfs",
+    "article": "7",
+    "geom_type": "lineaire"
+  },
+  "infos_pct": {
+    "nom": "Informations ponctuelles (GPU)",
+    "type": "information",
+    "keep": [
+      "libelle",
+      "txt",
+      "typeinf",
+      "stypeinf",
+      "insee"
+    ],
+    "clean_attributes": [
+      "Libellé",
+      "Texte",
+      "Type d'information",
+      "Sous-type",
+      "INSEE"
+    ],
+    "origine": "wfs",
+    "article": "7",
+    "geom_type": "ponctuel"
+  },
+  "sup_assiette_s_a7": {
+    "nom": "A7 — Zones de protection des forêts protégées",
+    "type": "servitude",
+    "keep": [
+      "suptype",
+      "nomsuplitt",
+      "nomass",
+      "typeass",
+      "idass",
+      "idgen",
+      "fichier",
+      "nomreg",
+      "urlreg"
+    ],
+    "clean_attributes": [
+      "Type servitude",
+      "Nom",
+      "Nom assiette",
+      "Type assiette",
+      "Id assiette",
+      "Id générateur",
+      "Fichier source",
+      "Nom du règlement",
+      "URL du règlement"
+    ],
+    "origine": "wfs",
+    "article": "4",
+    "geom_type": "surfacique"
+  },
+  "sup_assiette_s_ac1": {
+    "nom": "AC1 — Monuments historiques",
+    "type": "servitude",
+    "keep": [
+      "suptype",
+      "nomsuplitt",
+      "nomass",
+      "typeass",
+      "idass",
+      "idgen",
+      "fichier",
+      "nomreg",
+      "urlreg"
+    ],
+    "clean_attributes": [
+      "Type servitude",
+      "Nom",
+      "Nom assiette",
+      "Type assiette",
+      "Id assiette",
+      "Id générateur",
+      "Fichier source",
+      "Nom du règlement",
+      "URL du règlement"
+    ],
+    "origine": "wfs",
+    "article": "4",
+    "geom_type": "surfacique"
+  },
+  "sup_assiette_s_ac2": {
+    "nom": "AC2 — Sites inscrits et classés",
+    "type": "servitude",
+    "keep": [
+      "suptype",
+      "nomsuplitt",
+      "nomass",
+      "typeass",
+      "idass",
+      "idgen",
+      "fichier",
+      "nomreg",
+      "urlreg"
+    ],
+    "clean_attributes": [
+      "Type servitude",
+      "Nom",
+      "Nom assiette",
+      "Type assiette",
+      "Id assiette",
+      "Id générateur",
+      "Fichier source",
+      "Nom du règlement",
+      "URL du règlement"
+    ],
+    "origine": "wfs",
+    "article": "4",
+    "geom_type": "surfacique"
+  },
+  "sup_assiette_s_ac3": {
+    "nom": "AC3 — Réserves naturelles",
+    "type": "servitude",
+    "keep": [
+      "suptype",
+      "nomsuplitt",
+      "nomass",
+      "typeass",
+      "idass",
+      "idgen",
+      "fichier",
+      "nomreg",
+      "urlreg"
+    ],
+    "clean_attributes": [
+      "Type servitude",
+      "Nom",
+      "Nom assiette",
+      "Type assiette",
+      "Id assiette",
+      "Id générateur",
+      "Fichier source",
+      "Nom du règlement",
+      "URL du règlement"
+    ],
+    "origine": "wfs",
+    "article": "4",
+    "geom_type": "surfacique"
+  },
+  "sup_assiette_s_el9": {
+    "nom": "EL9 — Passage des piétons sur le littoral",
+    "type": "servitude",
+    "keep": [
+      "suptype",
+      "nomsuplitt",
+      "nomass",
+      "typeass",
+      "idass",
+      "idgen",
+      "fichier",
+      "nomreg",
+      "urlreg"
+    ],
+    "clean_attributes": [
+      "Type servitude",
+      "Nom",
+      "Nom assiette",
+      "Type assiette",
+      "Id assiette",
+      "Id générateur",
+      "Fichier source",
+      "Nom du règlement",
+      "URL du règlement"
+    ],
+    "origine": "wfs",
+    "article": "4",
+    "geom_type": "surfacique"
+  },
+  "sup_assiette_s_i4": {
+    "nom": "I4 — Ouvrages de distribution d'électricité",
+    "type": "servitude",
+    "keep": [
+      "suptype",
+      "nomsuplitt",
+      "nomass",
+      "typeass",
+      "idass",
+      "idgen",
+      "fichier",
+      "nomreg",
+      "urlreg"
+    ],
+    "clean_attributes": [
+      "Type servitude",
+      "Nom",
+      "Nom assiette",
+      "Type assiette",
+      "Id assiette",
+      "Id générateur",
+      "Fichier source",
+      "Nom du règlement",
+      "URL du règlement"
+    ],
+    "origine": "wfs",
+    "article": "4",
+    "geom_type": "surfacique"
+  },
+  "sup_assiette_s_pm1": {
+    "nom": "PM1 — Plans de prévention des risques naturels prévisibles",
+    "type": "servitude",
+    "keep": [
+      "suptype",
+      "nomsuplitt",
+      "nomass",
+      "fichier"
+    ],
+    "clean_attributes": [
+      "Type servitude",
+      "Nom",
+      "Nom assiette",
+      "Fichier source"
+    ],
+    "origine": "wfs",
+    "article": "4",
+    "geom_type": "surfacique"
+  },
+  "sup_assiette_s_pm8": {
+    "nom": "PM8 — Defense des forêts contre les incendies",
+    "type": "servitude",
+    "keep": [
+      "suptype",
+      "nomsuplitt",
+      "nomass",
+      "typeass",
+      "idass",
+      "idgen",
+      "fichier",
+      "nomreg",
+      "urlreg"
+    ],
+    "clean_attributes": [
+      "Type servitude",
+      "Nom",
+      "Nom assiette",
+      "Type assiette",
+      "Id assiette",
+      "Id générateur",
+      "Fichier source",
+      "Nom du règlement",
+      "URL du règlement"
+    ],
+    "origine": "wfs",
+    "article": "4",
+    "geom_type": "surfacique"
+  },
+  "sup_assiette_s_t1": {
+    "nom": "T1 — Protection du domaine public ferroviaire",
+    "type": "servitude",
+    "keep": [
+      "suptype",
+      "nomsuplitt",
+      "nomass",
+      "typeass",
+      "idass",
+      "idgen",
+      "fichier",
+      "nomreg",
+      "urlreg"
+    ],
+    "clean_attributes": [
+      "Type servitude",
+      "Nom",
+      "Nom assiette",
+      "Type assiette",
+      "Id assiette",
+      "Id générateur",
+      "Fichier source",
+      "Nom du règlement",
+      "URL du règlement"
+    ],
+    "origine": "wfs",
+    "article": "4",
+    "geom_type": "surfacique"
+  }
+}

@@ -5,7 +5,6 @@ via WFS IGN.
 
 import csv
 import json
-import logging
 import os
 from pathlib import Path
 from typing import List
@@ -28,14 +27,28 @@ router = APIRouter(prefix="/parcelle", tags=["Cadastre"])
 # Config
 # ------------------------------------------------------------
 
-logger = logging.getLogger(__name__)
+def resolve_csv_communes_path() -> Path | None:
+    env_path = (os.getenv("CSV_COMMUNES_PATH") or "").strip()
+    candidates = []
+    if env_path:
+        candidates.append(Path(env_path))
 
-CSV_COMMUNES = str(
-    Path(
-        os.getenv("CSV_COMMUNES_PATH")
-        or (Path(__file__).resolve().parent.parent / "config" / "v_commune_2025.csv")
+    here = Path(__file__).resolve()
+    candidates.extend(
+        [
+            here.parent.parent / "config" / "v_commune_2025.csv",  # <root>/config/...
+            here.parent / "config" / "v_commune_2025.csv",         # <root>/api/config/...
+            Path.cwd() / "config" / "v_commune_2025.csv",          # cwd/config/...
+        ]
     )
-)
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+CSV_COMMUNES_PATH = resolve_csv_communes_path()
 WFS_URL = "https://data.geopf.fr/wfs"
 CAD_LAYER = "CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle"
 
@@ -63,13 +76,14 @@ class UFRequest(BaseModel):
 # ------------------------------------------------------------
 
 def load_commune_to_insee():
-    mapping_dict = {}
-    csv_path = Path(CSV_COMMUNES)
-    if not csv_path.exists():
-        logger.warning("CSV communes introuvable: %s (fallback mapping vide)", csv_path)
-        return mapping_dict
+    if CSV_COMMUNES_PATH is None:
+        raise FileNotFoundError(
+            "CSV des communes introuvable. Configurez CSV_COMMUNES_PATH "
+            "ou ajoutez config/v_commune_2025.csv dans le projet."
+        )
 
-    with open(csv_path, newline="", encoding="utf-8") as f:
+    mapping_dict = {}
+    with CSV_COMMUNES_PATH.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             mapping_dict[row["LIBELLE"].upper()] = row["COM"]

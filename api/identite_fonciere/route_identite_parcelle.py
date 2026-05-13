@@ -13,14 +13,17 @@ import time
 import requests
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
-from pydantic import BaseModel, ConfigDict, Field, AliasChoices, field_validator
+from pydantic import BaseModel, ConfigDict, Field, AliasChoices, field_validator, model_validator
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
 from .identite_fonciere import (
-    CATALOGUE,
+    get_catalogue,
     analyser_identite_fonciere,
     analyser_identite_parcelle,
+    get_identite_db_schema,
+    identite_fonciere_request_context,
+    resolve_identite_fonciere_geometry,
 )
 from .carte_identite_fonciere import generate_identite_fonciere_map_html
 from .sse_identite_fonciere import iter_identite_fonciere_sse_chunks, sse_error_chunk
@@ -48,6 +51,7 @@ _RAPPORT_PDF_CACHE: dict[str, tuple[str, float]] = {}
 
 # GET /public/if/... — identifiants projet générés par storage_et_urls.new_project_id()
 _IF_PROJECT_ID_RE = re.compile(r"^if_[a-f0-9]{8,32}$")
+_DB_SCHEMA_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
 
 
 def _identite_fichier_public_autorise(filename: str) -> bool:
@@ -140,7 +144,48 @@ class IdentiteFonciereRequest(BaseModel):
     commune: str
     insee: str | None = None
     srid: int | None = None
-    geometry: dict
+    geometry: dict | None = None
+    idu: str | None = Field(
+        default=None,
+        description="IDU cadastral : charge geom_2154 depuis {schema}.parcelles si geometry est absent.",
+        validation_alias=AliasChoices("idu", "IDU"),
+    )
+    parcelle_id: int | None = Field(
+        default=None,
+        description="Identifiant parcelles.id pour charger la géométrie si geometry et idu sont absents.",
+        validation_alias=AliasChoices("parcelle_id", "parcelleId"),
+    )
+    db_schema: str | None = Field(
+        default=None,
+        description="Schéma PostGIS des couches (ex. argeles). Le champ commune reste libellé / PDF.",
+        validation_alias=AliasChoices("db_schema", "dbSchema"),
+    )
+
+    @model_validator(mode="after")
+    def _geometry_ou_reference_parcelle(self) -> "IdentiteFonciereRequest":
+        if isinstance(self.geometry, dict) and self.geometry.get("type"):
+            return self
+        if self.parcelle_id is not None:
+            return self
+        if self.idu and str(self.idu).strip():
+            return self
+        raise ValueError(
+            "Fournir geometry (GeoJSON de l'UF), ou idu (référence cadastrale), ou parcelle_id (clé parcelles.id)."
+        )
+
+    @field_validator("db_schema", mode="before")
+    @classmethod
+    def _normalize_db_schema(cls, v: Any) -> str | None:
+        if v is None:
+            return None
+        s = str(v).strip()
+        if not s:
+            return None
+        if not _DB_SCHEMA_RE.fullmatch(s):
+            raise ValueError(
+                "db_schema invalide : utiliser un identifiant SQL minuscule [a-z_][a-z0-9_]* (ex. argeles)."
+            )
+        return s
 
 
 class IdentiteFonciereMapRequest(IdentiteFonciereRequest):
@@ -194,8 +239,22 @@ class RapportFonciereRequest(BaseModel):
     insee: str | None = None
     srid: int | None = None
     geometry: dict | None = None
+    idu: str | None = Field(
+        default=None,
+        description="IDU cadastral pour charger la géométrie depuis la table parcelles du schéma.",
+        validation_alias=AliasChoices("idu", "IDU"),
+    )
+    parcelle_id: int | None = Field(
+        default=None,
+        validation_alias=AliasChoices("parcelle_id", "parcelleId"),
+    )
     intersections: List[IntersectionResult] | None = None
     output_dir: str | None = None
+    db_schema: str | None = Field(
+        default=None,
+        description="Schéma PostGIS des couches (ex. argeles), comme sur POST /identite-fonciere/intersect.",
+        validation_alias=AliasChoices("db_schema", "dbSchema"),
+    )
     # URL publique (HTTPS) affichée en lien cliquable sur la page 1 du PDF (ex. page carte du front).
     carte_web_url: str | None = Field(
         default=None,
@@ -222,6 +281,32 @@ class RapportFonciereRequest(BaseModel):
         default=None,
         validation_alias=AliasChoices("user_email", "userEmail"),
     )
+
+    @field_validator("db_schema", mode="before")
+    @classmethod
+    def _normalize_db_schema_rapport(cls, v: Any) -> str | None:
+        if v is None:
+            return None
+        s = str(v).strip()
+        if not s:
+            return None
+        if not _DB_SCHEMA_RE.fullmatch(s):
+            raise ValueError(
+                "db_schema invalide : utiliser un identifiant SQL minuscule [a-z_][a-z0-9_]* (ex. argeles)."
+            )
+        return s
+
+    @model_validator(mode="after")
+    def _rapport_geom_ou_intersections(self) -> "RapportFonciereRequest":
+        if self.intersections:
+            return self
+        has_g = isinstance(self.geometry, dict) and self.geometry.get("type")
+        has_idu = bool(self.idu and str(self.idu).strip())
+        if has_g or has_idu or self.parcelle_id is not None:
+            return self
+        raise ValueError(
+            "Fournir intersections, ou geometry, ou idu / parcelle_id pour générer le rapport."
+        )
 
 
 class IdentiteFonciereMapResponse(BaseModel):
@@ -282,30 +367,32 @@ def _build_result_dict_from_rapport_payload(payload: RapportFonciereRequest) -> 
         cs = payload.couches_synthese
         if cs:
             result["couches_synthese"] = [c.model_dump() for c in cs]
+        result["db_schema"] = (payload.db_schema or "").strip() or get_identite_db_schema()
         return result
-    if payload.geometry is not None:
-        result = analyser_identite_fonciere(
-            geometry=payload.geometry,
-            commune=payload.commune,
-            insee=payload.insee,
-            srid=payload.srid,
-        )
-        result["geometry"] = payload.geometry
-        if payload.srid is not None:
-            result["srid"] = payload.srid
-        pcs = payload.parcelles_cadastrales
-        if pcs:
-            result["parcelles_cadastrales"] = [p.model_dump() for p in pcs]
-        if payload.parcelle:
-            result["parcelle"] = payload.parcelle
-        cs = payload.couches_synthese
-        if cs:
-            result["couches_synthese"] = [c.model_dump() for c in cs]
-        return result
-    raise HTTPException(
-        status_code=400,
-        detail="Fournir `intersections` ou `geometry` pour générer le rapport.",
+    geom = resolve_identite_fonciere_geometry(
+        payload.geometry,
+        idu=payload.idu,
+        parcelle_id=payload.parcelle_id,
     )
+    result = analyser_identite_fonciere(
+        geometry=geom,
+        commune=payload.commune,
+        insee=payload.insee,
+        srid=payload.srid,
+    )
+    result["geometry"] = geom
+    if payload.srid is not None:
+        result["srid"] = payload.srid
+    pcs = payload.parcelles_cadastrales
+    if pcs:
+        result["parcelles_cadastrales"] = [p.model_dump() for p in pcs]
+    if payload.parcelle:
+        result["parcelle"] = payload.parcelle
+    cs = payload.couches_synthese
+    if cs:
+        result["couches_synthese"] = [c.model_dump() for c in cs]
+    result["db_schema"] = (payload.db_schema or "").strip() or get_identite_db_schema()
+    return result
 
 
 # ------------------------------------------------------------
@@ -356,16 +443,22 @@ async def intersect_parcelle(payload: ParcelleRequest):
 @router_fonciere.post("/intersect", response_model=IdentiteResponse)
 async def intersect_fonciere(payload: IdentiteFonciereRequest):
     """
-    Calcule les intersections à partir d'une géométrie GeoJSON
-    représentant l'unité foncière.
+    Calcule les intersections à partir d'une géométrie GeoJSON (UF) et/ou d'une parcelle
+    déjà stockée (`idu` ou `parcelle_id` dans `{db_schema}.parcelles`).
     """
     try:
-        result = analyser_identite_fonciere(
-            geometry=payload.geometry,
-            commune=payload.commune,
-            insee=payload.insee,
-            srid=payload.srid
-        )
+        with identite_fonciere_request_context(payload.db_schema):
+            geom = resolve_identite_fonciere_geometry(
+                payload.geometry,
+                idu=payload.idu,
+                parcelle_id=payload.parcelle_id,
+            )
+            result = analyser_identite_fonciere(
+                geometry=geom,
+                commune=payload.commune,
+                insee=payload.insee,
+                srid=payload.srid
+            )
 
         return IdentiteResponse(
             success=True,
@@ -395,22 +488,31 @@ async def intersect_fonciere_stream(payload: IdentiteFonciereRequest):
     puis `complete` avec le même corps que la réponse JSON classique.
     """
 
-    def gen():
-        try:
-            for chunk in iter_identite_fonciere_sse_chunks(
-                payload.geometry,
-                payload.commune,
-                payload.insee,
-                payload.srid,
-            ):
-                yield chunk
-        except ValueError as e:
-            yield sse_error_chunk(str(e))
-        except Exception as e:
-            yield sse_error_chunk(str(e))
+    # Générateur **async** : évite `iterate_in_threadpool` (sync iterator) où chaque `next()`
+    # peut s'exécuter dans un thread différent → ContextVar / reset token cassés et
+    # `get_identite_db_schema()` incohérent entre les couches (ex. Argelès vs latresne).
+    async def agen():
+        with identite_fonciere_request_context(payload.db_schema):
+            try:
+                geom = resolve_identite_fonciere_geometry(
+                    payload.geometry,
+                    idu=payload.idu,
+                    parcelle_id=payload.parcelle_id,
+                )
+                for chunk in iter_identite_fonciere_sse_chunks(
+                    geom,
+                    payload.commune,
+                    payload.insee,
+                    payload.srid,
+                ):
+                    yield chunk
+            except ValueError as e:
+                yield sse_error_chunk(str(e))
+            except Exception as e:
+                yield sse_error_chunk(str(e))
 
     return StreamingResponse(
-        gen(),
+        agen(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -573,13 +675,19 @@ async def map_fonciere(request: Request, payload: IdentiteFonciereMapRequest):
     Le champ `html` reste disponible pour intégration inline.
     """
     try:
-        res = generate_identite_fonciere_map_html(
-            geometry=payload.geometry,
-            commune=payload.commune,
-            insee=payload.insee,
-            srid=payload.srid,
-            intersections=[i.model_dump() for i in payload.intersections] if payload.intersections else None,
-        )
+        with identite_fonciere_request_context(payload.db_schema):
+            geom = resolve_identite_fonciere_geometry(
+                payload.geometry,
+                idu=payload.idu,
+                parcelle_id=payload.parcelle_id,
+            )
+            res = generate_identite_fonciere_map_html(
+                geometry=geom,
+                commune=payload.commune,
+                insee=payload.insee,
+                srid=payload.srid,
+                intersections=[i.model_dump() for i in payload.intersections] if payload.intersections else None,
+            )
         html = res["html"]
         base = _public_api_base_url(request)
         token = _map_html_cache_put(html)
@@ -668,22 +776,23 @@ async def publier_identite_fonciere(request: Request, payload: RapportFonciereRe
     """
     warnings: List[str] = []
     try:
-        result = _build_result_dict_from_rapport_payload(payload)
-        geom = payload.geometry if payload.geometry is not None else result.get("geometry")
-        if not isinstance(geom, dict) or "type" not in geom:
-            raise HTTPException(
-                status_code=400,
-                detail="Géométrie GeoJSON requise pour publier la carte (envoyer `geometry` dans le corps).",
-            )
+        with identite_fonciere_request_context(payload.db_schema):
+            result = _build_result_dict_from_rapport_payload(payload)
+            geom = payload.geometry if payload.geometry is not None else result.get("geometry")
+            if not isinstance(geom, dict) or "type" not in geom:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Géométrie GeoJSON requise pour publier la carte (envoyer `geometry` dans le corps).",
+                )
 
-        base = _public_api_base_url(request)
-        res_map = generate_identite_fonciere_map_html(
-            geometry=geom,
-            commune=payload.commune,
-            insee=payload.insee,
-            srid=payload.srid or result.get("srid"),
-            intersections=result.get("intersections"),
-        )
+            base = _public_api_base_url(request)
+            res_map = generate_identite_fonciere_map_html(
+                geometry=geom,
+                commune=payload.commune,
+                insee=payload.insee,
+                srid=payload.srid or result.get("srid"),
+                intersections=result.get("intersections"),
+            )
         html = res_map["html"]
         token_map = _map_html_cache_put(html)
         carte_url_temp = f"{base}/api/identite-fonciere/map/view/{token_map}"
@@ -706,11 +815,12 @@ async def publier_identite_fonciere(request: Request, payload: RapportFonciereRe
         result["carte_web_url"] = carte_url
 
         output_dir = payload.output_dir or "./rapports_identite"
-        pdf_path = generate_rapport_pdf(
-            result,
-            output_dir=output_dir,
-            catalogue=CATALOGUE,
-        )
+        with identite_fonciere_request_context(payload.db_schema):
+            pdf_path = generate_rapport_pdf(
+                result,
+                output_dir=output_dir,
+                catalogue=get_catalogue(),
+            )
 
         pdf_url: str | None = None
         if _identite_storage_upload_enabled():
@@ -770,19 +880,20 @@ async def rapport_fonciere(payload: RapportFonciereRequest):
     Sinon : lance l'analyse complète puis génère le PDF.
     """
     try:
-        result = _build_result_dict_from_rapport_payload(payload)
+        with identite_fonciere_request_context(payload.db_schema):
+            result = _build_result_dict_from_rapport_payload(payload)
 
-        if payload.carte_web_url and str(payload.carte_web_url).strip():
-            cu = str(payload.carte_web_url).strip()
-            if not _is_non_shareable_carte_web_url(cu):
-                result["carte_web_url"] = cu
+            if payload.carte_web_url and str(payload.carte_web_url).strip():
+                cu = str(payload.carte_web_url).strip()
+                if not _is_non_shareable_carte_web_url(cu):
+                    result["carte_web_url"] = cu
 
-        output_dir = payload.output_dir or "./rapports_identite"
-        pdf_path = generate_rapport_pdf(
-            result,
-            output_dir=output_dir,
-            catalogue=CATALOGUE,
-        )
+            output_dir = payload.output_dir or "./rapports_identite"
+            pdf_path = generate_rapport_pdf(
+                result,
+                output_dir=output_dir,
+                catalogue=get_catalogue(),
+            )
 
         return FileResponse(
             pdf_path,

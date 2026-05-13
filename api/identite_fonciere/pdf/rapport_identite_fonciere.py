@@ -1127,7 +1127,7 @@ def generate_rapport_pdf(
                 Avec 'geometry', génération optionnelle du PNG PLU combiné (carte + légende)
                 sur une page dédiée après la page de garde (tableau libellés / libellés détaillés /
                 descriptions après la carte, filtre ≥ 1 % comme le corps du rapport), et filtrage
-                des zonages sous 1 % pour la couche plu_latresne (la carto conserve le buffer 50 m).
+                des zonages sous 1 % pour la couche de zonage PLU active (``plu_latresne`` ou ``zonage_plu`` selon catalogue ; la carto conserve le buffer 50 m).
                 Si l’UF intersecte le PPRI (`pm1_detaillee_gironde`), une page PPRI (carte +
                 légende % par codezone, tableau d’absorption si des zones ont été absorbées, + laius)
                 est insérée après la page PLU (typiquement page 3).
@@ -1172,9 +1172,11 @@ def generate_rapport_pdf(
     servitudes_map_png_path: Optional[str] = None
     servitudes_layer_keys: List[str] = []
     servitudes_display_names: Dict[str, str] = {}
+    servitudes_uf_pct: Dict[str, float] = {}
     preemption_map_png_path: Optional[str] = None
     preemption_reglementation_texts: List[str] = []
     preemption_overlap_pct: Optional[float] = None
+    plu_zonage_page_cfg: Any = None
     if isinstance(geom, dict) and geom.get("type"):
         out_base = Path(output_dir).resolve()
         out_base.mkdir(parents=True, exist_ok=True)
@@ -1183,16 +1185,23 @@ def generate_rapport_pdf(
             pcs = None
 
         try:
-            from .plu_visuels import (
-                PLU_LATRESNE_TABLE,
-                filter_plu_latresne_layer_for_report,
-                generate_plu_visuals_from_uf_geometry,
+            from ..identite_fonciere import get_identite_db_schema
+            from .plu_zonage_rapport import (
+                ZONAGE_PAGE_LAYER_KEYS,
+                filter_zonage_page_layer_for_report,
+                generate_plu_zonage_page_visuals_from_uf_geometry,
+                resolve_plu_zonage_page_config,
             )
 
+            db_schema = (result.get("db_schema") or "").strip() or get_identite_db_schema()
+            page_cfg = resolve_plu_zonage_page_config(str(db_schema), catalogue or {})
+            plu_zonage_page_cfg = page_cfg
+
             map_path, map_png_compat, pct_stats, parcelles_detail = (
-                generate_plu_visuals_from_uf_geometry(
+                generate_plu_zonage_page_visuals_from_uf_geometry(
                     geom,
                     str(out_base),
+                    page_cfg,
                     srid=srid,
                     insee=str(result.get("insee") or "").strip(),
                     parcelles_cadastrales=pcs,
@@ -1212,8 +1221,8 @@ def generate_rapport_pdf(
                     if not isinstance(ly, dict):
                         new_ix.append(ly)
                         continue
-                    if (ly.get("table") or "").strip() == PLU_LATRESNE_TABLE:
-                        new_ix.append(filter_plu_latresne_layer_for_report(ly, pct_stats))
+                    if (ly.get("table") or "").strip() in ZONAGE_PAGE_LAYER_KEYS:
+                        new_ix.append(filter_zonage_page_layer_for_report(ly, pct_stats, page_cfg))
                     else:
                         new_ix.append(ly)
                 intersections = new_ix
@@ -1252,12 +1261,20 @@ def generate_rapport_pdf(
                 srid=srid,
                 insee=str(result.get("insee") or "").strip(),
                 parcelles_cadastrales=pcs,
+                catalogue=catalogue,
+                db_schema=str(result.get("db_schema") or "").strip() or None,
             )
             if serv_out:
-                servitudes_map_png_path, servitudes_layer_keys, servitudes_display_names = serv_out
+                (
+                    servitudes_map_png_path,
+                    servitudes_layer_keys,
+                    servitudes_display_names,
+                    servitudes_uf_pct,
+                ) = serv_out
                 result["servitudes_map_png"] = servitudes_map_png_path
                 result["servitudes_table_rows"] = servitudes_layer_keys
                 result["servitudes_display_names"] = servitudes_display_names
+                result["servitudes_uf_overlap_pct"] = servitudes_uf_pct
         except Exception as exc:
             logger.warning("Visuels servitudes indisponibles : %s", exc, exc_info=True)
 
@@ -1345,10 +1362,14 @@ def generate_rapport_pdf(
                 layer["article"] = cat_entry["article"]
             if not layer.get("group_by") and cat_entry.get("group_by"):
                 layer["group_by"] = cat_entry["group_by"]
-            if not layer.get("clean_attributes") and cat_entry.get("clean_attributes"):
-                layer["clean_attributes"] = cat_entry["clean_attributes"]
-            if "keep" not in layer and "keep" in cat_entry:
-                layer["keep"] = cat_entry["keep"]
+            # Catalogue = référence pour les colonnes PDF (keep / clean_attributes) : toujours
+            # réappliquer si une entrée catalogue existe, sinon une couche déjà porteuse d’un ancien
+            # `keep` (pipeline d’analyse) empêchait la mise à jour du JSON catalogue.
+            if cat_entry:
+                if "clean_attributes" in cat_entry:
+                    layer["clean_attributes"] = cat_entry["clean_attributes"]
+                if "keep" in cat_entry:
+                    layer["keep"] = cat_entry["keep"]
             if not layer.get("geom_type") and cat_entry.get("geom_type"):
                 layer["geom_type"] = cat_entry["geom_type"]
 
@@ -1368,23 +1389,30 @@ def generate_rapport_pdf(
     )
     if plu_map_png_path:
         story.append(PageBreak())
-        from .plu_visuels import (
-            MIN_PCT_ZONAGE_URBAIN,
-            fetch_laius_reglement_par_zonages,
-            plu_zonage_table_rows_from_intersections,
+        from ..identite_fonciere import get_identite_db_schema
+        from .plu_visuels import MIN_PCT_ZONAGE_URBAIN
+        from .plu_zonage_rapport import (
+            fetch_zonage_laius_for_page,
+            resolve_plu_zonage_page_config,
+            zonage_page_table_rows_from_intersections,
+        )
+
+        cfg_story = plu_zonage_page_cfg or resolve_plu_zonage_page_config(
+            (result.get("db_schema") or "").strip() or get_identite_db_schema(),
+            catalogue or {},
         )
 
         plu_laius_map: Dict[str, str] = {}
-        plu_zonage_tbl = plu_zonage_table_rows_from_intersections(intersections)
+        plu_zonage_tbl = zonage_page_table_rows_from_intersections(intersections, cfg_story)
         if pct_stats:
             try:
-                # Même seuil que le filtre plu_latresne / réglementation : ≥ 1 % (surface UF)
+                # Même seuil que le filtre zonage PLU / réglementation : ≥ 1 % (surface UF)
                 zonages_pour_laius = [
                     z
                     for z, p in pct_stats.items()
                     if isinstance(p, (int, float)) and float(p) >= MIN_PCT_ZONAGE_URBAIN
                 ]
-                plu_laius_map = fetch_laius_reglement_par_zonages(zonages_pour_laius)
+                plu_laius_map = fetch_zonage_laius_for_page(zonages_pour_laius, cfg_story)
                 if plu_laius_map:
                     result["plu_zonage_laius"] = plu_laius_map
             except Exception as exc:
@@ -1423,6 +1451,13 @@ def generate_rapport_pdf(
     if servitudes_map_png_path and servitudes_layer_keys:
         from .servitudes import build_servitudes_flowables_for_report
 
+        servitude_intersection_by_table: Dict[str, Dict[str, Any]] = {}
+        for ly in intersections:
+            if isinstance(ly, dict) and str(ly.get("type") or "").lower() == "servitude":
+                t = (ly.get("table") or "").strip()
+                if t:
+                    servitude_intersection_by_table[t] = ly
+
         story.append(PageBreak())
         story.extend(
             build_servitudes_flowables_for_report(
@@ -1432,6 +1467,12 @@ def generate_rapport_pdf(
                 table_width=cover_w,
                 c_kerelia_light=C_KERELIA_LIGHT,
                 c_border=C_BORDER,
+                layer_uf_overlap_pct=servitudes_uf_pct,
+                intersection_layers={
+                    k: servitude_intersection_by_table[k]
+                    for k in servitudes_layer_keys
+                    if k in servitude_intersection_by_table
+                },
             )
         )
 
@@ -1440,9 +1481,22 @@ def generate_rapport_pdf(
     # -----------------------------------------------------------------------
     # Corps : regroupement par article
     # -----------------------------------------------------------------------
+    servitudes_dedicated_page = bool(servitudes_map_png_path and servitudes_layer_keys)
+    intersections_body: List[Any] = (
+        [
+            ly
+            for ly in intersections
+            if not (isinstance(ly, dict) and str(ly.get("type") or "").lower() == "servitude")
+        ]
+        if servitudes_dedicated_page
+        else list(intersections)
+    )
+
     # Grouper par article
     articles: Dict[str, List[Dict]] = {}
-    for layer in intersections:
+    for layer in intersections_body:
+        if not isinstance(layer, dict):
+            continue
         art = _article_key(layer.get("article"))
         articles.setdefault(art, []).append(layer)
 

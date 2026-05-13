@@ -17,6 +17,8 @@ from reportlab.platypus import HRFlowable, Image, Paragraph, Spacer, Table, Tabl
 from shapely.geometry import shape
 from shapely.ops import transform
 
+from .plu_zonage_rapport import ZONAGE_PAGE_LAYER_KEYS, zone_key_from_intersection_element
+
 
 def _first_xy_pair(coords: Any) -> Optional[Tuple[float, float]]:
     """Premier couple (x,y) dans l’arbre coordinates GeoJSON (même logique que identite_fonciere)."""
@@ -52,8 +54,37 @@ def _detect_input_srid(parcelle_geometry: Dict[str, Any], explicit_srid: Optiona
         return 2154
     return 4326
 
-# Même identifiant que le catalogue Latresne (zonage PLU)
-_ZONAGE_PLU_TABLES = frozenset({"plu_latresne"})
+
+def extract_zonage_urbain_summary(intersections: List[Dict[str, Any]]) -> str:
+    """
+    Libellé(s) de zone(s) PLU pour la ligne « Zonage urbain ».
+    (Aligné sur le filtre rapport ≥ 1 % de surface d'étude pour la couche zonage active.)
+    """
+    for layer in intersections:
+        t = (layer.get("table") or "").strip()
+        if t not in ZONAGE_PAGE_LAYER_KEYS:
+            continue
+        if layer.get("_plu_all_zonages_below_min_pct"):
+            return "Aucun zonage ≥ 1 % (surface d'étude)"
+        elems = layer.get("elements") or []
+        names: List[str] = []
+        for el in elems:
+            if not isinstance(el, dict):
+                continue
+            z = zone_key_from_intersection_element(el, t)
+            if z:
+                names.append(z)
+        uniq: List[str] = []
+        seen: set[str] = set()
+        for n in names:
+            if n not in seen:
+                seen.add(n)
+                uniq.append(n)
+        if uniq:
+            text = ", ".join(uniq)
+            return text if len(text) <= 420 else text[:417] + "…"
+        return layer.get("display_name") or "Zonage PLU (intersection détectée)"
+    return "—"
 
 
 def compute_uf_surface_m2(
@@ -61,7 +92,7 @@ def compute_uf_surface_m2(
     srid: Optional[int] = None,
 ) -> Optional[float]:
     """
-    Superficie de l’UF en m² (Lambert-93), à partir du GeoJSON.
+    Superficie de l'UF en m² (Lambert-93), à partir du GeoJSON.
     Retourne None si géométrie absente ou invalide.
     """
     if not geometry or not isinstance(geometry, dict) or "type" not in geometry:
@@ -89,38 +120,6 @@ def _format_surface_fr(m2: float) -> str:
     if ha >= 0.01:
         return f"{s} m² ({ha:.2f} ha)".replace(".", ",")
     return f"{s} m²"
-
-
-def extract_zonage_urbain_summary(intersections: List[Dict[str, Any]]) -> str:
-    """
-    Libellé(s) de zone(s) PLU pour la ligne « Zonage urbain ».
-    (Aligné sur le filtre rapport ≥ 1 % de surface d'étude pour plu_latresne.)
-    """
-    for layer in intersections:
-        t = (layer.get("table") or "").strip()
-        if t not in _ZONAGE_PLU_TABLES:
-            continue
-        if layer.get("_plu_all_zonages_below_min_pct"):
-            return "Aucun zonage ≥ 1 % (surface d'étude)"
-        elems = layer.get("elements") or []
-        names: List[str] = []
-        for el in elems:
-            if not isinstance(el, dict):
-                continue
-            z = el.get("zonage_reglement") or el.get("Zonage")
-            if z is not None and str(z).strip():
-                names.append(str(z).strip())
-        uniq = []
-        seen = set()
-        for n in names:
-            if n not in seen:
-                seen.add(n)
-                uniq.append(n)
-        if uniq:
-            text = ", ".join(uniq)
-            return text if len(text) <= 420 else text[:417] + "…"
-        return layer.get("display_name") or "Zonage PLU (intersection détectée)"
-    return "—"
 
 
 def _map_url_from_result(result: Dict[str, Any]) -> Optional[str]:
@@ -397,7 +396,7 @@ def build_plu_zonage_page_flowables(
         [
             [
                 Paragraph(
-                    "<font color='white'><b>Zonage Latresne</b></font>",
+                    "<font color='white'><b>Zonage PLU</b></font>",
                     ParagraphStyle(
                         "PluBandTxt",
                         parent=getSampleStyleSheet()["Normal"],

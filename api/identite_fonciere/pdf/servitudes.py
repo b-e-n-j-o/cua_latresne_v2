@@ -1,9 +1,15 @@
 """
-Carte regroupée des couches « servitude » du catalogue identité foncière + synthèse PDF.
+Carte regroupée des couches « servitude » du catalogue identité foncière + page PDF dédiée.
 
 - Carte : fond satellite, UF, parcelles cadastrales de l’UF, tracés des entités (buffer).
 - Légende : une couleur par couche représentée sur la carte.
-- Tableau : une ligne par couche dont l’UF intersecte au moins une entité (libellé seul, sans comptage ; sinon pas de section).
+- Tableau récapitulatif : une ligne par couche intersectant l’UF, avec % de surface UF couverte.
+- Détail : pour chaque type (clé catalogue / vue), tableau d’attributs aligné sur le corps du rapport
+  (colonnes ``keep`` / ``clean_attributes``), comme l’article 4.
+
+Schéma PostGIS : ``{db_schema}.*`` (argument, ContextVar ``get_identite_db_schema``, ou env
+``IDENTITE_FONCIERE_DB_SCHEMA``). Parcelles UF : ``{db_schema}.parcelles`` ou
+``latresne.parcelles_latresne`` (legacy).
 
 Le PPRI (`pm1_detaillee_gironde`) est exclu de cette carte (page PPRI dédiée).
 """
@@ -41,7 +47,7 @@ from .plu_visuels import (
     PLU_MAP_COVER_ASPECT_WH,
     PLU_MAP_RIGHT_PANEL_RATIO,
     PLU_MAP_SQUARE_SIDE_IN,
-    fetch_parcelles_latresne_uf,
+    fetch_parcelles_uf_for_schema,
     parcelle_gdf_from_geojson,
 )
 
@@ -96,7 +102,14 @@ def servitude_catalog_entries(
     """
     (clé table, nom d'affichage catalogue) pour type == servitude, hors exclusions.
     """
-    cat = catalogue if catalogue is not None else load_catalogue_identite_fonciere()
+    if catalogue is None:
+        try:
+            from ..identite_fonciere import get_catalogue
+
+            catalogue = get_catalogue()
+        except Exception:
+            catalogue = load_catalogue_identite_fonciere()
+    cat = catalogue
     out: List[Tuple[str, str]] = []
     for table_key, cfg in cat.items():
         if not isinstance(cfg, dict) or cfg.get("type") != "servitude":
@@ -127,8 +140,26 @@ def _db_params() -> dict:
     }
 
 
-def _db_schema() -> str:
-    return os.getenv("IDENTITE_FONCIERE_DB_SCHEMA", "latresne").strip() or "latresne"
+def _resolve_servitudes_db_schema(db_schema: Optional[str] = None) -> str:
+    """
+    Schéma PostGIS des couches servitudes / parcelles.
+
+    Priorité : argument explicite, puis ``get_identite_db_schema()`` (ContextVar requête),
+    puis variable d'environnement ``IDENTITE_FONCIERE_DB_SCHEMA``, défaut ``latresne``.
+    """
+    raw = (db_schema or "").strip().lower()
+    if raw and re.match(r"^[a-z_][a-z0-9_]*$", raw):
+        return raw
+    try:
+        from ..identite_fonciere import get_identite_db_schema
+
+        got = (get_identite_db_schema() or "").strip().lower()
+        if got and re.match(r"^[a-z_][a-z0-9_]*$", got):
+            return got
+    except Exception:
+        pass
+    env = (os.getenv("IDENTITE_FONCIERE_DB_SCHEMA") or "latresne").strip().lower() or "latresne"
+    return env if re.match(r"^[a-z_][a-z0-9_]*$", env) else "latresne"
 
 
 def _find_geom_column(conn, table_name: str, schema: str) -> Optional[str]:
@@ -159,6 +190,79 @@ def _color_map_for_tables(table_keys: List[str]) -> Dict[str, str]:
     for i, k in enumerate(sorted(table_keys, key=lambda x: x.lower())):
         out[k] = SERVITUDE_LAYER_COLORS[i % len(SERVITUDE_LAYER_COLORS)]
     return out
+
+
+def _sql_ident_quoted(name: str) -> Optional[str]:
+    n = (name or "").strip().lower()
+    if not n or not re.match(r"^[a-z_][a-z0-9_]*$", n):
+        return None
+    return '"' + n.replace('"', '""') + '"'
+
+
+def compute_servitude_layer_uf_overlap_pct(
+    parcelle_gdf: gpd.GeoDataFrame,
+    table_key: str,
+    geom_col: str,
+    schema: str,
+) -> float:
+    """
+    Part de la surface de l’UF (Lambert-93) couverte par l’union des intersections
+    avec les entités d’une couche servitude (surfacique : extract sur polygones).
+    """
+    sch_q = _sql_ident_quoted(schema)
+    tbl_q = _sql_ident_quoted(table_key)
+    if not sch_q or not tbl_q:
+        return 0.0
+    gc = (geom_col or "").strip()
+    if not gc or not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", gc):
+        return 0.0
+
+    uf_2154 = parcelle_gdf.to_crs(epsg=2154)
+    uf_geom = unary_union(uf_2154.geometry)
+    if uf_geom.is_empty:
+        return 0.0
+    uf_wkt = uf_geom.wkt
+    fq = f"{sch_q}.{tbl_q}"
+
+    sql = f"""
+        WITH uf AS (SELECT ST_GeomFromText(%s, 2154) AS g),
+        ix AS (
+            SELECT ST_CollectionExtract(
+                ST_Force2D(ST_Intersection(ST_MakeValid(t.{gc}), uf.g)),
+                3
+            ) AS g2
+            FROM {fq} t, uf
+            WHERE t.{gc} IS NOT NULL AND ST_Intersects(t.{gc}, uf.g)
+        )
+        SELECT
+            ST_Area((SELECT g FROM uf))::double precision AS au,
+            COALESCE(
+                ST_Area(
+                    ST_Intersection(
+                        (SELECT g FROM uf),
+                        (SELECT ST_UnaryUnion(ST_Collect(g2)) FROM ix
+                         WHERE g2 IS NOT NULL AND NOT ST_IsEmpty(g2))
+                    )
+                ),
+                0.0
+            )::double precision AS ai
+    """
+    conn = psycopg2.connect(**_db_params())
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, (uf_wkt,))
+            row = cur.fetchone()
+        if not row:
+            return 0.0
+        au, ai = float(row[0] or 0.0), float(row[1] or 0.0)
+        if au <= 0:
+            return 0.0
+        return min(100.0, max(0.0, (ai / au) * 100.0))
+    except Exception as exc:
+        logger.warning("Servitudes : surface UF pour %s : %s", table_key, exc)
+        return 0.0
+    finally:
+        conn.close()
 
 
 def count_intersections_uf(
@@ -450,6 +554,143 @@ def _image_size_pt(png_path: Path, target_width_pt: float) -> Tuple[float, float
     return w, w / float(PLU_MAP_COVER_ASPECT_WH)
 
 
+def _flowables_servitude_layer_attributes(
+    layer: Dict[str, Any],
+    inner_w: float,
+    c_border: Any,
+    ps_attr_key: ParagraphStyle,
+    ps_attr_val: ParagraphStyle,
+    ps_muted: ParagraphStyle,
+) -> List[Any]:
+    """Tableau d’attributs aligné sur le corps du rapport (article 4), sans bandeau type."""
+    from .rapport_identite_fonciere import (
+        PDF_LINEAR_LAYER_ATTR_MAX_ROWS,
+        _aggregate_elements_for_pdf,
+        _build_attr_label_map,
+        _format_attr_value,
+        _is_linear_geom_layer,
+        _normalize_layer_elements,
+        _pdf_column_keys,
+        _pdf_keep_effectif_vide,
+        _pdf_keep_only_reglementation,
+    )
+
+    out: List[Any] = []
+    display_name = layer.get("display_name") or layer.get("table") or "Couche"
+
+    elements = _normalize_layer_elements(layer)
+    filtered_elements = _aggregate_elements_for_pdf(layer, elements)
+    attr_trunc_note: Optional[str] = None
+
+    if _pdf_keep_effectif_vide(layer):
+        out.append(
+            Paragraph(
+                "Intersection détectée (attributs non configurés pour le tableau : <i>keep</i> vide).",
+                ps_muted,
+            )
+        )
+        return out
+    if _pdf_keep_only_reglementation(layer):
+        cnt = len(elements)
+        rows = [
+            [
+                Paragraph("<b>Couche</b>", ps_attr_key),
+                Paragraph("<b>Nombre d’entités intersectées</b>", ps_attr_key),
+            ],
+            [
+                Paragraph(xml_escape(str(display_name)), ps_attr_val),
+                Paragraph(str(cnt), ps_attr_val),
+            ],
+        ]
+        tbl = Table(rows, colWidths=[inner_w * 0.68, inner_w * 0.32], repeatRows=1)
+        tbl.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E8F5EE")),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CCDDCC")),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F7FCF9")]),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ]
+            )
+        )
+        out.append(Spacer(1, 4))
+        out.append(tbl)
+        return out
+    if not filtered_elements:
+        out.append(
+            Paragraph(
+                "Intersection détectée (données attributaires non disponibles).",
+                ps_muted,
+            )
+        )
+        return out
+
+    table_elements = filtered_elements
+    n_tab = len(filtered_elements)
+    if _is_linear_geom_layer(layer) and n_tab > PDF_LINEAR_LAYER_ATTR_MAX_ROWS:
+        table_elements = filtered_elements[:PDF_LINEAR_LAYER_ATTR_MAX_ROWS]
+        omitted = n_tab - PDF_LINEAR_LAYER_ATTR_MAX_ROWS
+        attr_trunc_note = (
+            f"… et {omitted} autre(s) entité(s) non affichée(s) "
+            f"(couche linéaire : aperçu limité à {PDF_LINEAR_LAYER_ATTR_MAX_ROWS} ligne(s))."
+        )
+
+    label_map = _build_attr_label_map(layer)
+    catalog_keys = _pdf_column_keys(layer)
+    if catalog_keys:
+        all_keys = catalog_keys
+    else:
+        all_keys = []
+        for el in filtered_elements:
+            for k in el.keys():
+                if k not in all_keys:
+                    all_keys.append(k)
+
+    if not all_keys:
+        out.append(
+            Paragraph(
+                "Intersection détectée (données attributaires non disponibles pour le tableau).",
+                ps_muted,
+            )
+        )
+        return out
+
+    attr_rows: List[List[Any]] = []
+    header_cells = [Paragraph(f"<b>{xml_escape(label_map.get(k, k))}</b>", ps_attr_key) for k in all_keys]
+    attr_rows.append(header_cells)
+    for el in table_elements:
+        row_cells = []
+        for k in all_keys:
+            val = el.get(k)
+            row_cells.append(Paragraph(_format_attr_value(val), ps_attr_val))
+        attr_rows.append(row_cells)
+
+    col_w = inner_w / max(len(all_keys), 1)
+    col_widths = [col_w] * len(all_keys)
+    repeat_hdr = 1 if len(attr_rows) > 1 else 0
+    out.append(Spacer(1, 4))
+    attr_tbl = Table(attr_rows, colWidths=col_widths, repeatRows=repeat_hdr)
+    attr_tbl.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E8F5EE")),
+                ("GRID", (0, 0), (-1, -1), 0.5, c_border),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F7FCF9")]),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
+    out.append(attr_tbl)
+    if attr_trunc_note:
+        out.append(Spacer(1, 4))
+        out.append(Paragraph(xml_escape(attr_trunc_note), ps_muted))
+    return out
+
+
 def build_servitudes_section_flowables(
     map_png_path: str,
     *,
@@ -458,11 +699,16 @@ def build_servitudes_section_flowables(
     display_names: Dict[str, str],
     c_kerelia_light: Any,
     c_border: Any,
+    layer_uf_overlap_pct: Optional[Dict[str, float]] = None,
+    intersection_layers: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> List[Any]:
-    """layer_keys : clés catalogue des couches intersectant l’UF (ordre fourni)."""
+    """Récap + carte + tableau synthèse (avec % UF) + détail attributaire par couche intersectée."""
     pp = Path(map_png_path)
     if not pp.is_file():
         return []
+
+    pct_map = layer_uf_overlap_pct or {}
+    inter_by_table = intersection_layers or {}
 
     base = getSampleStyleSheet()
     ps_kicker = ParagraphStyle(
@@ -499,6 +745,37 @@ def build_servitudes_section_flowables(
         fontName="Helvetica",
         leading=12,
     )
+    ps_layer_hdr = ParagraphStyle(
+        "ServLayerHdr",
+        parent=ps_lbl,
+        fontSize=10,
+        textColor=colors.HexColor("#1e4d2f"),
+        spaceBefore=4,
+    )
+    ps_attr_key = ParagraphStyle(
+        "ServAttrKey",
+        parent=base["Normal"],
+        fontSize=8,
+        textColor=colors.HexColor("#1a1a1a"),
+        fontName="Helvetica-Bold",
+        leading=10,
+    )
+    ps_attr_val = ParagraphStyle(
+        "ServAttrVal",
+        parent=base["Normal"],
+        fontSize=8,
+        textColor=colors.HexColor("#1a1a1a"),
+        fontName="Helvetica",
+        leading=10,
+    )
+    ps_muted = ParagraphStyle(
+        "ServMuted",
+        parent=base["Normal"],
+        fontSize=8.5,
+        textColor=colors.HexColor("#666666"),
+        fontName="Helvetica-Oblique",
+        leading=11,
+    )
 
     tw = max(float(table_width), 120.0)
     content_w = max(tw * 0.98, 1.0)
@@ -527,12 +804,26 @@ def build_servitudes_section_flowables(
             )
         )
         flow.append(Spacer(1, 4))
-        hdr = [Paragraph(xml_escape("Servitude"), ps_lbl)]
+        hdr = [
+            Paragraph(xml_escape("Servitude"), ps_lbl),
+            Paragraph(xml_escape("% surface UF"), ps_lbl),
+        ]
         trows: List[List[Any]] = [hdr]
         for table_key in layer_keys:
             nom = display_names.get(table_key, table_key)
-            trows.append([Paragraph(xml_escape(nom), ps_val)])
-        tbl = Table(trows, colWidths=[tw])
+            p_raw = pct_map.get(table_key)
+            if p_raw is None:
+                pct_txt = "—"
+            else:
+                pct_txt = f"{float(p_raw):.1f} %"
+            trows.append(
+                [
+                    Paragraph(xml_escape(nom), ps_val),
+                    Paragraph(xml_escape(pct_txt), ps_val),
+                ]
+            )
+        col_w0 = tw * 0.78
+        tbl = Table(trows, colWidths=[col_w0, tw - col_w0])
         tbl.setStyle(
             TableStyle(
                 [
@@ -548,6 +839,43 @@ def build_servitudes_section_flowables(
         )
         flow.append(tbl)
 
+        if inter_by_table:
+            flow.append(Spacer(1, 14))
+            flow.append(
+                Paragraph(
+                    xml_escape("Détail par type de servitude (données intersectées)"),
+                    ps_lbl,
+                )
+            )
+            flow.append(Spacer(1, 6))
+            for table_key in layer_keys:
+                ly = inter_by_table.get(table_key)
+                if not isinstance(ly, dict):
+                    continue
+                nom = display_names.get(table_key, table_key)
+                p_raw = pct_map.get(table_key)
+                pct_suffix = (
+                    f" — {float(p_raw):.1f} % de la surface de l’unité foncière"
+                    if p_raw is not None
+                    else ""
+                )
+                flow.append(
+                    Paragraph(
+                        f"<b>{xml_escape(str(nom))}</b>{xml_escape(pct_suffix)}",
+                        ps_layer_hdr,
+                    )
+                )
+                flow.extend(
+                    _flowables_servitude_layer_attributes(
+                        ly,
+                        content_w,
+                        c_border,
+                        ps_attr_key,
+                        ps_attr_val,
+                        ps_muted,
+                    )
+                )
+
     return flow
 
 
@@ -561,16 +889,17 @@ def generate_servitudes_visuals_from_uf_geometry(
     insee: str = "",
     parcelles_cadastrales: Optional[list[dict[str, Any]]] = None,
     catalogue: Optional[Dict[str, Any]] = None,
-) -> Optional[Tuple[str, List[str], Dict[str, str]]]:
+    db_schema: Optional[str] = None,
+) -> Optional[Tuple[str, List[str], Dict[str, str], Dict[str, float]]]:
     """
-    Retourne (chemin PNG, clés des couches intersectant l’UF triées par libellé, display_names)
-    si au moins une couche servitude intersecte l’UF ; sinon None.
+    Retourne (chemin PNG, clés des couches intersectant l’UF triées par libellé, display_names,
+    pourcentages de surface UF par clé) si au moins une couche servitude intersecte l’UF ; sinon None.
     """
     entries = servitude_catalog_entries(catalogue)
     if not entries:
         return None
 
-    schema = _db_schema()
+    schema = _resolve_servitudes_db_schema(db_schema)
     parcelle_gdf = parcelle_gdf_from_geojson(geometry, srid)
     display_names = {k: v for k, v in entries}
 
@@ -600,6 +929,19 @@ def generate_servitudes_visuals_from_uf_geometry(
     intersecting = {k: n for k, n in uf_counts.items() if n > 0}
     if not intersecting:
         return None
+
+    layer_uf_pct: Dict[str, float] = {}
+    for table_key in intersecting:
+        try:
+            layer_uf_pct[table_key] = compute_servitude_layer_uf_overlap_pct(
+                parcelle_gdf,
+                table_key,
+                geom_cols[table_key],
+                schema,
+            )
+        except Exception as exc:
+            logger.warning("Servitudes : pourcentage surface UF %s : %s", table_key, exc)
+            layer_uf_pct[table_key] = 0.0
 
     color_by_layer = _color_map_for_tables([e[0] for e in entries])
 
@@ -643,7 +985,8 @@ def generate_servitudes_visuals_from_uf_geometry(
     ).hexdigest()[:16]
     map_path = str(sub / f"servitudes_map_{h}.png")
 
-    parcelles_pc_gdf, _detail = fetch_parcelles_latresne_uf(
+    parcelles_pc_gdf, _detail = fetch_parcelles_uf_for_schema(
+        schema,
         insee,
         parcelle_gdf,
         parcelles_cadastrales,
@@ -664,7 +1007,7 @@ def generate_servitudes_visuals_from_uf_geometry(
         intersecting.keys(),
         key=lambda k: display_names.get(k, k).lower(),
     )
-    return map_path, layer_keys_ordered, display_names
+    return map_path, layer_keys_ordered, display_names, layer_uf_pct
 
 
 def build_servitudes_flowables_for_report(
@@ -675,6 +1018,8 @@ def build_servitudes_flowables_for_report(
     table_width: float,
     c_kerelia_light: Any,
     c_border: Any,
+    layer_uf_overlap_pct: Optional[Dict[str, float]] = None,
+    intersection_layers: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> List[Any]:
     return build_servitudes_section_flowables(
         map_png_path,
@@ -683,4 +1028,6 @@ def build_servitudes_flowables_for_report(
         display_names=display_names,
         c_kerelia_light=c_kerelia_light,
         c_border=c_border,
+        layer_uf_overlap_pct=layer_uf_overlap_pct,
+        intersection_layers=intersection_layers,
     )

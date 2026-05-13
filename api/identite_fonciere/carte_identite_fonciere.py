@@ -15,8 +15,7 @@ from folium import Element
 from sqlalchemy import text
 
 from .identite_fonciere import (
-    CATALOGUE,
-    IDENTITE_DB_SCHEMA,
+    get_catalogue,
     _attrs_sans_reglementation,
     _build_parcelle_geom_sql,
     _detect_input_srid,
@@ -24,6 +23,7 @@ from .identite_fonciere import (
     _pg_quote_ident,
     analyser_identite_fonciere,
     engine,
+    get_identite_db_schema,
 )
 
 
@@ -78,7 +78,7 @@ def _fetch_layer_features_4326(
     srid: Optional[int],
     max_features: int = 300,
 ) -> List[Dict[str, Any]]:
-    cfg = CATALOGUE.get(table, {})
+    cfg = get_catalogue().get(table, {})
     keep = cfg.get("keep", [])
     if not isinstance(keep, list):
         keep = []
@@ -89,7 +89,7 @@ def _fetch_layer_features_4326(
     parcelle_geom_sql = _build_parcelle_geom_sql(input_srid)
 
     with engine.connect() as conn:
-        geom_col = _find_geom_column(conn, table, IDENTITE_DB_SCHEMA)
+        geom_col = _find_geom_column(conn, table, get_identite_db_schema())
         if not geom_col:
             return []
 
@@ -102,7 +102,7 @@ def _fetch_layer_features_4326(
                 AND table_name = :table
             """
             ),
-            {"schema": IDENTITE_DB_SCHEMA, "table": table},
+            {"schema": get_identite_db_schema(), "table": table},
         )
         existing = {r[0] for r in cols_rs}
         attrs = [a for a in keep if a in existing]
@@ -128,7 +128,7 @@ def _fetch_layer_features_4326(
                     )
                 ) AS geom
                 {select_attrs}
-            FROM {IDENTITE_DB_SCHEMA}.{table} t, uf
+            FROM {get_identite_db_schema()}.{table} t, uf
             WHERE t.{geom_col} IS NOT NULL
             AND ST_Intersects(t.{geom_col}, uf.geom_2154)
             LIMIT :limit
