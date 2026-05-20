@@ -2,7 +2,8 @@ fastapi==0.116.1
 uvicorn==0.34.3
 requests==2.31.0
 python-dotenv==1.1.0
-supabase==2.15.1
+supabase>=2.16.0
+httpx>=0.28.1,<1.0.0
 openai==1.92.2
 google-genai>=1.55.0
 geopandas==1.1.0
@@ -31,7 +32,7 @@ langchain-core>=0.2.0
 openai>=1.30.0
 tiktoken>=0.7.0
 pdf2image==1.17.0
-mistralai==1.2.4
+mistralai>=2.0.0
 mammoth
 PyPDF2
 laspy[lazrs]
