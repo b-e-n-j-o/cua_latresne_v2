@@ -1,6 +1,5 @@
 """
-Endpoint pour récupérer la géométrie d'une parcelle cadastrale
-via WFS IGN.
+Endpoints cadastre parcelle : voisins et géométrie d'unité foncière (PostGIS).
 """
 
 import csv
@@ -10,16 +9,10 @@ from pathlib import Path
 from typing import List
 
 import psycopg2
-import requests
 from fastapi import APIRouter, HTTPException
 from psycopg2 import sql
-
-from .ssl_utils import ssl_verify_for_requests
 from pydantic import BaseModel
-from shapely.geometry import shape
-from shapely.ops import transform, unary_union
-from shapely.geometry import mapping
-import pyproj
+from shapely.geometry import mapping, shape
 
 router = APIRouter(prefix="/parcelle", tags=["Cadastre"])
 
@@ -49,14 +42,6 @@ def resolve_csv_communes_path() -> Path | None:
 
 
 CSV_COMMUNES_PATH = resolve_csv_communes_path()
-WFS_URL = "https://data.geopf.fr/wfs"
-CAD_LAYER = "CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle"
-
-proj_2154 = pyproj.CRS("EPSG:2154")
-proj_4326 = pyproj.CRS("EPSG:4326")
-to_4326 = pyproj.Transformer.from_crs(
-    proj_2154, proj_4326, always_xy=True
-).transform
 
 # ------------------------------------------------------------
 # Pydantic models
@@ -77,10 +62,7 @@ class UFRequest(BaseModel):
 
 def load_commune_to_insee():
     if CSV_COMMUNES_PATH is None:
-        raise FileNotFoundError(
-            "CSV des communes introuvable. Configurez CSV_COMMUNES_PATH "
-            "ou ajoutez config/v_commune_2025.csv dans le projet."
-        )
+        return {}
 
     mapping_dict = {}
     with CSV_COMMUNES_PATH.open(newline="", encoding="utf-8") as f:
@@ -158,17 +140,6 @@ def get_db_connection():
     )
 
 
-def wfs_get(params):
-    r = requests.get(
-        WFS_URL,
-        params=params,
-        timeout=20,
-        verify=ssl_verify_for_requests(),
-    )
-    r.raise_for_status()
-    return r.json()
-
-
 def resolve_insee_and_commune(code_insee: str | None, commune: str) -> tuple[str, str]:
     """Résout (insee, libellé commune) depuis code_insee prioritaire ou nom de commune."""
     if code_insee:
@@ -205,70 +176,6 @@ def resolve_cadastre_table(insee: str, commune_name: str) -> tuple[str, str]:
 # ------------------------------------------------------------
 # Endpoints
 # ------------------------------------------------------------
-
-@router.get("/geometrie")
-def parcelle_geometrie(
-    section: str,
-    numero: str,
-    commune: str = "LATRESNE",
-    code_insee: str | None = None  # Code INSEE optionnel (prioritaire sur commune)
-):
-    """Retourne la géométrie d'une parcelle (sans voisins) avec sa contenance."""
-    section = section.upper().strip()
-    numero = numero.zfill(4)
-    insee, commune_name = resolve_insee_and_commune(code_insee, commune)
-
-    cql = (
-        f"code_insee='{insee}' AND "
-        f"section='{section}' AND "
-        f"numero='{numero}'"
-    )
-
-    target = wfs_get({
-        "service": "WFS",
-        "version": "2.0.0",
-        "request": "GetFeature",
-        "typeNames": CAD_LAYER,
-        "outputFormat": "application/json",
-        "srsName": "EPSG:2154",
-        "cql_filter": cql
-    })
-
-    if not target["features"]:
-        raise HTTPException(404, "Parcelle introuvable")
-
-    feature = target["features"][0]
-    props = feature["properties"]
-    geom_2154 = shape(feature["geometry"])
-    geom_4326 = transform(to_4326, geom_2154)
-
-    # Récupérer la contenance depuis le WFS (peut avoir différents noms)
-    contenance = None
-    for key in props.keys():
-        if 'contenance' in key.lower() or 'contain' in key.lower():
-            val = props.get(key)
-            if val is not None:
-                try:
-                    # Convertir en nombre si c'est une chaîne
-                    if isinstance(val, str):
-                        val = float(val.replace(',', '.').replace(' ', ''))
-                    contenance = float(val)
-                    break
-                except (ValueError, TypeError):
-                    continue
-
-    return {
-        "type": "Feature",
-        "geometry": mapping(geom_4326),
-        "properties": {
-            "section": props.get("section", ""),
-            "numero": props.get("numero", ""),
-            "insee": insee,
-            "commune": commune_name,
-            "contenance": contenance  # Surface cadastrale indicative en m²
-        }
-    }
-
 
 @router.get("/et-voisins")
 def parcelle_et_voisins(
