@@ -5,12 +5,15 @@
 Pipeline simple : extraction parcelles avec Gemini Vision
 """
 
+import io
 import os
 import json
 from pathlib import Path
 from dotenv import load_dotenv
 from pdf2image import convert_from_path
-import google.generativeai as genai
+
+from google import genai
+from google.genai import types
 
 load_dotenv()
 
@@ -19,9 +22,9 @@ PDF_PATH = Path(
     "LATRESNE/cua_latresne_v4/cerfa_CU_13410-2024-07-19.pdf"
 )
 
-PAGES = [2, 4]
-DPI = 150
-MODEL = "gemini-2.5-flash"
+PAGES  = [2, 4]
+DPI    = 150
+MODEL  = "gemini-2.5-flash"
 API_KEY = os.getenv("GEMINI_API_KEY")
 
 PROMPT = """
@@ -67,9 +70,21 @@ def pdf_pages_to_pil_images(pdf_path: Path, pages, dpi: int = 150):
     return images
 
 
+def pil_to_parts(images: list) -> list:
+    """Convertit des images PIL en types.Part pour le nouveau SDK."""
+    parts = []
+    for img in images:
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG")
+        parts.append(
+            types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg")
+        )
+    return parts
+
+
 def extraire_parcelles_depuis_pdf(pdf_path: str, model: str = MODEL) -> dict:
     """API utilisée par l'orchestrateur"""
-    
+
     if not API_KEY:
         return {"success": False, "error": "GEMINI_API_KEY manquante"}
 
@@ -77,27 +92,24 @@ def extraire_parcelles_depuis_pdf(pdf_path: str, model: str = MODEL) -> dict:
     if not pdf.exists():
         return {"success": False, "error": f"Fichier introuvable: {pdf_path}"}
 
-    # Conversion images
-    images = pdf_pages_to_pil_images(pdf, PAGES, dpi=DPI)
+    images      = pdf_pages_to_pil_images(pdf, PAGES, dpi=DPI)
+    image_parts = pil_to_parts(images)
 
-    # Appel Gemini
-    genai.configure(api_key=API_KEY)
-    model_instance = genai.GenerativeModel(model)
-    
-    content = [PROMPT] + images
-    
+    client   = genai.Client(api_key=API_KEY)
+    contents = [PROMPT] + image_parts
+
     try:
-        response = model_instance.generate_content(content)
+        response = client.models.generate_content(model=model, contents=contents)
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-    raw = response.text.strip()
-    usage = response.usage_metadata if hasattr(response, 'usage_metadata') else None
+    raw   = response.text.strip()
+    usage = getattr(response, "usage_metadata", None)
 
     # Nettoyage JSON
     if "```" in raw:
-        parts = raw.split("```")
-        for part in parts:
+        parts_split = raw.split("```")
+        for part in parts_split:
             part = part.strip()
             if part.lower().startswith("json"):
                 part = part[4:].strip()
@@ -114,27 +126,22 @@ def extraire_parcelles_depuis_pdf(pdf_path: str, model: str = MODEL) -> dict:
             "raw": raw,
         }
 
-    # Stats
     parcelles = data.get("references_cadastrales", []) or []
-    total = data.get("superficie_totale_m2") or 0
-    somme = sum(
+    total     = data.get("superficie_totale_m2") or 0
+    somme     = sum(
         (p.get("surface_m2") or 0)
         for p in parcelles
         if p.get("surface_m2") is not None
     )
 
     stats = {
-        "nb_parcelles": len(parcelles),
+        "nb_parcelles":   len(parcelles),
         "somme_surfaces": somme,
-        "ecart_total": abs(somme - total) if total else None,
-        "tokens": usage.total_token_count if usage else 0,
+        "ecart_total":    abs(somme - total) if total else None,
+        "tokens":         getattr(usage, "total_token_count", 0) if usage else 0,
     }
 
-    return {
-        "success": True,
-        "data": data,
-        "stats": stats,
-    }
+    return {"success": True, "data": data, "stats": stats}
 
 
 def main():

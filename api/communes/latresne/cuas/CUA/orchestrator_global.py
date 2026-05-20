@@ -4,7 +4,7 @@
 orchestrator_global.py — Pipeline global KERELIA (phase 2)
 Emplacement : CUA/ (orchestration CERFA → UF → intersections → cartes / CUA).
 -----------------------------------------------------------
-1️⃣ Analyse du CERFA via Gemini (analyse_gemini.py)
+1️⃣ Analyse du CERFA via Mistral (mistral_analyse_cerfa_complet.py)
 2️⃣ Vérification unité foncière via WFS IGN (verification_unite_fonciere.py)
 3️⃣ Intersections avec couches urbanistiques (intersections.py)
 -----------------------------------------------------------

@@ -34,7 +34,7 @@ if str(PROJECT_ROOT) not in sys.path:
 print(f"📂 PROJECT_ROOT = {PROJECT_ROOT}")
 
 # Maintenant on peut importer les modules du projet
-from CERFA_ANALYSE.analyse_gemini import analyse_cerfa
+from services.analyse_cerfa_mistral.GEMINI.orchestrator import analyser_cerfa_complet
 from CERFA_ANALYSE.verification_unite_fonciere import verifier_unite_fonciere
 from INTERSECTIONS.intersections import calculate_intersection, CATALOGUE
 from CUA.docx.cua_builder import run_builder
@@ -157,11 +157,24 @@ else:
     CERFA_PDF = BASE_DIR / "CUA/tests/cerfa_CU_13410-2024-07-19.pdf"
     print(f"📄 PDF : {CERFA_PDF}")
     
-    cerfa_json = analyse_cerfa(
-        str(CERFA_PDF),
-        out_json=str(cerfa_json_path)
+    result = analyser_cerfa_complet(str(CERFA_PDF))
+    if not result.get("success"):
+        raise RuntimeError(f"Erreur analyse CERFA: {result.get('error')}")
+
+    info = result["data"]["info_generales"]
+    parcelles = result["data"]["parcelles_detectees"]
+    cerfa_json = {
+        "success": True,
+        "data": {
+            **info,
+            "references_cadastrales": parcelles.get("references_cadastrales", []),
+        },
+    }
+    cerfa_json_path.write_text(
+        json.dumps(cerfa_json, indent=2, ensure_ascii=False),
+        encoding="utf-8",
     )
-    
+
     print(f"✅ CERFA analysé → {cerfa_json_path}")
 
 # -------------------------------------------------------------

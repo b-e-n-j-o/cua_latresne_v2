@@ -51,7 +51,6 @@ from app.deps import supabase
 from app.routers.cerfa import router as cerfa_router
 from app.routers.cua_pipeline import router as cua_pipeline_router
 from app.routers.pipelines_supabase import router as pipelines_supabase_router
-from app.routers.product import router as product_router
 from app.routers.site_account import router as site_account_router
 from api.communes.latresne.cuas.CUA.docx import cua_docx_viewer_routes
 from services.history.centroid_history import router as centroid_history_router
@@ -262,8 +261,6 @@ app.include_router(lidar_router, prefix="/lidar")
 # --- MNT 3D (topographie) ---
 app.include_router(mnt_router, prefix="/mnt")
 
-# --- Utilitaires produit (résumé IA CUA) ---
-app.include_router(product_router)
 
 # --- Site / compte (santé, leads, auth) ---
 app.include_router(site_account_router)
