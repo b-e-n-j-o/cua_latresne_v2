@@ -15,6 +15,7 @@ from google.genai import types
 from pydantic import BaseModel, Field
 
 from .._env import DB_CONFIG, GEMINI_MODEL
+from .schemas import ToolCallLog, Usage
 
 try:
     from ..tools import get_zonage_et_reglements
@@ -40,18 +41,6 @@ class SessionRequest(BaseModel):
     )
 
 
-class ToolCallLog(BaseModel):
-    name:           str
-    args:           dict
-    result_summary: str
-
-
-class Usage(BaseModel):
-    prompt_tokens:    int | None = None
-    candidate_tokens: int | None = None
-    total_tokens:     int | None = None
-
-
 class SessionResponse(BaseModel):
     session_id:    str
     zones:         list[dict]
@@ -61,6 +50,8 @@ class SessionResponse(BaseModel):
     usage:         Usage | None = None
     latency_ms:    int | None = None
     model:         str
+    map_data:      dict | None = None  # déprécié : toujours null ; géométries via GET /session/{id}/map
+    show_map:      bool = False
 
 
 class SessionStateResponse(BaseModel):
@@ -207,6 +198,19 @@ def messages_insert(session_id, user_message, model_answer, tool_calls,
     conn.close()
 
 
+def session_delete(session_id: str) -> bool:
+    sql_msgs = "DELETE FROM argeles.plu_messages WHERE session_id = %s;"
+    sql_session = "DELETE FROM argeles.plu_sessions WHERE id = %s RETURNING id;"
+    conn = _db_conn()
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute(sql_msgs, (session_id,))
+            cur.execute(sql_session, (session_id,))
+            deleted = cur.fetchone() is not None
+    conn.close()
+    return deleted
+
+
 def _sessions_list(limit: int = 50) -> list[dict]:
     sql = """
         SELECT s.id, s.section, s.numero, s.idu, s.zones, s.total_turns, s.updated_at,
@@ -253,7 +257,7 @@ def list_sessions(limit: int = 50):
 
 @router.post("/session", response_model=SessionResponse)
 def create_session(req: SessionRequest):
-    from .chat import run_turn  # import local — évite cycle au chargement
+    from .chat import run_turn, _map_requested  # import local — évite cycle au chargement
 
     has_geo = any([req.section and req.numero, req.idu, req.geojson])
     if not has_geo:
@@ -286,6 +290,7 @@ def create_session(req: SessionRequest):
     answer     = None
     tool_calls = []
     usage      = None
+    show_map   = False
     latency_ms = int((time.monotonic() - t0) * 1000)
 
     if req.question:
@@ -297,6 +302,7 @@ def create_session(req: SessionRequest):
             raise HTTPException(status_code=500, detail=str(e))
 
         latency_ms = int((time.monotonic() - t0) * 1000)
+        show_map = _map_requested(tool_calls)
         messages_insert(
             session_id=session_id,
             user_message=req.question,
@@ -317,7 +323,15 @@ def create_session(req: SessionRequest):
         usage=usage,
         latency_ms=latency_ms,
         model=GEMINI_MODEL,
+        map_data=None,
+        show_map=show_map,
     )
+
+
+@router.delete("/session/{session_id}", status_code=204)
+def delete_session(session_id: str):
+    if not session_delete(session_id):
+        raise HTTPException(status_code=404, detail=f"Session {session_id} introuvable.")
 
 
 @router.get("/session/{session_id}", response_model=SessionStateResponse)

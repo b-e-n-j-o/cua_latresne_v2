@@ -2,12 +2,23 @@
 
 import os
 
+
+def _require_env(name: str) -> str:
+    value = (os.environ.get(name) or "").strip()
+    if not value:
+        raise RuntimeError(
+            f"Variable d'environnement manquante pour plu_agent : {name}. "
+            f"Ajoutez-la dans le dashboard Render (Environment)."
+        )
+    return value
+
+
 DB_CONFIG = {
-    "host":            os.environ["SUPABASE_HOST"],
+    "host":            _require_env("SUPABASE_HOST"),
     "port":            int(os.environ.get("SUPABASE_PORT", 5432)),
-    "dbname":          os.environ["SUPABASE_DB"],
-    "user":            os.environ["SUPABASE_USER"],
-    "password":        os.environ["SUPABASE_PASSWORD"],
+    "dbname":          _require_env("SUPABASE_DB"),
+    "user":            _require_env("SUPABASE_USER"),
+    "password":        _require_env("SUPABASE_PASSWORD"),
     "sslmode":         "require",
     "connect_timeout": 15,
 }

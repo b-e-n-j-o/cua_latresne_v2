@@ -89,6 +89,7 @@ def load_commune_to_insee():
             mapping_dict[row["LIBELLE"].upper()] = row["COM"]
     return mapping_dict
 
+
 COMMUNE_TO_INSEE = load_commune_to_insee()
 
 

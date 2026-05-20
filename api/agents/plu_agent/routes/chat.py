@@ -14,6 +14,7 @@ from google.genai import types
 from pydantic import BaseModel, Field
 
 from .._env import DB_CONFIG, GEMINI_API_KEY, GEMINI_MODEL
+from .schemas import ToolCallLog, Usage
 
 try:
     from ..tools import TOOL_DECLARATIONS, build_dispatch
@@ -26,7 +27,7 @@ logger = logging.getLogger("plu_api")
 router = APIRouter()
 
 # ---------------------------------------------------------------------------
-# Prompt système (modifier ici pour ajuster le comportement du LLM)
+# Prompt système
 # ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT_BASE = """
@@ -38,6 +39,9 @@ Workflow :
    get_zonage_et_reglements avec ces paramètres directement.
 2. Si la question contient un GeoJSON → appelle get_zonage_et_reglements avec geojson=...
 3. Pour un diagnostic rapide sans texte réglementaire → get_zones_for_geometry.
+4. Si l'utilisateur demande à voir la carte, la localisation ou une représentation
+   visuelle → appelle get_map_data (section+numéro ou IDU). La carte s'affiche
+   automatiquement dans l'interface ; tu reçois seulement un résumé des zones, pas les coordonnées.
 
 Règles de réponse :
 - Cite toujours les zones concernées et leurs pourcentages de couverture.
@@ -56,18 +60,6 @@ class ChatRequest(BaseModel):
     message: str = Field(..., description="Message de l'utilisateur")
 
 
-class ToolCallLog(BaseModel):
-    name:           str
-    args:           dict
-    result_summary: str
-
-
-class Usage(BaseModel):
-    prompt_tokens:    int | None = None
-    candidate_tokens: int | None = None
-    total_tokens:     int | None = None
-
-
 class ChatResponse(BaseModel):
     session_id:  str
     answer:      str
@@ -75,6 +67,9 @@ class ChatResponse(BaseModel):
     usage:       Usage
     latency_ms:  int
     model:       str
+    map_data:    dict | None = None  # GeoJSON optionnel ; préférer show_map + GET /session/{id}/map
+    show_map:    bool = False        # True si get_map_data a été appelé ce tour
+
 
 # ---------------------------------------------------------------------------
 # Boucle agentique Gemini
@@ -116,23 +111,109 @@ def build_contents_from_db(messages: list[dict]) -> list:
     return contents
 
 
-def _call_tool(dispatch: dict, name: str, args: dict) -> tuple[str, str]:
+def _map_result_for_llm(result: dict) -> dict:
+    """
+    Réponse allégée pour Gemini : pas de géométries.
+    Les GeoJSON complets restent dans raw_result → map_data API ou GET /session/{id}/map.
+    """
+    if result.get("error"):
+        return {"error": result["error"], "map_ready": False}
+
+    parcelle = result.get("parcelle") or {}
+    props = parcelle.get("properties") or {}
+    zone_items = _zones_for_summary(result)
+
+    return {
+        "map_ready": True,
+        "message": (
+            "Carte générée pour l'utilisateur (affichage côté interface, sans coordonnées ici). "
+            "Décris le zonage à partir des zones ci-dessous."
+        ),
+        "parcelle": {
+            k: props.get(k)
+            for k in ("idu", "section", "numero", "contenance")
+            if props.get(k) is not None
+        },
+        "zones": [
+            {
+                "code_zone": z.get("code_zone"),
+                "libelle": z.get("libelle"),
+                "libelong": z.get("libelong"),
+                "typezone": z.get("typezone"),
+                "pct_parcelle_couverte": z.get("pct_parcelle_couverte"),
+                "color": z.get("color"),
+            }
+            for z in zone_items
+        ],
+        "zones_count": len(zone_items),
+        "error": None,
+    }
+
+
+def _parcelle_result_for_llm(result: dict) -> dict:
+    """Retire geojson_wgs84 du tool get_parcelle pour le contexte LLM."""
+    if result.get("error"):
+        return result
+    p = result.get("parcelle")
+    if not isinstance(p, dict):
+        return result
+    slim = {k: v for k, v in p.items() if k != "geojson_wgs84"}
+    return {**result, "parcelle": slim}
+
+
+def _result_for_llm(tool_name: str, result: dict) -> dict:
+    if tool_name == "get_map_data":
+        return _map_result_for_llm(result)
+    if tool_name == "get_parcelle":
+        return _parcelle_result_for_llm(result)
+    return result
+
+
+def _zones_for_summary(result: dict) -> list[dict]:
+    """Normalise zones : liste SQL (zonage) ou GeoJSON FeatureCollection (map_data)."""
+    zones = result.get("zones")
+    if not zones:
+        return []
+    if isinstance(zones, dict) and zones.get("type") == "FeatureCollection":
+        return [f.get("properties") or {} for f in zones.get("features") or []]
+    if isinstance(zones, list):
+        return zones
+    return []
+
+
+def _call_tool(dispatch: dict, name: str, args: dict) -> tuple[str, str, dict | None]:
+    """
+    Exécute le tool.
+    Retourne (json_result, résumé_court, raw_result).
+    raw_result est le dict Python brut — utilisé pour extraire map_data sans re-parser.
+    """
     fn = dispatch.get(name)
     if fn is None:
         err = {"error": f"Tool inconnu : {name}"}
-        return json.dumps(err), f"tool inconnu : {name}"
+        return json.dumps(err), f"tool inconnu : {name}", err
+
     result     = fn(**args)
-    result_str = json.dumps(result, ensure_ascii=False, default=str)
-    if "zones" in result and result["zones"]:
+    result_str = json.dumps(
+        _result_for_llm(name, result),
+        ensure_ascii=False,
+        default=str,
+    )
+
+    # Résumé lisible pour les logs et la sidebar
+    zone_items = _zones_for_summary(result)
+    if zone_items:
         summary = ", ".join(
             f"{z.get('code_zone')} ({z.get('pct_parcelle_couverte', '?')}%)"
-            for z in result["zones"]
+            for z in zone_items
         )
+    elif "parcelle" in result and result.get("parcelle"):
+        summary = "données cartographiques ok"
     elif "error" in result and result["error"]:
         summary = f"erreur : {result['error']}"
     else:
         summary = "ok"
-    return result_str, summary
+
+    return result_str, summary, result
 
 
 def _agentic_loop(
@@ -141,6 +222,11 @@ def _agentic_loop(
     contents: list,
     config:   types.GenerateContentConfig,
 ) -> tuple[str, list[ToolCallLog], Usage]:
+    """
+    Boucle tool-calling jusqu'à réponse finale.
+    Retourne (answer, tool_calls_log, usage).
+    Les ToolCallLog incluent raw_result pour extraction post-boucle (ex: map_data).
+    """
     tool_calls_log: list[ToolCallLog] = []
     total_prompt = total_candidates = total_tokens = 0
 
@@ -173,10 +259,14 @@ def _agentic_loop(
         parts = []
         for fc in function_calls:
             logger.info(f"tool_call → {fc.name}({dict(fc.args)})")
-            result_str, summary = _call_tool(dispatch, fc.name, dict(fc.args))
+            result_str, summary, raw_result = _call_tool(dispatch, fc.name, dict(fc.args))
             logger.info(f"  ↳ {summary}")
+
             tool_calls_log.append(ToolCallLog(
-                name=fc.name, args=dict(fc.args), result_summary=summary
+                name=fc.name,
+                args=dict(fc.args),
+                result_summary=summary,
+                raw_result=raw_result,   # stocké en mémoire, exclu de la sérialisation Pydantic
             ))
             parts.append(types.Part.from_function_response(
                 name=fc.name, response={"result": result_str}
@@ -184,11 +274,25 @@ def _agentic_loop(
         contents.append(types.Content(role="user", parts=parts))
 
 
+def _map_requested(tool_calls: list[ToolCallLog]) -> bool:
+    """True si get_map_data a réussi ce tour (signal UI, sans renvoyer le GeoJSON)."""
+    for tc in tool_calls:
+        if tc.name != "get_map_data" or not tc.raw_result:
+            continue
+        r = tc.raw_result
+        if not r.get("error") and r.get("parcelle"):
+            return True
+    return False
+
+
 def run_turn(
     zones: list[dict],
     contents: list,
 ) -> tuple[str, list[ToolCallLog], Usage]:
-    """Exécuté aussi par sessions.py pour le premier tour à la création."""
+    """
+    Exécute un tour agentique complet.
+    Appelé aussi par sessions.py pour le premier tour à la création de session.
+    """
     client   = _build_gemini_client()
     dispatch = build_dispatch(DB_CONFIG)
     config   = types.GenerateContentConfig(
@@ -198,13 +302,17 @@ def run_turn(
     )
     return _agentic_loop(client, dispatch, contents, config)
 
+
 # ---------------------------------------------------------------------------
 # Endpoint
 # ---------------------------------------------------------------------------
 
 @router.post("/chat/{session_id}", response_model=ChatResponse)
 def chat(session_id: str, req: ChatRequest):
-    """Tour de conversation dans une session existante."""
+    """
+    Tour de conversation dans une session existante.
+    Si le LLM appelle get_map_data, show_map=true ; le frontend charge le GeoJSON via GET /map.
+    """
     t0 = time.monotonic()
 
     session = session_get(session_id)
@@ -233,6 +341,9 @@ def chat(session_id: str, req: ChatRequest):
         f"tools={[tc.name for tc in tool_calls]} | tokens={usage.total_tokens}"
     )
 
+    show_map = _map_requested(tool_calls)
+
+    # Persistance — raw_result exclu par Field(exclude=True), pas de fuite en base
     messages_insert(
         session_id=session_id,
         user_message=req.message,
@@ -251,4 +362,6 @@ def chat(session_id: str, req: ChatRequest):
         usage=usage,
         latency_ms=latency_ms,
         model=GEMINI_MODEL,
+        map_data=None,
+        show_map=show_map,
     )
