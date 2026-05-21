@@ -18,6 +18,12 @@ from .zonage import (
     get_zonage_et_reglements,
     get_zones_for_geometry,
 )
+from .recherche_articles import (
+    DECL_SEARCH_ARTICLES,
+    DECL_GET_ARTICLE_BY_NUM,
+    search_articles_urbanisme,
+    get_article_urbanisme_by_num,
+)
 
 TOOL_DECLARATIONS = types.Tool(
     function_declarations=[
@@ -25,6 +31,8 @@ TOOL_DECLARATIONS = types.Tool(
         DECL_ZONAGE,
         DECL_MAP_DATA,
         DECL_ZONES_GEOM,
+        DECL_SEARCH_ARTICLES,
+        DECL_GET_ARTICLE_BY_NUM,
     ]
 )
 
@@ -33,6 +41,8 @@ TOOL_FUNCTIONS = {
     "get_zonage_et_reglements": get_zonage_et_reglements,
     "get_map_data": get_map_data,
     "get_zones_for_geometry": get_zones_for_geometry,
+    "search_articles_urbanisme": search_articles_urbanisme,
+    "get_article_urbanisme_by_num": get_article_urbanisme_by_num,
 }
 
 TOOL_RESPONSE_SHAPES = {
@@ -56,6 +66,18 @@ TOOL_RESPONSE_SHAPES = {
     },
     "get_zones_for_geometry": {
         "zones": "array — code_zone, libelle, typezone, destdomi",
+        "count": "integer",
+        "error": "string | null",
+    },
+    "search_articles_urbanisme": {
+        "articles": (
+            "array — article_id, num, title, path_title, resume, text_clean, rrf_score"
+        ),
+        "count": "integer",
+        "error": "string | null",
+    },
+    "get_article_urbanisme_by_num": {
+        "articles": "array — article_id, num, title, path_title, resume, text_clean",
         "count": "integer",
         "error": "string | null",
     },
@@ -134,5 +156,7 @@ __all__ = [
     "get_zonage_et_reglements",
     "get_map_data",
     "get_zones_for_geometry",
+    "search_articles_urbanisme",
+    "get_article_urbanisme_by_num",
     "print_tools_mapping",
 ]
