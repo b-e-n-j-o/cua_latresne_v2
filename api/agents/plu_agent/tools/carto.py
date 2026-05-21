@@ -2,7 +2,7 @@
 Catalogue cartographique — GeoJSON pour MapLibre (hors LLM).
 
 Consommé uniquement par GET /session/{id}/map.
-Le LLM utilise get_contexte_parcelle pour le texte (zonage + prescriptions + servitudes).
+Le LLM utilise get_contexte_parcelle pour le texte (zonage + prescriptions + servitudes + infos).
 """
 
 import json
@@ -10,9 +10,16 @@ import json
 import psycopg2
 import psycopg2.extras
 
-from .utils.parcel_geom import resolve_unite_fonciere
-from .utils.prescriptions_query import build_map_prescriptions, fetch_prescriptions_rows
-from .utils.servitudes_query import build_map_servitudes, fetch_servitudes_rows
+from .utils import (
+    MIN_PARCEL_INTERSECTION_M2,
+    build_map_infos,
+    build_map_prescriptions,
+    build_map_servitudes,
+    fetch_infos_rows,
+    fetch_prescriptions_rows,
+    fetch_servitudes_rows,
+    resolve_unite_fonciere,
+)
 
 
 def _db_connect(db_config: dict):
@@ -172,7 +179,8 @@ def build_carto_payload(
         geom_wkb = resolved["geom_wkb"]
         parcelle_layers = _build_parcelle_layers(resolved)
 
-        sql_zones = """
+        min_m2 = MIN_PARCEL_INTERSECTION_M2
+        sql_zones = f"""
             WITH cible AS (
                 SELECT ST_MakeValid(ST_GeomFromEWKB(%s)) AS geom
             ),
@@ -219,7 +227,7 @@ def build_carto_payload(
                     1
                 ) AS pct_parcelle_couverte
             FROM zones_hits
-            WHERE ST_Area(ST_Intersection(geom_zone, geom_parcelle)) > 0
+            WHERE ST_Area(ST_Intersection(geom_zone, geom_parcelle)) > {min_m2}
               AND NOT ST_IsEmpty(
                     ST_Intersection(geom_zone, geom_buffer)
                   )
@@ -260,6 +268,9 @@ def build_carto_payload(
         serv_rows = fetch_servitudes_rows(
             db_config, geom_wkb, buffer_m=buffer_m, with_geojson=True
         )
+        infos_rows = fetch_infos_rows(
+            db_config, geom_wkb, buffer_m=buffer_m, with_geojson=True
+        )
 
         return {
             "parcelle": parcelle_layers["parcelle"],
@@ -267,6 +278,7 @@ def build_carto_payload(
             "zones": {"type": "FeatureCollection", "features": zone_features},
             "prescriptions": build_map_prescriptions(presc_rows),
             "servitudes": build_map_servitudes(serv_rows),
+            "informations": build_map_infos(infos_rows),
             "error": None,
         }
 

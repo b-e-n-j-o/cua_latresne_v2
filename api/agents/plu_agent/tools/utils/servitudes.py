@@ -1,33 +1,20 @@
-"""Servitudes d'utilité publique — assiettes surfaciques (sup_assiette_s)."""
+"""Servitudes SUP (sup_assiette_s) — requêtes, carte GeoJSON, contexte LLM."""
 
 from __future__ import annotations
 
 import json
+import logging
 
-import psycopg2
-import psycopg2.extras
+from .db import db_query
+from .parcel_geom import resolve_unite_fonciere
+
+logger = logging.getLogger("plu_tools")
 
 SERVITUDES_TABLE = "argeles.sup_assiette_s"
 SERVITUDES_MAP_COLOR = "#457B9D"
-SERVITUDES_FILL_OPACITY = 0.35
-
-
-def _db_connect(db_config: dict):
-    return psycopg2.connect(**db_config)
-
-
-def _query(db_config: dict, sql: str, params: tuple) -> list[dict]:
-    conn = _db_connect(db_config)
-    with conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(sql, params)
-            rows = [dict(r) for r in cur.fetchall()]
-    conn.close()
-    return rows
 
 
 def _geom_2154_sql(alias: str = "s") -> str:
-    """Normalise la colonne geometry vers Lambert-93 pour intersection parcelle."""
     g = f"{alias}.geometry"
     return f"""
         CASE
@@ -78,10 +65,9 @@ def fetch_servitudes_rows(
     buffer_m: float = 0.0,
     with_geojson: bool = False,
 ) -> list[dict]:
-    """Assiettes surfaciques de servitudes intersectant l'unité foncière."""
     buf = float(buffer_m or 0)
     sql = _sql_servitudes(with_geojson)
-    return _query(db_config, sql, (geom_wkb, buf, buf))
+    return db_query(db_config, sql, (geom_wkb, buf, buf))
 
 
 def _parse_geojson(val) -> dict | None:
@@ -95,10 +81,9 @@ def _parse_geojson(val) -> dict | None:
         return None
 
 
-def rows_to_llm_list(rows: list[dict]) -> list[dict]:
-    items = []
-    for r in rows:
-        items.append({
+def build_llm_payload(rows: list[dict]) -> dict:
+    items = [
+        {
             "gid": r.get("gid"),
             "idass": r.get("idass"),
             "nomass": r.get("nomass"),
@@ -106,20 +91,13 @@ def rows_to_llm_list(rows: list[dict]) -> list[dict]:
             "typeass": r.get("typeass"),
             "nomsuplitt": r.get("nomsuplitt"),
             "nomreg": r.get("nomreg"),
-        })
-    return items
-
-
-def build_llm_payload(rows: list[dict]) -> dict:
-    items = rows_to_llm_list(rows)
-    return {
-        "servitudes": items,
-        "count": len(items),
-    }
+        }
+        for r in rows
+    ]
+    return {"servitudes": items, "count": len(items)}
 
 
 def build_map_servitudes(rows: list[dict]) -> dict:
-    """FeatureCollection WGS84 pour MapLibre."""
     features = []
     for r in rows:
         geom = _parse_geojson(r.get("geojson_geom"))
@@ -145,3 +123,46 @@ def build_map_servitudes(rows: list[dict]) -> dict:
             },
         })
     return {"type": "FeatureCollection", "features": features}
+
+
+def get_servitudes(
+    db_config: dict,
+    parcelles: list[dict] | None = None,
+    idus: list[str] | None = None,
+    section: str = None,
+    numero: str = None,
+    idu: str = None,
+    buffer_m: float = 0.0,
+) -> dict:
+    try:
+        resolved = resolve_unite_fonciere(
+            db_config,
+            parcelles=parcelles,
+            idus=idus,
+            section=section,
+            numero=numero,
+            idu=idu,
+        )
+        if resolved.get("error"):
+            logger.warning("get_servitudes — %s", resolved["error"])
+            return {"servitudes": [], "count": 0, "error": resolved["error"]}
+
+        rows = fetch_servitudes_rows(
+            db_config,
+            resolved["geom_wkb"],
+            buffer_m=buffer_m,
+            with_geojson=False,
+        )
+        payload = build_llm_payload(rows)
+        logger.info("get_servitudes — %d assiette(s)", payload["count"])
+
+        return {
+            **payload,
+            "parcelles": resolved.get("parcelles") or [],
+            "nb_parcelles": resolved.get("nb_parcelles"),
+            "superficie_unite_m2": resolved.get("superficie_m2"),
+            "error": None,
+        }
+
+    except Exception as e:
+        return {"servitudes": [], "count": 0, "error": str(e)}

@@ -57,7 +57,7 @@ except ImportError:
     }
 
 from tools.utils.parcel_geom import normalize_parcel_refs, resolve_unite_fonciere
-from tools.zonage import get_zonage_et_reglements
+from tools.utils import get_zonage_et_reglements
 from tools.carto import build_carto_payload
 from tools.contexte_parcelle import get_contexte_parcelle
 
@@ -209,6 +209,15 @@ def test_zonage_multi() -> None:
     if result.get("nb_parcelles") != 2:
         _fail(f"nb_parcelles={result.get('nb_parcelles')}")
 
+    for z in zones:
+        pct = float(z.get("pct_parcelle_couverte") or 0)
+        surf = float(z.get("superficie_intersection_m2") or 0)
+        if pct <= 0 or surf <= 0:
+            _fail(
+                f"zone {z.get('code_zone')} à 0%% ou 0 m² — contact bordure non filtré "
+                f"(pct={pct}, surf={surf})"
+            )
+
     total_pct = sum(float(z.get("pct_parcelle_couverte") or 0) for z in zones)
     logging.info("  somme des %% couverture : %.1f%%", total_pct)
     if total_pct < 95 or total_pct > 105:
@@ -230,7 +239,8 @@ def test_contexte_multi() -> None:
     _ok(
         f"contexte LLM — {result.get('zones_count')} zone(s), "
         f"{result.get('prescriptions_count')} prescription(s), "
-        f"{result.get('servitudes_count')} servitude(s)"
+        f"{result.get('servitudes_count')} servitude(s), "
+        f"{result.get('informations_count')} information(s)"
     )
 
 
@@ -266,7 +276,10 @@ def test_map_multi() -> None:
     logging.info("  zones carto : %d feature(s)", len(zone_features))
     serv_fc = (result.get("servitudes") or {}).get("features") or []
     logging.info("  servitudes carto : %d feature(s)", len(serv_fc))
-    _ok("GeoJSON carte : 2 contours + union + zones + servitudes OK")
+    infos = result.get("informations") or {}
+    info_n = sum(len((infos.get(k) or {}).get("features") or []) for k in ("surfaciques", "lineaires", "ponctuelles"))
+    logging.info("  informations carto : %d feature(s)", info_n)
+    _ok("GeoJSON carte : 2 contours + union + zones + servitudes + informations OK")
 
 
 def test_non_contiguous_rejected() -> None:

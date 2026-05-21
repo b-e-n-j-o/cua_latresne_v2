@@ -37,7 +37,7 @@ Tu as accès au règlement PLU de la commune d'Argelès-sur-Mer (INSEE 66008).
 Workflow :
 1. Si la question concerne une ou plusieurs parcelles d'Argelès-sur-Mer (section + numéro,
    IDU, ou unité foncière contiguë via parcelles[] / idus[]) → appelle get_contexte_parcelle
-   (zonage + règlement + prescriptions + servitudes SUP, sans géométries).
+   (zonage + prescriptions + servitudes + informations GPU, sans géométries).
 2. La carte interactive est gérée par l'interface (GET /session/{id}/map) dès qu'une parcelle
    est associée à la session — ne pas appeler de tool cartographique.
 3. Pour une question de DROIT GÉNÉRAL de l'urbanisme (définitions, procédures,
@@ -51,6 +51,7 @@ Règles de réponse :
 - Cite toujours les zones concernées et leurs pourcentages de couverture.
 - Pour les prescriptions, cite le libelle de chaque élément retourné par get_contexte_parcelle.
 - Pour les servitudes, cite suptype (type), et si présents typeass et nomsuplitt.
+- Pour les informations (objet informations), cite le libelle de chaque élément.
 - Appuie-toi sur les articles du règlement pour justifier tes conclusions.
 - Traite chaque zone séparément si plusieurs zones sont concernées.
 - Signale si une zone est trouvée mais sans règlement disponible.
@@ -149,19 +150,31 @@ def _parcelle_result_for_llm(result: dict) -> dict:
     return out
 
 
+def _strip_geo_from_items(items: list | None) -> list:
+    if not isinstance(items, list):
+        return []
+    return [
+        {k: v for k, v in item.items() if k != "geojson_geom"}
+        for item in items
+        if isinstance(item, dict)
+    ]
+
+
 def _contexte_result_for_llm(result: dict) -> dict:
     """Réponse get_contexte_parcelle sans géométries résiduelles."""
     if result.get("error"):
         return result
     out = dict(result)
     for key in ("surfaciques", "lineaires", "ponctuelles"):
-        items = out.get(key)
-        if isinstance(items, list):
-            out[key] = [
-                {k: v for k, v in item.items() if k != "geojson_geom"}
-                for item in items
-                if isinstance(item, dict)
-            ]
+        out[key] = _strip_geo_from_items(out.get(key))
+    infos = out.get("informations")
+    if isinstance(infos, dict):
+        out["informations"] = {
+            **infos,
+            "surfaciques": _strip_geo_from_items(infos.get("surfaciques")),
+            "lineaires": _strip_geo_from_items(infos.get("lineaires")),
+            "ponctuelles": _strip_geo_from_items(infos.get("ponctuelles")),
+        }
     return out
 
 
@@ -209,7 +222,8 @@ def _call_tool(dispatch: dict, name: str, args: dict) -> tuple[str, str, dict | 
         summary = (
             f"contexte parcelle — {result.get('zones_count', len(zone_items))} zone(s), "
             f"{result.get('prescriptions_count', 0)} prescription(s), "
-            f"{result.get('servitudes_count', 0)} servitude(s)"
+            f"{result.get('servitudes_count', 0)} servitude(s), "
+            f"{result.get('informations_count', 0)} information(s)"
         )
     elif "error" in result and result["error"]:
         summary = f"erreur : {result['error']}"

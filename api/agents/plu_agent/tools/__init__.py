@@ -1,7 +1,12 @@
 """
 Package tools — agent PLU Argelès-sur-Mer.
 
-Ajouter un tool :
+Structure :
+  - tools/*.py          → tools LLM (DECL_* + Gemini) : parcelle, contexte_parcelle, recherche
+  - tools/utils/*.py    → couches spatiales (SQL + get_* + build_map_*)
+  - tools/carto.py      → catalogue GeoJSON GET /map (hors LLM)
+
+Ajouter un tool LLM :
   1. Créer tools/mon_tool.py (fonction + DECL_MON_TOOL)
   2. Importer ici et ajouter dans TOOL_DECLARATIONS + build_dispatch
 """
@@ -56,6 +61,10 @@ TOOL_RESPONSE_SHAPES = {
             "array — gid, suptype (type principal), typeass, nomsuplitt, idass, nomass"
         ),
         "servitudes_count": "integer",
+        "informations": (
+            "object — surfaciques, lineaires, ponctuelles (libelle, typeinf, stypeinf), counts"
+        ),
+        "informations_count": "integer — total informations",
         "parcelles": "array — feuilles cadastrales de l'unité foncière",
         "nb_parcelles": "integer",
         "superficie_unite_m2": "number",

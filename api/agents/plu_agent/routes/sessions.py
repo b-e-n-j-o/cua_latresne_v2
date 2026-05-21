@@ -18,10 +18,10 @@ from .._env import DB_CONFIG, GEMINI_MODEL
 from .schemas import ToolCallLog, Usage
 
 try:
-    from ..tools.zonage import get_zonage_et_reglements
+    from ..tools.utils import get_zonage_et_reglements
     from ..tools.utils.parcel_geom import normalize_parcel_refs, parcelles_refs_to_json
 except ImportError:
-    from tools.zonage import get_zonage_et_reglements
+    from tools.utils import get_zonage_et_reglements
     from tools.utils.parcel_geom import normalize_parcel_refs, parcelles_refs_to_json
 
 logger = logging.getLogger("plu_api")

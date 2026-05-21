@@ -39,7 +39,8 @@ def get_session_map(session_id: str, buffer_m: float = 100.0):
       - parcelle  : GeoJSON Feature (contour unité foncière)
       - zones       : GeoJSON FeatureCollection (zonage PLU)
       - prescriptions : surfaciques / linéaires / ponctuelles
-      - servitudes  : assiettes surfaciques SUP (sup_assiette_s)
+      - servitudes    : assiettes surfaciques SUP (sup_assiette_s)
+      - informations  : infos_surf / infos_lin / infos_pct
 
     Paramètres :
       - buffer_m  : buffer autour de l'unité foncière en mètres (défaut: 100)

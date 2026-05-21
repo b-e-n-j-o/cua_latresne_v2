@@ -1,47 +1,32 @@
-"""Requêtes prescriptions PLU (surfaciques, linéaires, ponctuelles) — intersection unité foncière."""
+"""Prescriptions PLU — requêtes, carte GeoJSON, contexte LLM."""
 
 from __future__ import annotations
 
 import json
+import logging
 
-import psycopg2
-import psycopg2.extras
+from .db import db_query
+from .parcel_geom import resolve_unite_fonciere
 
-# kind -> (table, libellé FR, couleur carte, opacité fill ou None)
+logger = logging.getLogger("plu_tools")
+
 PRESCRIPTION_CONFIG: dict[str, dict] = {
     "surfaciques": {
         "table": "argeles.prescriptions_surf",
         "kind": "surfacique",
         "color": "#9D4EDD",
-        "fill_opacity": 0.4,
     },
     "lineaires": {
         "table": "argeles.prescriptions_lineaires",
         "kind": "lineaire",
         "color": "#E63946",
-        "line_width": 3,
     },
     "ponctuelles": {
         "table": "argeles.prescriptions_ponctuelles",
         "kind": "ponctuelle",
         "color": "#FFBE0B",
-        "circle_radius": 7,
     },
 }
-
-
-def _db_connect(db_config: dict):
-    return psycopg2.connect(**db_config)
-
-
-def _query(db_config: dict, sql: str, params: tuple) -> list[dict]:
-    conn = _db_connect(db_config)
-    with conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(sql, params)
-            rows = [dict(r) for r in cur.fetchall()]
-    conn.close()
-    return rows
 
 
 def _sql_prescriptions(table: str, with_geojson: bool) -> str:
@@ -81,13 +66,11 @@ def fetch_prescriptions_rows(
     buffer_m: float = 0.0,
     with_geojson: bool = False,
 ) -> dict[str, list[dict]]:
-    """Retourne les prescriptions intersectant l'unité foncière, par catégorie."""
     out: dict[str, list[dict]] = {}
     buf = float(buffer_m or 0)
     for key, cfg in PRESCRIPTION_CONFIG.items():
         sql = _sql_prescriptions(cfg["table"], with_geojson)
-        rows = _query(db_config, sql, (geom_wkb, buf, buf))
-        out[key] = rows
+        out[key] = db_query(db_config, sql, (geom_wkb, buf, buf))
     return out
 
 
@@ -102,7 +85,7 @@ def _parse_geojson(val) -> dict | None:
         return None
 
 
-def rows_to_llm_list(rows: list[dict], kind: str, txt_max: int = 800) -> list[dict]:
+def _rows_to_llm_list(rows: list[dict], kind: str, txt_max: int = 800) -> list[dict]:
     items = []
     for r in rows:
         txt = (r.get("txt") or "").strip()
@@ -120,9 +103,9 @@ def rows_to_llm_list(rows: list[dict], kind: str, txt_max: int = 800) -> list[di
 
 
 def build_llm_payload(rows_by_kind: dict[str, list[dict]]) -> dict:
-    surf = rows_to_llm_list(rows_by_kind.get("surfaciques") or [], "surfacique")
-    lin = rows_to_llm_list(rows_by_kind.get("lineaires") or [], "lineaire")
-    pct = rows_to_llm_list(rows_by_kind.get("ponctuelles") or [], "ponctuelle")
+    surf = _rows_to_llm_list(rows_by_kind.get("surfaciques") or [], "surfacique")
+    lin = _rows_to_llm_list(rows_by_kind.get("lineaires") or [], "lineaire")
+    pct = _rows_to_llm_list(rows_by_kind.get("ponctuelles") or [], "ponctuelle")
     total = len(surf) + len(lin) + len(pct)
     return {
         "surfaciques": surf,
@@ -159,7 +142,6 @@ def _rows_to_features(rows: list[dict], kind_key: str) -> list[dict]:
 
 
 def build_map_prescriptions(rows_by_kind: dict[str, list[dict]]) -> dict:
-    """FeatureCollections WGS84 pour MapLibre."""
     return {
         key: {
             "type": "FeatureCollection",
@@ -167,3 +149,64 @@ def build_map_prescriptions(rows_by_kind: dict[str, list[dict]]) -> dict:
         }
         for key in PRESCRIPTION_CONFIG
     }
+
+
+def get_prescriptions(
+    db_config: dict,
+    parcelles: list[dict] | None = None,
+    idus: list[str] | None = None,
+    section: str = None,
+    numero: str = None,
+    idu: str = None,
+    buffer_m: float = 0.0,
+) -> dict:
+    try:
+        resolved = resolve_unite_fonciere(
+            db_config,
+            parcelles=parcelles,
+            idus=idus,
+            section=section,
+            numero=numero,
+            idu=idu,
+        )
+        if resolved.get("error"):
+            logger.warning("get_prescriptions — %s", resolved["error"])
+            return {
+                "surfaciques": [],
+                "lineaires": [],
+                "ponctuelles": [],
+                "count": 0,
+                "error": resolved["error"],
+            }
+
+        rows_by_kind = fetch_prescriptions_rows(
+            db_config,
+            resolved["geom_wkb"],
+            buffer_m=buffer_m,
+            with_geojson=False,
+        )
+        payload = build_llm_payload(rows_by_kind)
+
+        logger.info(
+            "get_prescriptions — %d surf, %d lin, %d pct",
+            payload["count_surfaciques"],
+            payload["count_lineaires"],
+            payload["count_ponctuelles"],
+        )
+
+        return {
+            **payload,
+            "parcelles": resolved.get("parcelles") or [],
+            "nb_parcelles": resolved.get("nb_parcelles"),
+            "superficie_unite_m2": resolved.get("superficie_m2"),
+            "error": None,
+        }
+
+    except Exception as e:
+        return {
+            "surfaciques": [],
+            "lineaires": [],
+            "ponctuelles": [],
+            "count": 0,
+            "error": str(e),
+        }
