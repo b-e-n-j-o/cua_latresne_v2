@@ -18,9 +18,11 @@ from .._env import DB_CONFIG, GEMINI_MODEL
 from .schemas import ToolCallLog, Usage
 
 try:
-    from ..tools import get_zonage_et_reglements
+    from ..tools.zonage import get_zonage_et_reglements
+    from ..tools.utils.parcel_geom import normalize_parcel_refs, parcelles_refs_to_json
 except ImportError:
-    from tools import get_zonage_et_reglements
+    from tools.zonage import get_zonage_et_reglements
+    from tools.utils.parcel_geom import normalize_parcel_refs, parcelles_refs_to_json
 
 logger = logging.getLogger("plu_api")
 router = APIRouter()
@@ -29,15 +31,27 @@ router = APIRouter()
 # Schémas
 # ---------------------------------------------------------------------------
 
+class ParcelleRef(BaseModel):
+    section: str
+    numero: str
+
+
 class SessionRequest(BaseModel):
     section: str | None = Field(None, examples=["AC"])
     numero:  str | None = Field(None, examples=["45"])
     idu:     str | None = Field(None, examples=["66008000AC0045"])
-    geojson: str | None = Field(None, description="GeoJSON WGS84 si géométrie ad hoc")
+    parcelles: list[ParcelleRef] | None = Field(
+        None,
+        description="Unité foncière : liste de couples section + numéro contigus.",
+    )
+    idus: list[str] | None = Field(None, description="Unité foncière : liste d'IDU contigus.")
     question: str | None = Field(
         None,
         examples=["Cette parcelle est-elle constructible ?"],
-        description="Question initiale optionnelle — déclenche un premier tour immédiatement.",
+        description=(
+            "Question initiale — déclenche un premier tour immédiatement. "
+            "Les refs parcellaires sont optionnelles (zonage préchargé si fournies)."
+        ),
     )
 
 
@@ -98,13 +112,23 @@ def _parse_json_field(value):
 
 
 def zones_summary(zones: list[dict]) -> str:
+    if not zones:
+        return ""
     return ", ".join(
         f"{z.get('code_zone')} ({z.get('pct_parcelle_couverte', '?')}%)"
         for z in zones
-    ) or "aucune zone trouvée"
+    )
 
 
-def _session_title(section, numero, idu, preview) -> str:
+def _session_title(section, numero, idu, preview, parcelles_refs: str | None = None) -> str:
+    if parcelles_refs:
+        try:
+            data = json.loads(parcelles_refs)
+            n = len(data.get("parcelles") or []) + len(data.get("idus") or [])
+            if n > 1:
+                return f"Unité foncière ({n} parcelles)"
+        except (json.JSONDecodeError, TypeError):
+            pass
     if section and numero:
         return f"Parcelle {section} {numero}"
     if idu:
@@ -115,7 +139,8 @@ def _session_title(section, numero, idu, preview) -> str:
     return "Conversation PLU"
 
 
-def session_create(section, numero, idu, geojson, zones, model) -> str:
+def session_create(section, numero, idu, parcelles_refs, zones, model) -> str:
+    """parcelles_refs : JSON stocké dans la colonne geojson (liste de refs, pas de géométrie)."""
     sql = """
         INSERT INTO argeles.plu_sessions
             (section, numero, idu, geojson, zones, model)
@@ -126,7 +151,7 @@ def session_create(section, numero, idu, geojson, zones, model) -> str:
     with conn:
         with conn.cursor() as cur:
             cur.execute(sql, (
-                section, numero, idu, geojson,
+                section, numero, idu, parcelles_refs,
                 json.dumps(zones, default=str),
                 model,
             ))
@@ -244,7 +269,11 @@ def list_sessions(limit: int = 50):
         SessionListItem(
             session_id=row["id"],
             title=_session_title(
-                row.get("section"), row.get("numero"), row.get("idu"), row.get("preview")
+                row.get("section"),
+                row.get("numero"),
+                row.get("idu"),
+                row.get("preview"),
+                row.get("geojson"),
             ),
             zones_summary=zones_summary(row.get("zones") or []),
             total_turns=row.get("total_turns") or 0,
@@ -257,31 +286,61 @@ def list_sessions(limit: int = 50):
 
 @router.post("/session", response_model=SessionResponse)
 def create_session(req: SessionRequest):
-    from .chat import run_turn, _map_requested  # import local — évite cycle au chargement
+    from .chat import run_turn, session_show_map  # import local — évite cycle au chargement
 
-    has_geo = any([req.section and req.numero, req.idu, req.geojson])
-    if not has_geo:
-        raise HTTPException(status_code=422, detail="Fournir section+numero, idu, ou geojson.")
-
-    t0 = time.monotonic()
-
-    zones_result = get_zonage_et_reglements(
-        DB_CONFIG,
+    parcelles_arg = (
+        [{"section": p.section, "numero": p.numero} for p in req.parcelles]
+        if req.parcelles
+        else None
+    )
+    refs = normalize_parcel_refs(
+        parcelles=parcelles_arg,
+        idus=req.idus,
         section=req.section,
         numero=req.numero,
         idu=req.idu,
-        geojson=req.geojson,
     )
-    if zones_result.get("error"):
-        raise HTTPException(status_code=400, detail=zones_result["error"])
 
-    zones = zones_result.get("zones", [])
+    t0 = time.monotonic()
+
+    zones: list[dict] = []
+    session_section = None
+    session_numero = None
+    session_idu = None
+    parcelles_refs = None
+
+    if refs:
+        zones_result = get_zonage_et_reglements(
+            DB_CONFIG,
+            parcelles=parcelles_arg,
+            idus=req.idus,
+            section=req.section,
+            numero=req.numero,
+            idu=req.idu,
+        )
+        if zones_result.get("error"):
+            raise HTTPException(status_code=400, detail=zones_result["error"])
+
+        zones = zones_result.get("zones", [])
+        first = refs[0]
+        session_section = first["section"] if first["type"] == "sn" else None
+        session_numero = first["numero"] if first["type"] == "sn" else None
+        session_idu = first["idu"] if first["type"] == "idu" else None
+        parcelles_refs = parcelles_refs_to_json(
+            parcelles=parcelles_arg,
+            idus=req.idus,
+            section=req.section,
+            numero=req.numero,
+            idu=req.idu,
+        )
+    else:
+        logger.info("session sans référence parcellaire — zonage non préchargé")
 
     session_id = session_create(
-        section=req.section.upper() if req.section else None,
-        numero=str(req.numero).strip() if req.numero else None,
-        idu=req.idu,
-        geojson=req.geojson,
+        section=session_section,
+        numero=session_numero,
+        idu=session_idu,
+        parcelles_refs=parcelles_refs,
         zones=zones,
         model=GEMINI_MODEL,
     )
@@ -290,7 +349,6 @@ def create_session(req: SessionRequest):
     answer     = None
     tool_calls = []
     usage      = None
-    show_map   = False
     latency_ms = int((time.monotonic() - t0) * 1000)
 
     if req.question:
@@ -302,7 +360,6 @@ def create_session(req: SessionRequest):
             raise HTTPException(status_code=500, detail=str(e))
 
         latency_ms = int((time.monotonic() - t0) * 1000)
-        show_map = _map_requested(tool_calls)
         messages_insert(
             session_id=session_id,
             user_message=req.question,
@@ -313,6 +370,8 @@ def create_session(req: SessionRequest):
             total_tokens=usage.total_tokens,
             latency_ms=latency_ms,
         )
+
+    show_map = session_show_map(session_get(session_id)) if refs else False
 
     return SessionResponse(
         session_id=session_id,

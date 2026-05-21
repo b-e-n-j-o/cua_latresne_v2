@@ -10,14 +10,8 @@ import functools
 
 from google.genai import types
 
-from .map_data import DECL_MAP_DATA, get_map_data
+from .contexte_parcelle import DECL_CONTEXTE_PARCELLE, get_contexte_parcelle
 from .parcelle import DECL_PARCELLE, get_parcelle
-from .zonage import (
-    DECL_ZONES_GEOM,
-    DECL_ZONAGE,
-    get_zonage_et_reglements,
-    get_zones_for_geometry,
-)
 from .recherche_articles import (
     DECL_SEARCH_ARTICLES,
     DECL_GET_ARTICLE_BY_NUM,
@@ -28,9 +22,7 @@ from .recherche_articles import (
 TOOL_DECLARATIONS = types.Tool(
     function_declarations=[
         DECL_PARCELLE,
-        DECL_ZONAGE,
-        DECL_MAP_DATA,
-        DECL_ZONES_GEOM,
+        DECL_CONTEXTE_PARCELLE,
         DECL_SEARCH_ARTICLES,
         DECL_GET_ARTICLE_BY_NUM,
     ]
@@ -38,35 +30,35 @@ TOOL_DECLARATIONS = types.Tool(
 
 TOOL_FUNCTIONS = {
     "get_parcelle": get_parcelle,
-    "get_zonage_et_reglements": get_zonage_et_reglements,
-    "get_map_data": get_map_data,
-    "get_zones_for_geometry": get_zones_for_geometry,
+    "get_contexte_parcelle": get_contexte_parcelle,
     "search_articles_urbanisme": search_articles_urbanisme,
     "get_article_urbanisme_by_num": get_article_urbanisme_by_num,
 }
 
 TOOL_RESPONSE_SHAPES = {
     "get_parcelle": {
-        "parcelle": "object — idu, section, numero, contenance, geojson_wgs84, superficie_m2",
+        "parcelle": "object | null — une parcelle si seule",
+        "parcelles": "array — détail par feuille cadastrale",
+        "unite_fonciere": "object — geojson union, superficie_m2, nb_parcelles",
         "error": "string | null",
     },
-    "get_zonage_et_reglements": {
+    "get_contexte_parcelle": {
         "zones": (
             "array — code_zone, libelle, superficie_intersection_m2, "
             "pct_parcelle_couverte, nom_zone, reglementation, …"
         ),
-        "count": "integer",
-        "error": "string | null",
-    },
-    "get_map_data": {
-        "map_ready": "bool — carte affichée côté UI",
-        "parcelle": "object — idu, section, numero (sans géométrie côté LLM)",
-        "zones": "array — code_zone, pct, libelle, color",
-        "error": "string | null",
-    },
-    "get_zones_for_geometry": {
-        "zones": "array — code_zone, libelle, typezone, destdomi",
-        "count": "integer",
+        "zones_count": "integer",
+        "surfaciques": "array — gml_id, libelle, txt, typepsc, stypepsc",
+        "lineaires": "array — idem",
+        "ponctuelles": "array — idem",
+        "prescriptions_count": "integer — total",
+        "servitudes": (
+            "array — gid, suptype (type principal), typeass, nomsuplitt, idass, nomass"
+        ),
+        "servitudes_count": "integer",
+        "parcelles": "array — feuilles cadastrales de l'unité foncière",
+        "nb_parcelles": "integer",
+        "superficie_unite_m2": "number",
         "error": "string | null",
     },
     "search_articles_urbanisme": {
@@ -153,9 +145,7 @@ __all__ = [
     "TOOL_RESPONSE_SHAPES",
     "build_dispatch",
     "get_parcelle",
-    "get_zonage_et_reglements",
-    "get_map_data",
-    "get_zones_for_geometry",
+    "get_contexte_parcelle",
     "search_articles_urbanisme",
     "get_article_urbanisme_by_num",
     "print_tools_mapping",

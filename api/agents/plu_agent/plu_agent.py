@@ -8,7 +8,6 @@ Les tools sont définis dans tools.py.
 Usage:
     python plu_agent.py
     python plu_agent.py --section AC --numero 8770
-    python plu_agent.py --geojson '{"type":"Point","coordinates":[3.0267,42.5467]}'
     python plu_agent.py --question "La parcelle AC 8770 est-elle constructible ?"
 """
 
@@ -45,9 +44,9 @@ Tu es un expert en droit de l'urbanisme français, spécialisé dans l'analyse d
 Tu as accès au règlement PLU de la commune d'Argelès-sur-Mer (INSEE 66008).
 
 Workflow pour une question sur une parcelle :
-1. Si l'utilisateur donne une section + numéro (ou un IDU) → appelle get_zonage_et_reglements
-   directement avec ces paramètres.
-2. Utilise get_zones_for_geometry pour un diagnostic rapide sans texte réglementaire.
+1. Appelle get_contexte_parcelle (zonage + prescriptions) avec section+numero, idu,
+   ou parcelles[] / idus[] pour une unité foncière contiguë.
+2. La carte est gérée par l'interface, pas par un tool LLM.
 
 Règles de réponse :
 - Cite toujours les zones concernées et leurs pourcentages de couverture
@@ -147,23 +146,17 @@ def build_config() -> types.GenerateContentConfig:
     )
 
 
-def make_seed_message(geojson: str = None, section: str = None, numero: str = None) -> str:
+def make_seed_message(section: str = None, numero: str = None) -> str:
     if section and numero:
         return (
             f"Je travaille sur la parcelle cadastrale section {section.upper()} numéro {numero}. "
             "Quelles sont les zones PLU concernées, leurs pourcentages de couverture, "
             "et quels sont leurs grands principes réglementaires ?"
         )
-    elif geojson:
-        return (
-            f"Je travaille sur une zone d'étude dont voici la géométrie GeoJSON : {geojson}\n"
-            "Quelles sont les zones PLU concernées et quels sont leurs grands principes réglementaires ?"
-        )
     return None
 
 
 def run_chat(
-    geojson: str = None,
     section: str = None,
     numero: str = None,
     verbose: bool = True,
@@ -176,7 +169,7 @@ def run_chat(
     print("\n🗺️  Agent PLU — Argelès-sur-Mer")
     print("   Posez vos questions sur le règlement PLU (Ctrl+C pour quitter)\n")
 
-    seed = make_seed_message(geojson=geojson, section=section, numero=numero)
+    seed = make_seed_message(section=section, numero=numero)
     if seed:
         print(f"[Amorce]\n{seed}\n")
         contents.append(types.Content(role="user", parts=[types.Part(text=seed)]))
@@ -222,7 +215,6 @@ def run_agent(question: str, verbose: bool = True) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description="Agent PLU Argelès-sur-Mer")
-    parser.add_argument("--geojson",    default=None, help="GeoJSON WGS84")
     parser.add_argument("--section",    default=None, help="Section cadastrale (ex: AC)")
     parser.add_argument("--numero",     default=None, help="Numéro de parcelle (ex: 8770)")
     parser.add_argument("--question",   default=None, help="Question unique (non-interactif)")
@@ -235,12 +227,9 @@ def main():
         q = args.question
         if args.section and args.numero:
             q = f"Parcelle section {args.section} numéro {args.numero}. {q}"
-        elif args.geojson:
-            q = f"Géométrie : {args.geojson}\n{q}"
         run_agent(q, verbose=verbose)
     else:
         run_chat(
-            geojson=args.geojson,
             section=args.section,
             numero=args.numero,
             verbose=verbose,

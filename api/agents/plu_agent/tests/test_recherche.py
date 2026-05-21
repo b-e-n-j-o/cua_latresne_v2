@@ -6,8 +6,7 @@ test_recherche.py — valide les 2 tools de recherche HORS agent.
 But : isoler "le tool fonctionne" (embedding requête + RRF + SQL) de
 "Gemini route bien". À lancer depuis la racine plu_agent/ :
 
-    python -m test_recherche
-    (ou : python test_recherche.py si les imports relatifs passent)
+    python tests/test_recherche.py
 
 Vérifie :
   - connexion DB OK
@@ -17,9 +16,24 @@ Vérifie :
 """
 
 import os
+import sys
+from pathlib import Path
+
 from dotenv import load_dotenv
 
-load_dotenv()
+PLU_AGENT_ROOT = Path(__file__).resolve().parents[1]
+if str(PLU_AGENT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PLU_AGENT_ROOT))
+
+for _env_path in (
+    PLU_AGENT_ROOT.parents[4] / ".env",
+    PLU_AGENT_ROOT / ".env",
+):
+    if _env_path.is_file():
+        load_dotenv(_env_path)
+        break
+else:
+    load_dotenv()
 
 # Réutilise EXACTEMENT la config DB de l'API
 try:

@@ -35,22 +35,22 @@ Tu es un expert en droit de l'urbanisme français, spécialisé dans l'analyse d
 Tu as accès au règlement PLU de la commune d'Argelès-sur-Mer (INSEE 66008).
 
 Workflow :
-1. Si la question mentionne une parcelle (section + numéro, ou IDU) → appelle
-   get_zonage_et_reglements avec ces paramètres directement.
-2. Si la question contient un GeoJSON → appelle get_zonage_et_reglements avec geojson=...
-3. Pour un diagnostic rapide sans texte réglementaire → get_zones_for_geometry.
-4. Si l'utilisateur demande à voir la carte, la localisation ou une représentation
-   visuelle → appelle get_map_data (section+numéro ou IDU). La carte s'affiche
-   automatiquement dans l'interface ; tu reçois seulement un résumé des zones, pas les coordonnées.
-5. Pour une question de DROIT GÉNÉRAL de l'urbanisme (définitions, procédures,
+1. Si la question concerne une ou plusieurs parcelles d'Argelès-sur-Mer (section + numéro,
+   IDU, ou unité foncière contiguë via parcelles[] / idus[]) → appelle get_contexte_parcelle
+   (zonage + règlement + prescriptions + servitudes SUP, sans géométries).
+2. La carte interactive est gérée par l'interface (GET /session/{id}/map) dès qu'une parcelle
+   est associée à la session — ne pas appeler de tool cartographique.
+3. Pour une question de DROIT GÉNÉRAL de l'urbanisme (définitions, procédures,
    notions juridiques) non liée à une parcelle précise → appelle
    search_articles_urbanisme.
-6. Si un NUMÉRO d'article est cité (ex: L421-6, R151-1) ou si un article
+4. Si un NUMÉRO d'article est cité (ex: L421-6, R151-1) ou si un article
    référencé est nécessaire → appelle get_article_urbanisme_by_num.
    Les tools PLU (zonage) concernent Argelès ; le Code de l'urbanisme est national.
 
 Règles de réponse :
 - Cite toujours les zones concernées et leurs pourcentages de couverture.
+- Pour les prescriptions, cite le libelle de chaque élément retourné par get_contexte_parcelle.
+- Pour les servitudes, cite suptype (type), et si présents typeass et nomsuplitt.
 - Appuie-toi sur les articles du règlement pour justifier tes conclusions.
 - Traite chaque zone séparément si plusieurs zones sont concernées.
 - Signale si une zone est trouvée mais sans règlement disponible.
@@ -74,7 +74,7 @@ class ChatResponse(BaseModel):
     latency_ms:  int
     model:       str
     map_data:    dict | None = None  # GeoJSON optionnel ; préférer show_map + GET /session/{id}/map
-    show_map:    bool = False        # True si get_map_data a été appelé ce tour
+    show_map:    bool = False        # True si la session a des refs parcellaires (carte via GET /map)
 
 
 # ---------------------------------------------------------------------------
@@ -117,71 +117,64 @@ def build_contents_from_db(messages: list[dict]) -> list:
     return contents
 
 
-def _map_result_for_llm(result: dict) -> dict:
-    """
-    Réponse allégée pour Gemini : pas de géométries.
-    Les GeoJSON complets restent dans raw_result → map_data API ou GET /session/{id}/map.
-    """
-    if result.get("error"):
-        return {"error": result["error"], "map_ready": False}
-
-    parcelle = result.get("parcelle") or {}
-    props = parcelle.get("properties") or {}
-    zone_items = _zones_for_summary(result)
-
-    return {
-        "map_ready": True,
-        "message": (
-            "Carte générée pour l'utilisateur (affichage côté interface, sans coordonnées ici). "
-            "Décris le zonage à partir des zones ci-dessous."
-        ),
-        "parcelle": {
-            k: props.get(k)
-            for k in ("idu", "section", "numero", "contenance")
-            if props.get(k) is not None
-        },
-        "zones": [
-            {
-                "code_zone": z.get("code_zone"),
-                "libelle": z.get("libelle"),
-                "libelong": z.get("libelong"),
-                "typezone": z.get("typezone"),
-                "pct_parcelle_couverte": z.get("pct_parcelle_couverte"),
-                "color": z.get("color"),
-            }
-            for z in zone_items
-        ],
-        "zones_count": len(zone_items),
-        "error": None,
-    }
+def session_show_map(session: dict) -> bool:
+    """True si la session porte des refs cadastrales (carte via GET /session/{id}/map)."""
+    try:
+        from ..tools.utils.parcel_geom import refs_from_session
+    except ImportError:
+        from tools.utils.parcel_geom import refs_from_session
+    return bool(refs_from_session(session))
 
 
 def _parcelle_result_for_llm(result: dict) -> dict:
-    """Retire geojson_wgs84 du tool get_parcelle pour le contexte LLM."""
+    """Retire les géométries du tool get_parcelle pour le contexte LLM."""
     if result.get("error"):
         return result
-    p = result.get("parcelle")
-    if not isinstance(p, dict):
+    out = dict(result)
+    p = out.get("parcelle")
+    if isinstance(p, dict):
+        out["parcelle"] = {k: v for k, v in p.items() if k != "geojson_wgs84"}
+    parcelles = out.get("parcelles")
+    if isinstance(parcelles, list):
+        out["parcelles"] = [
+            {k: v for k, v in item.items() if k != "geojson_wgs84"}
+            for item in parcelles
+            if isinstance(item, dict)
+        ]
+    unite = out.get("unite_fonciere")
+    if isinstance(unite, dict):
+        out["unite_fonciere"] = {
+            k: v for k, v in unite.items() if k != "geojson_wgs84"
+        }
+    return out
+
+
+def _contexte_result_for_llm(result: dict) -> dict:
+    """Réponse get_contexte_parcelle sans géométries résiduelles."""
+    if result.get("error"):
         return result
-    slim = {k: v for k, v in p.items() if k != "geojson_wgs84"}
-    return {**result, "parcelle": slim}
+    out = dict(result)
+    for key in ("surfaciques", "lineaires", "ponctuelles"):
+        items = out.get(key)
+        if isinstance(items, list):
+            out[key] = [
+                {k: v for k, v in item.items() if k != "geojson_geom"}
+                for item in items
+                if isinstance(item, dict)
+            ]
+    return out
 
 
 def _result_for_llm(tool_name: str, result: dict) -> dict:
-    if tool_name == "get_map_data":
-        return _map_result_for_llm(result)
+    if tool_name == "get_contexte_parcelle":
+        return _contexte_result_for_llm(result)
     if tool_name == "get_parcelle":
         return _parcelle_result_for_llm(result)
     return result
 
 
 def _zones_for_summary(result: dict) -> list[dict]:
-    """Normalise zones : liste SQL (zonage) ou GeoJSON FeatureCollection (map_data)."""
     zones = result.get("zones")
-    if not zones:
-        return []
-    if isinstance(zones, dict) and zones.get("type") == "FeatureCollection":
-        return [f.get("properties") or {} for f in zones.get("features") or []]
     if isinstance(zones, list):
         return zones
     return []
@@ -191,7 +184,7 @@ def _call_tool(dispatch: dict, name: str, args: dict) -> tuple[str, str, dict | 
     """
     Exécute le tool.
     Retourne (json_result, résumé_court, raw_result).
-    raw_result est le dict Python brut — utilisé pour extraire map_data sans re-parser.
+    raw_result est le dict Python brut (logs uniquement, non persisté).
     """
     fn = dispatch.get(name)
     if fn is None:
@@ -212,8 +205,12 @@ def _call_tool(dispatch: dict, name: str, args: dict) -> tuple[str, str, dict | 
             f"{z.get('code_zone')} ({z.get('pct_parcelle_couverte', '?')}%)"
             for z in zone_items
         )
-    elif "parcelle" in result and result.get("parcelle"):
-        summary = "données cartographiques ok"
+    elif result.get("zones_count") is not None or result.get("prescriptions_count") is not None:
+        summary = (
+            f"contexte parcelle — {result.get('zones_count', len(zone_items))} zone(s), "
+            f"{result.get('prescriptions_count', 0)} prescription(s), "
+            f"{result.get('servitudes_count', 0)} servitude(s)"
+        )
     elif "error" in result and result["error"]:
         summary = f"erreur : {result['error']}"
     else:
@@ -231,7 +228,7 @@ def _agentic_loop(
     """
     Boucle tool-calling jusqu'à réponse finale.
     Retourne (answer, tool_calls_log, usage).
-    Les ToolCallLog incluent raw_result pour extraction post-boucle (ex: map_data).
+    Les ToolCallLog incluent raw_result pour les logs (exclu de la persistance).
     """
     tool_calls_log: list[ToolCallLog] = []
     total_prompt = total_candidates = total_tokens = 0
@@ -280,17 +277,6 @@ def _agentic_loop(
         contents.append(types.Content(role="user", parts=parts))
 
 
-def _map_requested(tool_calls: list[ToolCallLog]) -> bool:
-    """True si get_map_data a réussi ce tour (signal UI, sans renvoyer le GeoJSON)."""
-    for tc in tool_calls:
-        if tc.name != "get_map_data" or not tc.raw_result:
-            continue
-        r = tc.raw_result
-        if not r.get("error") and r.get("parcelle"):
-            return True
-    return False
-
-
 def run_turn(
     zones: list[dict],
     contents: list,
@@ -317,7 +303,7 @@ def run_turn(
 def chat(session_id: str, req: ChatRequest):
     """
     Tour de conversation dans une session existante.
-    Si le LLM appelle get_map_data, show_map=true ; le frontend charge le GeoJSON via GET /map.
+    show_map=true si la session a des refs parcellaires ; le frontend charge le GeoJSON via GET /map.
     """
     t0 = time.monotonic()
 
@@ -347,7 +333,7 @@ def chat(session_id: str, req: ChatRequest):
         f"tools={[tc.name for tc in tool_calls]} | tokens={usage.total_tokens}"
     )
 
-    show_map = _map_requested(tool_calls)
+    show_map = session_show_map(session)
 
     # Persistance — raw_result exclu par Field(exclude=True), pas de fuite en base
     messages_insert(
