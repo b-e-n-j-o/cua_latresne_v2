@@ -161,7 +161,7 @@
     "attribut_map": "type_patrimoine",
     "nom_attribut_map": "Type de patrimoine"
   },
-  "plu_latresne": {
+  "zonage_plu": {
     "nom": "Zonage PLU",
     "type": "Zonage PLU",
     "keep": [

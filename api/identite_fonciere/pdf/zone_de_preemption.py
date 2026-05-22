@@ -52,7 +52,7 @@ from .plu_visuels import (
     PLU_MAP_COVER_ASPECT_WH,
     PLU_MAP_RIGHT_PANEL_RATIO,
     PLU_MAP_SQUARE_SIDE_IN,
-    fetch_parcelles_latresne_uf,
+    fetch_parcelles_uf,
     parcelle_gdf_from_geojson,
 )
 
@@ -745,7 +745,7 @@ def generate_preemption_visuals_from_uf_geometry(
 
     cat_name = catalogue_display_name(CATALOGUE_TABLE_KEY)
     legend_label = f"{cat_name} — {_format_pct_fr(overlap_pct)} %"
-    parcelles_pc_gdf, _ = fetch_parcelles_latresne_uf(
+    parcelles_pc_gdf, _ = fetch_parcelles_uf(
         insee,
         parcelle_gdf,
         parcelles_cadastrales,

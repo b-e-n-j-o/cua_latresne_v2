@@ -1,0 +1,115 @@
+{
+  "_doc": "Socle couches GPU — fusionné avec communes/catalogs/<slug>.json",
+  "layers": {
+    "parcelles": {
+      "enabled": true,
+      "table": "parcelles",
+      "group": "parcelle",
+      "geom_column": "geom_2154",
+      "strict_parcel": true,
+      "context_llm": true,
+      "context_carto": false,
+      "attributes": ["idu", "section", "numero", "contenance"]
+    },
+    "zonage": {
+      "enabled": true,
+      "table": "zonage_plu",
+      "group": "zonage",
+      "geom_column": "geom_2154",
+      "strict_parcel": false,
+      "buffer_m": 100,
+      "context_llm": true,
+      "context_carto": true,
+      "reglement_table": "plu_reglement",
+      "attributes": ["zonage_reglement", "libelle", "libelong", "typezone"],
+      "color": null
+    },
+    "prescriptions_surf": {
+      "enabled": true,
+      "table": "prescriptions_surf",
+      "group": "prescriptions",
+      "subgroup": "surfaciques",
+      "kind": "surfacique",
+      "color": "#9D4EDD",
+      "strict_parcel": true,
+      "context_llm": true,
+      "context_carto": true,
+      "attributes": ["gml_id", "libelle", "txt", "typepsc", "stypepsc"]
+    },
+    "prescriptions_lin": {
+      "enabled": true,
+      "table": "prescriptions_lineaires",
+      "group": "prescriptions",
+      "subgroup": "lineaires",
+      "kind": "lineaire",
+      "color": "#E63946",
+      "strict_parcel": true,
+      "context_llm": true,
+      "context_carto": true,
+      "attributes": ["gml_id", "libelle", "txt", "typepsc", "stypepsc"]
+    },
+    "prescriptions_pct": {
+      "enabled": true,
+      "table": "prescriptions_ponctuelles",
+      "group": "prescriptions",
+      "subgroup": "ponctuelles",
+      "kind": "ponctuelle",
+      "color": "#FFBE0B",
+      "strict_parcel": true,
+      "context_llm": true,
+      "context_carto": true,
+      "attributes": ["gml_id", "libelle", "txt", "typepsc", "stypepsc"]
+    },
+    "servitudes": {
+      "enabled": true,
+      "table": "sup_assiette_s",
+      "group": "servitudes",
+      "geom_column": "geometry",
+      "geom_transform": "sup_geometry",
+      "strict_parcel": true,
+      "context_llm": true,
+      "context_carto": true,
+      "color": "#457B9D",
+      "attributes": ["gid", "idass", "nomass", "suptype", "nom_servitude", "typeass", "nomsuplitt", "nomreg"]
+    },
+    "infos_surf": {
+      "enabled": true,
+      "table": "infos_surf",
+      "group": "informations",
+      "subgroup": "surfaciques",
+      "kind": "surfacique",
+      "color": "#2A9D8F",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "attributes": ["gml_id", "libelle", "txt", "typeinf", "stypeinf"]
+    },
+    "infos_lin": {
+      "enabled": true,
+      "table": "infos_lin",
+      "group": "informations",
+      "subgroup": "lineaires",
+      "kind": "lineaire",
+      "color": "#1D3557",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "attributes": ["gml_id", "libelle", "txt", "typeinf", "stypeinf"]
+    },
+    "infos_pct": {
+      "enabled": true,
+      "table": "infos_pct",
+      "group": "informations",
+      "subgroup": "ponctuelles",
+      "kind": "ponctuelle",
+      "color": "#F4A261",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "attributes": ["gml_id", "libelle", "txt", "typeinf", "stypeinf"]
+    }
+  }
+}

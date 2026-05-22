@@ -136,7 +136,7 @@ def get_catalogue() -> Dict[str, Any]:
 def _parcelles_table_for_schema(schema: str) -> str:
     """Table des parcelles cadastrales dans le schéma (convention Kerelia / legacy Latresne)."""
     if (schema or "").strip() == "latresne":
-        return "parcelles_latresne"
+        return "parcelles"
     return "parcelles"
 
 
@@ -196,7 +196,7 @@ def resolve_identite_fonciere_geometry(
     parcelle_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
-    GeoJSON UF : soit fourni dans `geometry`, soit chargé depuis `{schema}.parcelles` (ou parcelles_latresne).
+    GeoJSON UF : soit fourni dans `geometry`, soit chargé depuis `{schema}.parcelles` (ou parcelles).
     """
     if isinstance(geometry, dict) and geometry.get("type"):
         return geometry
@@ -1022,7 +1022,7 @@ def calculate_intersections_detailed_from_geojson(
         with engine.connect() as conn:
             _diagnostic_parcelle_geojson(conn, geom_json, parcelle_geom_sql)
             # Couche de référence souvent présente en base
-            for ref in ("zonage_plu", "prescriptions_surf", "infos_surf", "plu_latresne", "prescriptions_surf_latresne"):
+            for ref in ("zonage_plu", "prescriptions_surf", "infos_surf", "zonage_plu", "prescriptions_surf_latresne"):
                 if ref in catalogue_snap:
                     gcol = _find_geom_column(conn, ref, schema_snap)
                     if not gcol:

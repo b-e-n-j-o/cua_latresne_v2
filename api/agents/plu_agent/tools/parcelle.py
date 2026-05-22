@@ -6,6 +6,7 @@ import psycopg2
 import psycopg2.extras
 from google.genai import types
 
+from ..commune_context import q
 from .utils.parcel_geom import parcel_tool_properties, resolve_unite_fonciere
 
 
@@ -46,12 +47,12 @@ def get_parcelle(
         meta = resolved.get("parcelles") or []
         rows = []
         for p in meta:
-            sql = """
+            sql = f"""
                 SELECT
                     idu, numero, section, contenance, code_insee,
                     ST_AsGeoJSON(ST_Transform(geom_2154, 4326)) AS geojson_wgs84,
                     ST_Area(geom_2154) AS superficie_m2
-                FROM argeles.parcelles
+                FROM {q("parcelles")}
                 WHERE idu = %s
                 LIMIT 1;
             """

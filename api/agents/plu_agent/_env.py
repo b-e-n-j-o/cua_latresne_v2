@@ -1,4 +1,20 @@
-"""Variables d'environnement partagées (DB + Gemini) — pas de logique métier."""
+"""
+_env.py — configuration d'infrastructure partagée (toutes communes).
+
+Responsabilité
+--------------
+Centraliser ce qui est **commun** à tous les clients PLU sur le même déploiement :
+  - connexion Supabase / PostGIS (`DB_CONFIG`) ;
+  - clés et modèle Gemini (`GEMINI_API_KEY`, `GEMINI_MODEL`).
+
+Ce qui n'est **pas** ici (voir `commune_profile` / `communes/`) :
+  - schéma SQL (`argeles` vs `latresne`) ;
+  - préfixe HTTP `/api/plu/{slug}` ;
+  - prompt système, couches carto, liste de tools.
+
+Les profils par commune peuvent surcharger `gemini_model` plus tard ; par défaut
+toutes les communes partagent le modèle défini dans l'environnement Render.
+"""
 
 import os
 
@@ -26,5 +42,4 @@ DB_CONFIG = {
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
 GEMINI_MODEL   = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
 
-API_PREFIX = "/api/plu/argeles"
-API_TAGS   = ["plu-agent-argeles"]
+# Préfixe HTTP par commune : voir communes/ + api.create_plu_router()

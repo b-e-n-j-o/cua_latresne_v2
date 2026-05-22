@@ -58,7 +58,7 @@ except ImportError:
 
 from tools.utils.parcel_geom import normalize_parcel_refs, resolve_unite_fonciere
 from tools.utils import get_zonage_et_reglements
-from tools.carto import build_carto_payload
+from cartography.carto import build_carto_payload
 from tools.contexte_parcelle import get_contexte_parcelle
 
 # ---------------------------------------------------------------------------

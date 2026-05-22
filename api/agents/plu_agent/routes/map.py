@@ -16,54 +16,54 @@ import logging
 from fastapi import APIRouter, HTTPException
 
 from .._env import DB_CONFIG
+from ..commune_profile import CommuneProfile
 
 try:
-    from ..tools.carto import build_carto_payload
+    from ..cartography.carto import build_carto_payload
     from ..tools.utils.parcel_geom import refs_from_session
 except ImportError:
-    from tools.carto import build_carto_payload
+    from cartography.carto import build_carto_payload
     from tools.utils.parcel_geom import refs_from_session
 
 from .sessions import session_get
 
 logger = logging.getLogger("plu_api")
-router = APIRouter()
 
 
-@router.get("/session/{session_id}/map")
-def get_session_map(session_id: str, buffer_m: float = 100.0):
-    """
-    Données cartographiques GeoJSON (EPSG:4326) d'une session existante.
+def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
+    @router.get("/session/{session_id}/map")
+    @bind
+    def get_session_map(session_id: str, buffer_m: float = 100.0):
+        """
+        Données cartographiques GeoJSON (EPSG:4326) d'une session existante.
 
-    Retourne :
-      - parcelle  : GeoJSON Feature (contour unité foncière)
-      - zones       : GeoJSON FeatureCollection (zonage PLU)
-      - prescriptions : surfaciques / linéaires / ponctuelles
-      - servitudes    : assiettes surfaciques SUP (sup_assiette_s)
-      - informations  : infos_surf / infos_lin / infos_pct
+        Paramètres :
+          - buffer_m  : buffer (m) pour le zonage PLU uniquement (défaut: 100).
+            Prescriptions, servitudes et informations : intersection stricte parcelle.
+        """
+        session = session_get(session_id)
+        if not session:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Session {session_id} introuvable.",
+            )
 
-    Paramètres :
-      - buffer_m  : buffer autour de l'unité foncière en mètres (défaut: 100)
-    """
-    session = session_get(session_id)
-    if not session:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Session {session_id} introuvable.",
+        refs = refs_from_session(session)
+        if not refs:
+            raise HTTPException(
+                status_code=422,
+                detail="La session ne contient aucune référence cadastrale.",
+            )
+
+        logger.info(
+            f"map fetch — commune={profile.slug} session={session_id} "
+            f"refs={refs} buffer={buffer_m}m"
         )
 
-    refs = refs_from_session(session)
-    if not refs:
-        raise HTTPException(
-            status_code=422,
-            detail="La session ne contient aucune référence cadastrale.",
-        )
+        result = build_carto_payload(DB_CONFIG, buffer_m=buffer_m, **refs)
 
-    logger.info(f"map fetch — session={session_id} refs={refs} buffer={buffer_m}m")
+        if result.get("error"):
+            logger.warning("map fetch failed — %s", result["error"])
+            raise HTTPException(status_code=400, detail=result["error"])
 
-    result = build_carto_payload(DB_CONFIG, buffer_m=buffer_m, **refs)
-
-    if result.get("error"):
-        raise HTTPException(status_code=400, detail=result["error"])
-
-    return result
+        return result

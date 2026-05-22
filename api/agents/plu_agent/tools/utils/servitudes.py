@@ -5,13 +5,31 @@ from __future__ import annotations
 import json
 import logging
 
+import psycopg2
+
+from ...commune_context import q
+from .catalog_bridge import servitudes_spec
 from .db import db_query
 from .parcel_geom import resolve_unite_fonciere
+from .zonage import strict_parcel_intersection_filter_sql
 
 logger = logging.getLogger("plu_tools")
 
-SERVITUDES_TABLE = "argeles.sup_assiette_s"
-SERVITUDES_MAP_COLOR = "#457B9D"
+
+def _nom_servitude_label(row: dict) -> str:
+    """Libellé affiché (légende, carte, LLM) — nom_servitude prioritaire sur suptype."""
+    nom = (row.get("nom_servitude") or "").strip()
+    if nom:
+        return nom
+    suptype = (row.get("suptype") or "").strip()
+    if suptype:
+        return suptype
+    return (
+        (row.get("nomsuplitt") or "").strip()
+        or (row.get("typeass") or "").strip()
+        or (row.get("nomass") or "").strip()
+        or "Servitude"
+    )
 
 
 def _geom_2154_sql(alias: str = "s") -> str:
@@ -25,37 +43,55 @@ def _geom_2154_sql(alias: str = "s") -> str:
     """
 
 
-def _sql_servitudes(with_geojson: bool) -> str:
+def _sql_servitudes(
+    table: str,
+    with_geojson: bool,
+    strict_parcel: bool = True,
+) -> str:
     geom_2154 = _geom_2154_sql("s")
     geom_sel = (
         f", ST_AsGeoJSON(ST_Transform(ST_Force2D({geom_2154}), 4326)) AS geojson_geom"
         if with_geojson
         else ""
     )
-    return f"""
-        WITH cible AS (
-            SELECT ST_MakeValid(ST_GeomFromEWKB(%s)) AS geom
-        ),
+    if strict_parcel:
+        scope_cte = """
+        cible_scope AS (
+            SELECT geom FROM cible
+        )"""
+        intersect_filter = f"""
+          AND ST_Intersects({geom_2154}, c.geom)
+          AND {strict_parcel_intersection_filter_sql(geom_2154)}"""
+    else:
+        scope_cte = """
         cible_scope AS (
             SELECT ST_MakeValid(
                 CASE WHEN %s::float > 0 THEN ST_Buffer(geom, %s::float) ELSE geom END
             ) AS geom
             FROM cible
-        )
+        )"""
+        intersect_filter = f" AND ST_Intersects({geom_2154}, c.geom)"
+
+    return f"""
+        WITH cible AS (
+            SELECT ST_MakeValid(ST_GeomFromEWKB(%s)) AS geom
+        ),
+        {scope_cte}
         SELECT
             s.gid,
             s.idass,
             s.nomass,
             s.suptype,
+            s.nom_servitude,
             s.typeass,
             s.nomsuplitt,
             s.nomreg
             {geom_sel}
-        FROM {SERVITUDES_TABLE} s
+        FROM {q(table)} s
         CROSS JOIN cible_scope c
         WHERE s.geometry IS NOT NULL
-          AND ST_Intersects({geom_2154}, c.geom)
-        ORDER BY s.suptype NULLS LAST, s.nomass NULLS LAST, s.gid;
+          {intersect_filter}
+        ORDER BY s.nom_servitude NULLS LAST, s.nomass NULLS LAST, s.gid;
     """
 
 
@@ -64,10 +100,26 @@ def fetch_servitudes_rows(
     geom_wkb: bytes,
     buffer_m: float = 0.0,
     with_geojson: bool = False,
+    strict_parcel: bool = True,
 ) -> list[dict]:
+    spec = servitudes_spec()
+    if not spec:
+        return []
     buf = float(buffer_m or 0)
-    sql = _sql_servitudes(with_geojson)
-    return db_query(db_config, sql, (geom_wkb, buf, buf))
+    sql = _sql_servitudes(spec.table, with_geojson, strict_parcel=strict_parcel)
+    try:
+        if strict_parcel:
+            return db_query(db_config, sql, (geom_wkb,))
+        return db_query(db_config, sql, (geom_wkb, buf, buf))
+    except psycopg2.Error as e:
+        if spec.optional:
+            logger.warning(
+                "fetch_servitudes_rows — %s ignoré : %s",
+                spec.table,
+                e,
+            )
+            return []
+        raise
 
 
 def _parse_geojson(val) -> dict | None:
@@ -87,6 +139,7 @@ def build_llm_payload(rows: list[dict]) -> dict:
             "gid": r.get("gid"),
             "idass": r.get("idass"),
             "nomass": r.get("nomass"),
+            "nom_servitude": _nom_servitude_label(r),
             "suptype": r.get("suptype"),
             "typeass": r.get("typeass"),
             "nomsuplitt": r.get("nomsuplitt"),
@@ -98,15 +151,14 @@ def build_llm_payload(rows: list[dict]) -> dict:
 
 
 def build_map_servitudes(rows: list[dict]) -> dict:
+    spec = servitudes_spec()
+    map_color = (spec.color if spec else None) or "#457B9D"
     features = []
     for r in rows:
         geom = _parse_geojson(r.get("geojson_geom"))
         if not geom:
             continue
-        suptype = r.get("suptype")
-        typeass = r.get("typeass")
-        nomsuplitt = r.get("nomsuplitt")
-        label = nomsuplitt or typeass or suptype or r.get("nomass") or r.get("idass")
+        nom_servitude = _nom_servitude_label(r)
         features.append({
             "type": "Feature",
             "geometry": geom,
@@ -114,12 +166,13 @@ def build_map_servitudes(rows: list[dict]) -> dict:
                 "gid": r.get("gid"),
                 "idass": r.get("idass"),
                 "nomass": r.get("nomass"),
-                "suptype": suptype,
-                "typeass": typeass,
-                "nomsuplitt": nomsuplitt,
+                "nom_servitude": nom_servitude,
+                "suptype": r.get("suptype"),
+                "typeass": r.get("typeass"),
+                "nomsuplitt": r.get("nomsuplitt"),
                 "nomreg": r.get("nomreg"),
-                "color": SERVITUDES_MAP_COLOR,
-                "label": label,
+                "color": map_color,
+                "label": nom_servitude,
             },
         })
     return {"type": "FeatureCollection", "features": features}
@@ -146,6 +199,16 @@ def get_servitudes(
         if resolved.get("error"):
             logger.warning("get_servitudes — %s", resolved["error"])
             return {"servitudes": [], "count": 0, "error": resolved["error"]}
+
+        if not servitudes_spec():
+            return {
+                "servitudes": [],
+                "count": 0,
+                "parcelles": resolved.get("parcelles") or [],
+                "nb_parcelles": resolved.get("nb_parcelles"),
+                "superficie_unite_m2": resolved.get("superficie_m2"),
+                "error": None,
+            }
 
         rows = fetch_servitudes_rows(
             db_config,

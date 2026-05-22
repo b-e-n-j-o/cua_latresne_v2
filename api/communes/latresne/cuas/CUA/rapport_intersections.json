@@ -132,7 +132,7 @@
       "pourcentage": 0.0,
       "objets": []
     },
-    "plu_latresne": {
+    "zonage_plu": {
       "nom": "Zonage PLU",
       "type": "prescription",
       "surface_m2": 1648.69,

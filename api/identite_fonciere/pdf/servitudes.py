@@ -9,7 +9,7 @@ Carte regroupée des couches « servitude » du catalogue identité foncière + 
 
 Schéma PostGIS : ``{db_schema}.*`` (argument, ContextVar ``get_identite_db_schema``, ou env
 ``IDENTITE_FONCIERE_DB_SCHEMA``). Parcelles UF : ``{db_schema}.parcelles`` ou
-``latresne.parcelles_latresne`` (legacy).
+``latresne.parcelles`` .
 
 Le PPRI (`pm1_detaillee_gironde`) est exclu de cette carte (page PPRI dédiée).
 """

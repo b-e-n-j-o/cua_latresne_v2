@@ -15,7 +15,7 @@ import mapbox_vector_tile
 
 # Chemin de sortie (répertoire courant si /mnt/tiles-cache n'existe pas)
 OUTPUT_DIR = "/mnt/tiles-cache" if os.path.exists("/mnt/tiles-cache") else os.path.dirname(os.path.abspath(__file__))
-OUTPUT_FILE = os.path.join(OUTPUT_DIR, "plu_latresne.mbtiles")
+OUTPUT_FILE = os.path.join(OUTPUT_DIR, "zonage_plu.mbtiles")
 
 # Emprise de Latresne (en WGS84, comme avant)
 BOUNDS = (-0.624233, 44.729314, -0.371891, 44.826553)
@@ -130,8 +130,8 @@ def build_tile_mvt(z, x, y):
     if not features:
         return None
 
-    # Encodage MVT (nom de couche conservé : 'plu_latresne')
-    tile_data = mapbox_vector_tile.encode({"plu_latresne": features}, extent=4096)
+    # Encodage MVT (nom de couche conservé : 'zonage_plu')
+    tile_data = mapbox_vector_tile.encode({"zonage_plu": features}, extent=4096)
     return tile_data
 
 

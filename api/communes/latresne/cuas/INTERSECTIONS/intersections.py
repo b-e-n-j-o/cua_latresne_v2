@@ -77,7 +77,7 @@ def fetch_superficie_indicative(parcelles: list, code_insee: str) -> float:
             )
             SELECT SUM(p.contenance) AS superficie_indicative
             FROM requested r
-            JOIN latresne.parcelles_latresne p
+            JOIN latresne.parcelles p
               ON UPPER(TRIM(p.section)) = r.section
              AND LPAD(TRIM(p.numero), 4, '0') = r.numero
              AND p.code_insee = :code_insee
@@ -96,7 +96,7 @@ def fetch_superficie_indicative(parcelles: list, code_insee: str) -> float:
         return None
 
 def get_parcelle_geometry(section, numero):
-    query = text("SELECT ST_AsText(geom_2154) FROM latresne.parcelles_latresne WHERE section = :s AND numero = :n")
+    query = text("SELECT ST_AsText(geom_2154) FROM latresne.parcelles WHERE section = :s AND numero = :n")
     with engine.connect() as conn:
         result = conn.execute(query, {"s": section, "n": numero})
         row = result.fetchone()

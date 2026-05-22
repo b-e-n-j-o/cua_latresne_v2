@@ -19,7 +19,7 @@ from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
 
 from xml.sax.saxutils import escape as xml_escape
 
-PLU_ZONAGE_TABLES = frozenset({"plu_latresne"})
+PLU_ZONAGE_TABLES = frozenset({"zonage_plu"})
 
 C_KERELIA_GREEN = colors.HexColor("#2D6A4F")
 C_ZONE_BAND = colors.HexColor("#E8F5EE")

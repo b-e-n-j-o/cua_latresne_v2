@@ -7,46 +7,45 @@ import logging
 
 import psycopg2
 
+from ...commune_context import q
+from .catalog_bridge import infos_config
 from .db import db_query
 from .parcel_geom import resolve_unite_fonciere
+from .zonage import strict_parcel_intersection_filter_sql
 
 logger = logging.getLogger("plu_tools")
 
-INFOS_CONFIG: dict[str, dict] = {
-    "surfaciques": {
-        "table": "argeles.infos_surf",
-        "kind": "surfacique",
-        "color": "#2A9D8F",
-    },
-    "lineaires": {
-        "table": "argeles.infos_lin",
-        "kind": "lineaire",
-        "color": "#1D3557",
-    },
-    "ponctuelles": {
-        "table": "argeles.infos_pct",
-        "kind": "ponctuelle",
-        "color": "#F4A261",
-    },
-}
 
-
-def _sql_infos(table: str, with_geojson: bool) -> str:
+def _sql_infos(table: str, with_geojson: bool, strict_parcel: bool = True) -> str:
+    entity_geom = "ST_MakeValid(p.geom_2154)"
     geom_sel = (
-        ", ST_AsGeoJSON(ST_Transform(ST_Force2D(ST_MakeValid(p.geom_2154)), 4326)) AS geojson_geom"
+        f", ST_AsGeoJSON(ST_Transform(ST_Force2D({entity_geom}), 4326)) AS geojson_geom"
         if with_geojson
         else ""
     )
-    return f"""
-        WITH cible AS (
-            SELECT ST_MakeValid(ST_GeomFromEWKB(%s)) AS geom
-        ),
+    if strict_parcel:
+        scope_cte = """
+        cible_scope AS (
+            SELECT geom FROM cible
+        )"""
+        intersect_filter = f"""
+          AND ST_Intersects({entity_geom}, c.geom)
+          AND {strict_parcel_intersection_filter_sql(entity_geom)}"""
+    else:
+        scope_cte = """
         cible_scope AS (
             SELECT ST_MakeValid(
                 CASE WHEN %s::float > 0 THEN ST_Buffer(geom, %s::float) ELSE geom END
             ) AS geom
             FROM cible
-        )
+        )"""
+        intersect_filter = f" AND ST_Intersects({entity_geom}, c.geom)"
+
+    return f"""
+        WITH cible AS (
+            SELECT ST_MakeValid(ST_GeomFromEWKB(%s)) AS geom
+        ),
+        {scope_cte}
         SELECT
             p.gml_id,
             p.libelle,
@@ -54,10 +53,10 @@ def _sql_infos(table: str, with_geojson: bool) -> str:
             p.typeinf,
             p.stypeinf
             {geom_sel}
-        FROM {table} p
+        FROM {q(table)} p
         CROSS JOIN cible_scope c
         WHERE p.geom_2154 IS NOT NULL
-          AND ST_Intersects(ST_MakeValid(p.geom_2154), c.geom)
+          {intersect_filter}
         ORDER BY p.libelle NULLS LAST, p.gml_id;
     """
 
@@ -67,15 +66,27 @@ def fetch_infos_rows(
     geom_wkb: bytes,
     buffer_m: float = 0.0,
     with_geojson: bool = False,
+    strict_parcel: bool = True,
 ) -> dict[str, list[dict]]:
     out: dict[str, list[dict]] = {}
     buf = float(buffer_m or 0)
-    for key, cfg in INFOS_CONFIG.items():
+    cfg_map = infos_config()
+    for key, cfg in cfg_map.items():
+        if not cfg.get("context_carto") and with_geojson:
+            continue
+        if not cfg.get("context_llm") and not with_geojson:
+            continue
         try:
-            sql = _sql_infos(cfg["table"], with_geojson)
-            out[key] = db_query(db_config, sql, (geom_wkb, buf, buf))
+            sql = _sql_infos(cfg["table"], with_geojson, strict_parcel=strict_parcel)
+            if strict_parcel:
+                out[key] = db_query(db_config, sql, (geom_wkb,))
+            else:
+                out[key] = db_query(db_config, sql, (geom_wkb, buf, buf))
         except psycopg2.Error:
-            out[key] = []
+            if cfg.get("optional"):
+                out[key] = []
+            else:
+                raise
     return out
 
 
@@ -124,7 +135,7 @@ def build_llm_payload(rows_by_kind: dict[str, list[dict]]) -> dict:
 
 
 def _rows_to_features(rows: list[dict], kind_key: str) -> list[dict]:
-    cfg = INFOS_CONFIG[kind_key]
+    cfg = infos_config().get(kind_key) or {}
     features = []
     for r in rows:
         geom = _parse_geojson(r.get("geojson_geom"))
@@ -148,12 +159,13 @@ def _rows_to_features(rows: list[dict], kind_key: str) -> list[dict]:
 
 
 def build_map_infos(rows_by_kind: dict[str, list[dict]]) -> dict:
+    keys = set(infos_config()) | set(rows_by_kind.keys())
     return {
         key: {
             "type": "FeatureCollection",
             "features": _rows_to_features(rows_by_kind.get(key) or [], key),
         }
-        for key in INFOS_CONFIG
+        for key in keys
     }
 
 
@@ -183,6 +195,18 @@ def get_infos(
                 "ponctuelles": [],
                 "count": 0,
                 "error": resolved["error"],
+            }
+
+        if not infos_config():
+            return {
+                "surfaciques": [],
+                "lineaires": [],
+                "ponctuelles": [],
+                "count": 0,
+                "parcelles": resolved.get("parcelles") or [],
+                "nb_parcelles": resolved.get("nb_parcelles"),
+                "superficie_unite_m2": resolved.get("superficie_m2"),
+                "error": None,
             }
 
         rows_by_kind = fetch_infos_rows(

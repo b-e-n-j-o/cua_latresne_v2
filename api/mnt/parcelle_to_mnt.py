@@ -12,7 +12,7 @@ d'une parcelle cadastrale donnée par :
 - numéro
 
 Pipeline :
-1) Géométrie parcellaire depuis Supabase (latresne.parcelles_latresne, Lambert 93)
+1) Géométrie parcellaire depuis Supabase (latresne.parcelles, Lambert 93)
 2) Parcelles contiguës (ST_Touches) pour élargir l'emprise terrain
 3) Sélection des dalles MNT dans Supabase (ST_Intersects sur l'union)
 4) Téléchargement depuis Supabase Storage, merge + clip sur l'union
@@ -78,20 +78,20 @@ def _largest_polygon(geom):
 def fetch_parcelle_geometry(code_insee, section, numero):
     """
     Récupère la géométrie Lambert 93 de la parcelle cible depuis
-    latresne.parcelles_latresne (Supabase).
+    latresne.parcelles (Supabase).
     """
     section_n = (section or "").strip().upper()
     numero_n = (numero or "").strip()
     code_insee_n = (code_insee or "").strip()
 
     logger.info(
-        "Récupération parcelle (Supabase latresne.parcelles_latresne) : "
+        "Récupération parcelle (Supabase latresne.parcelles) : "
         f"{code_insee_n} / {section_n} / {numero_n}"
     )
 
     sql = """
     SELECT ST_AsText(ST_MakeValid(geom_2154)) AS wkt, idu
-    FROM latresne.parcelles_latresne
+    FROM latresne.parcelles
     WHERE code_insee = :code_insee
       AND upper(trim(section)) = :section
       AND trim(numero) = :numero
@@ -110,7 +110,7 @@ def fetch_parcelle_geometry(code_insee, section, numero):
 
     if not row or not row["wkt"]:
         raise ValueError(
-            "Parcelle introuvable en base (latresne.parcelles_latresne) pour cette référence"
+            "Parcelle introuvable en base (latresne.parcelles) pour cette référence"
         )
 
     geom = shapely_wkt.loads(row["wkt"])
@@ -133,7 +133,7 @@ def fetch_parcelles_contigues(geom_cible, code_insee: str):
 
     sql = """
     SELECT ST_AsText(ST_MakeValid(geom_2154)) AS wkt, section, numero, idu
-    FROM latresne.parcelles_latresne
+    FROM latresne.parcelles
     WHERE code_insee = :code_insee
       AND ST_Touches(
         geom_2154,

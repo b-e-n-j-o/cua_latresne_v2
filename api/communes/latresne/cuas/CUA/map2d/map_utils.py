@@ -42,7 +42,7 @@ def get_parcelle_geometry(engine, section, numero):
     """Récupère la géométrie WKT d’une parcelle via SQLAlchemy."""
     q = text("""
         SELECT ST_AsText(geom_2154)
-        FROM latresne.parcelles_latresne
+        FROM latresne.parcelles
         WHERE section = :s AND numero = :n
     """)
     with engine.connect() as conn:

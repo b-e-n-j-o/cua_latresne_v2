@@ -24,10 +24,12 @@ from .zonage import (
     fetch_zonage_reglement_rows,
     filter_zonage_rows,
     get_zonage_et_reglements,
+    strict_parcel_intersection_filter_sql,
 )
 
 __all__ = [
     "MIN_PARCEL_INTERSECTION_M2",
+    "strict_parcel_intersection_filter_sql",
     "normalize_parcel_refs",
     "parcel_tool_properties",
     "parcelles_refs_to_json",

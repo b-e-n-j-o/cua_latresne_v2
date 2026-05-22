@@ -86,7 +86,7 @@ def verifier_unite_fonciere(cerfa_json_path: str, code_insee: str, out_dir: str 
                 p.contenance,
                 ST_AsText(p.geom_2154) AS geom_wkt
             FROM requested r
-            JOIN latresne.parcelles_latresne p
+            JOIN latresne.parcelles p
               ON UPPER(TRIM(p.section)) = r.section
              AND LPAD(TRIM(p.numero), 4, '0') = r.numero
              AND p.code_insee = %s
@@ -96,7 +96,7 @@ def verifier_unite_fonciere(cerfa_json_path: str, code_insee: str, out_dir: str 
         )
         rows = cur.fetchall()
     except Exception as e:
-        return {"success": False, "message": f"Erreur base parcelles_latresne : {e}", "groupes": []}
+        return {"success": False, "message": f"Erreur base parcelles : {e}", "groupes": []}
     finally:
         if cur:
             cur.close()

@@ -205,7 +205,7 @@
       "article": "7",
       "geom_type": "surfacique"
     },
-    "plu_latresne": {
+    "zonage_plu": {
       "nom": "Zonage PLU",
       "type": "prescription",
       "keep": [

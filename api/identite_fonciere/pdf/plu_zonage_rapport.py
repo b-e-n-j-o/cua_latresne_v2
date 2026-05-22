@@ -2,8 +2,8 @@
 Page PDF « Zonage PLU » : carto + légende % + tableau + laius.
 
 Logique isolée du reste de `plu_visuels.py` : les requêtes PostGIS ciblent
-``{db_schema}.{table}`` selon le catalogue actif (GPU `zonage_plu` vs Latresne `plu_latresne`),
-au lieu de ``latresne.plu_latresne`` en dur.
+``{db_schema}.{table}`` selon le catalogue actif (GPU `zonage_plu` vs Latresne `zonage_plu`),
+au lieu de ``latresne.zonage_plu`` en dur.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from shapely.ops import unary_union
 
 from .plu_visuels import (
     MIN_PCT_ZONAGE_URBAIN,
-    PLU_LATRESNE_TABLE,
+    zonage_plu_TABLE,
     _color_map_from_plu_gdf,
     _color_from_typezone,
     _db_params,
@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 _SQL_IDENT_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
 
 # Couches susceptibles d’alimenter la page « Zonage PLU » (carte + filtre + résumé couverture)
-ZONAGE_PAGE_LAYER_KEYS = frozenset({"plu_latresne", "zonage_plu"})
+ZONAGE_PAGE_LAYER_KEYS = frozenset({"zonage_plu", "zonage_plu"})
 
 
 def _sql_ident(name: str) -> str:
@@ -67,22 +67,22 @@ def resolve_plu_zonage_page_config(
     """
     Choisit la table PLU surfacique utilisée pour la page PDF.
 
-    - Schéma ``latresne`` + entrée ``plu_latresne`` au catalogue → flux legacy (geom_3857, laius).
+    - Schéma ``latresne`` + entrée ``zonage_plu`` au catalogue → flux legacy (geom_3857, laius).
     - Sinon, si ``zonage_plu`` est au catalogue (GPU) → ``{db_schema}.zonage_plu`` (geom_2154 → 3857).
-    - Sinon ``plu_latresne`` si présent au catalogue.
-    - Repli : ``latresne`` / ``plu_latresne``.
+    - Sinon ``zonage_plu`` si présent au catalogue.
+    - Repli : ``latresne`` / ``zonage_plu``.
     """
     sch = (db_schema or "latresne").strip().lower()
     if not _SQL_IDENT_RE.match(sch):
         raise ValueError(f"db_schema invalide pour page zonage : {db_schema!r}")
     cat = catalogue or {}
-    if sch == "latresne" and "plu_latresne" in cat:
-        return PluZonagePageConfig(db_schema=sch, table="plu_latresne", variant="legacy")
+    if sch == "latresne" and "zonage_plu" in cat:
+        return PluZonagePageConfig(db_schema=sch, table="zonage_plu", variant="legacy")
     if "zonage_plu" in cat:
         return PluZonagePageConfig(db_schema=sch, table="zonage_plu", variant="geoportail")
-    if "plu_latresne" in cat:
-        return PluZonagePageConfig(db_schema=sch, table="plu_latresne", variant="legacy")
-    return PluZonagePageConfig(db_schema="latresne", table="plu_latresne", variant="legacy")
+    if "zonage_plu" in cat:
+        return PluZonagePageConfig(db_schema=sch, table="zonage_plu", variant="legacy")
+    return PluZonagePageConfig(db_schema="latresne", table="zonage_plu", variant="legacy")
 
 
 def _zonage_plu_element_stats_key(el: dict) -> str:
@@ -340,8 +340,8 @@ def fetch_zonage_laius_for_page(
     zonages: list[str],
     cfg: PluZonagePageConfig,
 ) -> dict[str, str]:
-    """Textes laius : uniquement flux legacy ``plu_latresne`` avec colonne ``laius_reglement``."""
-    if cfg.variant != "legacy" or cfg.table != PLU_LATRESNE_TABLE:
+    """Textes laius : uniquement flux legacy ``zonage_plu`` avec colonne ``laius_reglement``."""
+    if cfg.variant != "legacy" or cfg.table != zonage_plu_TABLE:
         return {}
     cleaned = sorted({str(z).strip() for z in zonages if z is not None and str(z).strip()})
     if not cleaned:

@@ -5,46 +5,47 @@ from __future__ import annotations
 import json
 import logging
 
+import psycopg2
+
+from ...commune_context import q
+from .catalog_bridge import prescription_config
 from .db import db_query
 from .parcel_geom import resolve_unite_fonciere
+from .zonage import strict_parcel_intersection_filter_sql
 
 logger = logging.getLogger("plu_tools")
 
-PRESCRIPTION_CONFIG: dict[str, dict] = {
-    "surfaciques": {
-        "table": "argeles.prescriptions_surf",
-        "kind": "surfacique",
-        "color": "#9D4EDD",
-    },
-    "lineaires": {
-        "table": "argeles.prescriptions_lineaires",
-        "kind": "lineaire",
-        "color": "#E63946",
-    },
-    "ponctuelles": {
-        "table": "argeles.prescriptions_ponctuelles",
-        "kind": "ponctuelle",
-        "color": "#FFBE0B",
-    },
-}
 
-
-def _sql_prescriptions(table: str, with_geojson: bool) -> str:
+def _sql_prescriptions(table: str, with_geojson: bool, strict_parcel: bool = True) -> str:
+    entity_geom = "ST_MakeValid(p.geom_2154)"
     geom_sel = (
-        ", ST_AsGeoJSON(ST_Transform(ST_Force2D(ST_MakeValid(p.geom_2154)), 4326)) AS geojson_geom"
+        f", ST_AsGeoJSON(ST_Transform(ST_Force2D({entity_geom}), 4326)) AS geojson_geom"
         if with_geojson
         else ""
     )
-    return f"""
-        WITH cible AS (
-            SELECT ST_MakeValid(ST_GeomFromEWKB(%s)) AS geom
-        ),
+    if strict_parcel:
+        scope_cte = """
+        cible_scope AS (
+            SELECT geom FROM cible
+        )"""
+        intersect_filter = f"""
+          AND ST_Intersects({entity_geom}, c.geom)
+          AND {strict_parcel_intersection_filter_sql(entity_geom)}"""
+    else:
+        scope_cte = """
         cible_scope AS (
             SELECT ST_MakeValid(
                 CASE WHEN %s::float > 0 THEN ST_Buffer(geom, %s::float) ELSE geom END
             ) AS geom
             FROM cible
-        )
+        )"""
+        intersect_filter = f" AND ST_Intersects({entity_geom}, c.geom)"
+
+    return f"""
+        WITH cible AS (
+            SELECT ST_MakeValid(ST_GeomFromEWKB(%s)) AS geom
+        ),
+        {scope_cte}
         SELECT
             p.gml_id,
             p.libelle,
@@ -52,10 +53,10 @@ def _sql_prescriptions(table: str, with_geojson: bool) -> str:
             p.typepsc,
             p.stypepsc
             {geom_sel}
-        FROM {table} p
+        FROM {q(table)} p
         CROSS JOIN cible_scope c
         WHERE p.geom_2154 IS NOT NULL
-          AND ST_Intersects(ST_MakeValid(p.geom_2154), c.geom)
+          {intersect_filter}
         ORDER BY p.libelle NULLS LAST, p.gml_id;
     """
 
@@ -65,12 +66,33 @@ def fetch_prescriptions_rows(
     geom_wkb: bytes,
     buffer_m: float = 0.0,
     with_geojson: bool = False,
+    strict_parcel: bool = True,
 ) -> dict[str, list[dict]]:
     out: dict[str, list[dict]] = {}
     buf = float(buffer_m or 0)
-    for key, cfg in PRESCRIPTION_CONFIG.items():
-        sql = _sql_prescriptions(cfg["table"], with_geojson)
-        out[key] = db_query(db_config, sql, (geom_wkb, buf, buf))
+    cfg_map = prescription_config()
+    for key, cfg in cfg_map.items():
+        if not cfg.get("context_carto") and with_geojson:
+            continue
+        if not cfg.get("context_llm") and not with_geojson:
+            continue
+        sql = _sql_prescriptions(cfg["table"], with_geojson, strict_parcel=strict_parcel)
+        try:
+            if strict_parcel:
+                out[key] = db_query(db_config, sql, (geom_wkb,))
+            else:
+                out[key] = db_query(db_config, sql, (geom_wkb, buf, buf))
+        except psycopg2.Error as e:
+            if cfg.get("optional"):
+                logger.warning(
+                    "fetch_prescriptions_rows — %s (%s) ignoré : %s",
+                    key,
+                    cfg["table"],
+                    e,
+                )
+                out[key] = []
+            else:
+                raise
     return out
 
 
@@ -119,7 +141,7 @@ def build_llm_payload(rows_by_kind: dict[str, list[dict]]) -> dict:
 
 
 def _rows_to_features(rows: list[dict], kind_key: str) -> list[dict]:
-    cfg = PRESCRIPTION_CONFIG[kind_key]
+    cfg = prescription_config().get(kind_key) or {}
     features = []
     for r in rows:
         geom = _parse_geojson(r.get("geojson_geom"))
@@ -142,12 +164,13 @@ def _rows_to_features(rows: list[dict], kind_key: str) -> list[dict]:
 
 
 def build_map_prescriptions(rows_by_kind: dict[str, list[dict]]) -> dict:
+    keys = set(prescription_config()) | set(rows_by_kind.keys())
     return {
         key: {
             "type": "FeatureCollection",
             "features": _rows_to_features(rows_by_kind.get(key) or [], key),
         }
-        for key in PRESCRIPTION_CONFIG
+        for key in keys
     }
 
 
@@ -177,6 +200,18 @@ def get_prescriptions(
                 "ponctuelles": [],
                 "count": 0,
                 "error": resolved["error"],
+            }
+
+        if not prescription_config():
+            return {
+                "surfaciques": [],
+                "lineaires": [],
+                "ponctuelles": [],
+                "count": 0,
+                "parcelles": resolved.get("parcelles") or [],
+                "nb_parcelles": resolved.get("nb_parcelles"),
+                "superficie_unite_m2": resolved.get("superficie_m2"),
+                "error": None,
             }
 
         rows_by_kind = fetch_prescriptions_rows(

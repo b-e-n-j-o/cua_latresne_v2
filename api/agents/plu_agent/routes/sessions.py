@@ -15,6 +15,8 @@ from google.genai import types
 from pydantic import BaseModel, Field
 
 from .._env import DB_CONFIG, GEMINI_MODEL
+from ..commune_context import get_current_profile
+from ..commune_profile import CommuneProfile
 from .schemas import ToolCallLog, Usage
 
 try:
@@ -25,7 +27,6 @@ except ImportError:
     from tools.utils.parcel_geom import normalize_parcel_refs, parcelles_refs_to_json
 
 logger = logging.getLogger("plu_api")
-router = APIRouter()
 
 # ---------------------------------------------------------------------------
 # Schémas
@@ -141,8 +142,9 @@ def _session_title(section, numero, idu, preview, parcelles_refs: str | None = N
 
 def session_create(section, numero, idu, parcelles_refs, zones, model) -> str:
     """parcelles_refs : JSON stocké dans la colonne geojson (liste de refs, pas de géométrie)."""
-    sql = """
-        INSERT INTO argeles.plu_sessions
+    sessions = get_current_profile().sessions_table()
+    sql = f"""
+        INSERT INTO {sessions}
             (section, numero, idu, geojson, zones, model)
         VALUES (%s, %s, %s, %s, %s, %s)
         RETURNING id;
@@ -161,7 +163,8 @@ def session_create(section, numero, idu, parcelles_refs, zones, model) -> str:
 
 
 def session_get(session_id: str) -> dict | None:
-    sql = "SELECT * FROM argeles.plu_sessions WHERE id = %s;"
+    sessions = get_current_profile().sessions_table()
+    sql = f"SELECT * FROM {sessions} WHERE id = %s;"
     conn = _db_conn()
     with conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -176,9 +179,10 @@ def session_get(session_id: str) -> dict | None:
 
 
 def messages_get(session_id: str) -> list[dict]:
-    sql = """
+    messages = get_current_profile().messages_table()
+    sql = f"""
         SELECT role, content, tool_calls, created_at
-        FROM argeles.plu_messages
+        FROM {messages}
         WHERE session_id = %s
         ORDER BY created_at ASC;
     """
@@ -195,16 +199,19 @@ def messages_get(session_id: str) -> list[dict]:
 
 def messages_insert(session_id, user_message, model_answer, tool_calls,
                     prompt_tokens, candidate_tokens, total_tokens, latency_ms):
-    sql_msg = """
-        INSERT INTO argeles.plu_messages
+    profile = get_current_profile()
+    messages = profile.messages_table()
+    sessions = profile.sessions_table()
+    sql_msg = f"""
+        INSERT INTO {messages}
             (session_id, role, content, tool_calls, prompt_tokens,
              candidate_tokens, total_tokens, latency_ms)
         VALUES
             (%s, 'user',  %s, NULL,  NULL, NULL, NULL, NULL),
             (%s, 'model', %s, %s,    %s,   %s,   %s,   %s);
     """
-    sql_session = """
-        UPDATE argeles.plu_sessions
+    sql_session = f"""
+        UPDATE {sessions}
         SET total_tokens = total_tokens + COALESCE(%s, 0),
             total_turns  = total_turns  + 1,
             updated_at   = now()
@@ -224,8 +231,9 @@ def messages_insert(session_id, user_message, model_answer, tool_calls,
 
 
 def session_delete(session_id: str) -> bool:
-    sql_msgs = "DELETE FROM argeles.plu_messages WHERE session_id = %s;"
-    sql_session = "DELETE FROM argeles.plu_sessions WHERE id = %s RETURNING id;"
+    profile = get_current_profile()
+    sql_msgs = f"DELETE FROM {profile.messages_table()} WHERE session_id = %s;"
+    sql_session = f"DELETE FROM {profile.sessions_table()} WHERE id = %s RETURNING id;"
     conn = _db_conn()
     with conn:
         with conn.cursor() as cur:
@@ -237,12 +245,15 @@ def session_delete(session_id: str) -> bool:
 
 
 def _sessions_list(limit: int = 50) -> list[dict]:
-    sql = """
+    profile = get_current_profile()
+    sessions = profile.sessions_table()
+    messages = profile.messages_table()
+    sql = f"""
         SELECT s.id, s.section, s.numero, s.idu, s.zones, s.total_turns, s.updated_at,
-            (SELECT content FROM argeles.plu_messages m
+            (SELECT content FROM {messages} m
              WHERE m.session_id = s.id AND m.role = 'user'
              ORDER BY m.created_at ASC LIMIT 1) AS preview
-        FROM argeles.plu_sessions s
+        FROM {sessions} s
         ORDER BY s.updated_at DESC
         LIMIT %s;
     """
@@ -261,161 +272,163 @@ def _sessions_list(limit: int = 50) -> list[dict]:
 # Endpoints
 # ---------------------------------------------------------------------------
 
-@router.get("/sessions", response_model=SessionsListResponse)
-def list_sessions(limit: int = 50):
-    limit = max(1, min(limit, 100))
-    rows = _sessions_list(limit=limit)
-    return SessionsListResponse(sessions=[
-        SessionListItem(
-            session_id=row["id"],
-            title=_session_title(
-                row.get("section"),
-                row.get("numero"),
-                row.get("idu"),
-                row.get("preview"),
-                row.get("geojson"),
-            ),
-            zones_summary=zones_summary(row.get("zones") or []),
-            total_turns=row.get("total_turns") or 0,
-            updated_at=str(row["updated_at"]),
-            preview=row.get("preview"),
+def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
+    @router.get("/sessions", response_model=SessionsListResponse)
+    @bind
+    def list_sessions(limit: int = 50):
+        limit = max(1, min(limit, 100))
+        rows = _sessions_list(limit=limit)
+        return SessionsListResponse(sessions=[
+            SessionListItem(
+                session_id=row["id"],
+                title=_session_title(
+                    row.get("section"),
+                    row.get("numero"),
+                    row.get("idu"),
+                    row.get("preview"),
+                    row.get("geojson"),
+                ),
+                zones_summary=zones_summary(row.get("zones") or []),
+                total_turns=row.get("total_turns") or 0,
+                updated_at=str(row["updated_at"]),
+                preview=row.get("preview"),
+            )
+            for row in rows
+        ])
+
+    @router.post("/session", response_model=SessionResponse)
+    @bind
+    def create_session(req: SessionRequest):
+        from .chat import run_turn, session_show_map
+
+        parcelles_arg = (
+            [{"section": p.section, "numero": p.numero} for p in req.parcelles]
+            if req.parcelles
+            else None
         )
-        for row in rows
-    ])
-
-
-@router.post("/session", response_model=SessionResponse)
-def create_session(req: SessionRequest):
-    from .chat import run_turn, session_show_map  # import local — évite cycle au chargement
-
-    parcelles_arg = (
-        [{"section": p.section, "numero": p.numero} for p in req.parcelles]
-        if req.parcelles
-        else None
-    )
-    refs = normalize_parcel_refs(
-        parcelles=parcelles_arg,
-        idus=req.idus,
-        section=req.section,
-        numero=req.numero,
-        idu=req.idu,
-    )
-
-    t0 = time.monotonic()
-
-    zones: list[dict] = []
-    session_section = None
-    session_numero = None
-    session_idu = None
-    parcelles_refs = None
-
-    if refs:
-        zones_result = get_zonage_et_reglements(
-            DB_CONFIG,
+        refs = normalize_parcel_refs(
             parcelles=parcelles_arg,
             idus=req.idus,
             section=req.section,
             numero=req.numero,
             idu=req.idu,
         )
-        if zones_result.get("error"):
-            raise HTTPException(status_code=400, detail=zones_result["error"])
 
-        zones = zones_result.get("zones", [])
-        first = refs[0]
-        session_section = first["section"] if first["type"] == "sn" else None
-        session_numero = first["numero"] if first["type"] == "sn" else None
-        session_idu = first["idu"] if first["type"] == "idu" else None
-        parcelles_refs = parcelles_refs_to_json(
-            parcelles=parcelles_arg,
-            idus=req.idus,
-            section=req.section,
-            numero=req.numero,
-            idu=req.idu,
+        t0 = time.monotonic()
+
+        zones: list[dict] = []
+        session_section = None
+        session_numero = None
+        session_idu = None
+        parcelles_refs = None
+
+        if refs:
+            zones_result = get_zonage_et_reglements(
+                DB_CONFIG,
+                parcelles=parcelles_arg,
+                idus=req.idus,
+                section=req.section,
+                numero=req.numero,
+                idu=req.idu,
+            )
+            if zones_result.get("error"):
+                raise HTTPException(status_code=400, detail=zones_result["error"])
+
+            zones = zones_result.get("zones", [])
+            first = refs[0]
+            session_section = first["section"] if first["type"] == "sn" else None
+            session_numero = first["numero"] if first["type"] == "sn" else None
+            session_idu = first["idu"] if first["type"] == "idu" else None
+            parcelles_refs = parcelles_refs_to_json(
+                parcelles=parcelles_arg,
+                idus=req.idus,
+                section=req.section,
+                numero=req.numero,
+                idu=req.idu,
+            )
+        else:
+            logger.info("session sans référence parcellaire — zonage non préchargé")
+
+        session_id = session_create(
+            section=session_section,
+            numero=session_numero,
+            idu=session_idu,
+            parcelles_refs=parcelles_refs,
+            zones=zones,
+            model=GEMINI_MODEL,
         )
-    else:
-        logger.info("session sans référence parcellaire — zonage non préchargé")
+        logger.info(f"session créée : {session_id} — zones : {zones_summary(zones)}")
 
-    session_id = session_create(
-        section=session_section,
-        numero=session_numero,
-        idu=session_idu,
-        parcelles_refs=parcelles_refs,
-        zones=zones,
-        model=GEMINI_MODEL,
-    )
-    logger.info(f"session créée : {session_id} — zones : {zones_summary(zones)}")
-
-    answer     = None
-    tool_calls = []
-    usage      = None
-    latency_ms = int((time.monotonic() - t0) * 1000)
-
-    if req.question:
-        contents = [types.Content(role="user", parts=[types.Part(text=req.question)])]
-        try:
-            answer, tool_calls, usage = run_turn(zones, contents)
-        except Exception as e:
-            logger.error(f"agentic_loop error : {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e))
-
+        answer = None
+        tool_calls = []
+        usage = None
         latency_ms = int((time.monotonic() - t0) * 1000)
-        messages_insert(
+
+        if req.question:
+            contents = [types.Content(role="user", parts=[types.Part(text=req.question)])]
+            try:
+                answer, tool_calls, usage = run_turn(zones, contents)
+            except Exception as e:
+                logger.error(f"agentic_loop error : {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e))
+
+            latency_ms = int((time.monotonic() - t0) * 1000)
+            messages_insert(
+                session_id=session_id,
+                user_message=req.question,
+                model_answer=answer,
+                tool_calls=[tc.model_dump() for tc in tool_calls],
+                prompt_tokens=usage.prompt_tokens,
+                candidate_tokens=usage.candidate_tokens,
+                total_tokens=usage.total_tokens,
+                latency_ms=latency_ms,
+            )
+
+        show_map = session_show_map(session_get(session_id)) if refs else False
+
+        return SessionResponse(
             session_id=session_id,
-            user_message=req.question,
-            model_answer=answer,
-            tool_calls=[tc.model_dump() for tc in tool_calls],
-            prompt_tokens=usage.prompt_tokens,
-            candidate_tokens=usage.candidate_tokens,
-            total_tokens=usage.total_tokens,
+            zones=zones,
+            zones_summary=zones_summary(zones),
+            answer=answer,
+            tool_calls=tool_calls,
+            usage=usage,
             latency_ms=latency_ms,
+            model=GEMINI_MODEL,
+            map_data=None,
+            show_map=show_map,
         )
 
-    show_map = session_show_map(session_get(session_id)) if refs else False
+    @router.delete("/session/{session_id}", status_code=204)
+    @bind
+    def delete_session(session_id: str):
+        if not session_delete(session_id):
+            raise HTTPException(status_code=404, detail=f"Session {session_id} introuvable.")
 
-    return SessionResponse(
-        session_id=session_id,
-        zones=zones,
-        zones_summary=zones_summary(zones),
-        answer=answer,
-        tool_calls=tool_calls,
-        usage=usage,
-        latency_ms=latency_ms,
-        model=GEMINI_MODEL,
-        map_data=None,
-        show_map=show_map,
-    )
-
-
-@router.delete("/session/{session_id}", status_code=204)
-def delete_session(session_id: str):
-    if not session_delete(session_id):
-        raise HTTPException(status_code=404, detail=f"Session {session_id} introuvable.")
-
-
-@router.get("/session/{session_id}", response_model=SessionStateResponse)
-def get_session(session_id: str):
-    session = session_get(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail=f"Session {session_id} introuvable.")
-    messages = messages_get(session_id)
-    return SessionStateResponse(
-        session_id=str(session["id"]),
-        created_at=str(session["created_at"]),
-        updated_at=str(session["updated_at"]),
-        section=session.get("section"),
-        numero=session.get("numero"),
-        idu=session.get("idu"),
-        zones=session.get("zones") or [],
-        total_tokens=session.get("total_tokens", 0),
-        total_turns=session.get("total_turns", 0),
-        messages=[
-            {
-                "role":       m["role"],
-                "content":    m["content"],
-                "tool_calls": m.get("tool_calls"),
-                "created_at": str(m["created_at"]),
-            }
-            for m in messages
-        ],
-    )
+    @router.get("/session/{session_id}", response_model=SessionStateResponse)
+    @bind
+    def get_session(session_id: str):
+        session = session_get(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} introuvable.")
+        messages = messages_get(session_id)
+        return SessionStateResponse(
+            session_id=str(session["id"]),
+            created_at=str(session["created_at"]),
+            updated_at=str(session["updated_at"]),
+            section=session.get("section"),
+            numero=session.get("numero"),
+            idu=session.get("idu"),
+            zones=session.get("zones") or [],
+            total_tokens=session.get("total_tokens", 0),
+            total_turns=session.get("total_turns", 0),
+            messages=[
+                {
+                    "role": m["role"],
+                    "content": m["content"],
+                    "tool_calls": m.get("tool_calls"),
+                    "created_at": str(m["created_at"]),
+                }
+                for m in messages
+            ],
+        )

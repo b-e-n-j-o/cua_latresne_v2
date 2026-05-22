@@ -1,0 +1,710 @@
+{
+  "_doc": "Latresne — socle GPU = default.json. Couches supplémentaires : éditer uniquement ce fichier (keep + clean_attributes). Indépendant du catalogue identité foncière.",
+  "layers": {
+    "a4": {
+      "enabled": true,
+      "table": "a4",
+      "title": "Servitudes A4 - Cours d'eau",
+      "group": "servitude",
+      "kind": "lineaire",
+      "color": "#457B9D",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "reglementation",
+        "toponyme"
+      ],
+      "clean_attributes": [
+        "Réglementation",
+        "Nom"
+      ]
+    },
+    "ac1": {
+      "enabled": true,
+      "table": "ac1",
+      "title": "Servitudes AC1 - Monuments historiques",
+      "group": "servitude",
+      "kind": "surfacique",
+      "color": "#457B9D",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "nomsuplitt",
+        "typeass",
+        "nature_protection",
+        "precision_protection",
+        "statut_proprietaire",
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Nom monument",
+        "Type de protection",
+        "Nature de protection",
+        "Precision",
+        "Type proprietaire",
+        "Réglementation"
+      ]
+    },
+    "pm1_detaillee_gironde": {
+      "enabled": true,
+      "table": "pm1_detaillee_gironde",
+      "title": "Servitude PM1 - PPRI",
+      "group": "servitude",
+      "kind": "surfacique",
+      "color": "#457B9D",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "nom",
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Nom",
+        "Réglementation"
+      ]
+    },
+    "aoc_viticoles": {
+      "enabled": true,
+      "table": "aoc_viticoles",
+      "title": "AOC viticoles",
+      "group": "information",
+      "kind": "surfacique",
+      "color": "#2A9D8F",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "denom",
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Domaine",
+        "Réglementation"
+      ]
+    },
+    "debroussaillement": {
+      "enabled": true,
+      "table": "debroussaillement",
+      "title": "Zones de débroussaillement",
+      "group": "prescription_locale",
+      "kind": "surfacique",
+      "color": "#9D4EDD",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "zonage",
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Zonage",
+        "Réglementation"
+      ]
+    },
+    "france_zonage_sismique": {
+      "enabled": true,
+      "table": "france_zonage_sismique",
+      "title": "Zonage sismique France",
+      "group": "information",
+      "kind": "surfacique",
+      "color": "#2A9D8F",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "sismicite",
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Sismicite",
+        "Réglementation"
+      ]
+    },
+    "galerie_cheminement_et_pilier": {
+      "enabled": true,
+      "table": "galerie_cheminement_et_pilier",
+      "title": "Galeries et piliers souterrains",
+      "group": "information",
+      "kind": "lineaire",
+      "color": "#2A9D8F",
+      "strict_parcel": true,
+      "inclu_buffer": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Réglementation"
+      ]
+    },
+    "haies_bocages_latresne": {
+      "enabled": true,
+      "table": "haies_bocages_latresne",
+      "title": "Haies et bocages",
+      "group": "information",
+      "kind": "lineaire",
+      "color": "#2A9D8F",
+      "strict_parcel": true,
+      "inclu_buffer": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Réglementation"
+      ]
+    },
+    "i1_hydrocarbure_chimique_gaz": {
+      "enabled": true,
+      "table": "i1_hydrocarbure_chimique_gaz",
+      "title": "Servitudes I1 – Hydrocarbures",
+      "group": "servitude",
+      "kind": "surfacique",
+      "color": "#457B9D",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "cat_fluide",
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Catégorie de fluide",
+        "Réglementation"
+      ]
+    },
+    "i6": {
+      "enabled": true,
+      "table": "i6",
+      "title": "Servitudes I6 - Mines et carrières",
+      "group": "servitude",
+      "kind": "lineaire",
+      "color": "#457B9D",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Réglementation"
+      ]
+    },
+    "preemption": {
+      "enabled": true,
+      "table": "preemption",
+      "title": "Zones de préemption",
+      "group": "information",
+      "kind": "surfacique",
+      "color": "#2A9D8F",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "libelle",
+        "laius_reglement"
+      ],
+      "clean_attributes": [
+        "Libelle",
+        "Réglementation"
+      ]
+    },
+    "nuisances_sonores_gironde": {
+      "enabled": true,
+      "table": "nuisances_sonores_gironde",
+      "title": "Nuisances sonores Gironde",
+      "group": "prescription_locale",
+      "kind": "surfacique",
+      "color": "#9D4EDD",
+      "strict_parcel": true,
+      "inclu_buffer": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "nom_tronc",
+        "debutant",
+        "finissant",
+        "cat_bruit",
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Nom troncon",
+        "Debutant",
+        "Finissant",
+        "Catégorie de bruit",
+        "Réglementation"
+      ]
+    },
+    "patrimoine_naturel_latresne": {
+      "enabled": true,
+      "table": "patrimoine_naturel_latresne",
+      "title": "Patrimoine naturel",
+      "group": "information",
+      "kind": "surfacique",
+      "color": "#2A9D8F",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "nom",
+        "type_patrimoine",
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Nom",
+        "Type de patrimoine",
+        "Réglementation"
+      ]
+    },
+    "pt3": {
+      "enabled": true,
+      "table": "pt3",
+      "title": "Servitudes PT3 - Réseaux télécommunications",
+      "group": "servitude",
+      "kind": "lineaire",
+      "color": "#457B9D",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "nom_sup",
+        "type",
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Nom servitude",
+        "Type",
+        "Réglementation"
+      ]
+    },
+    "radon": {
+      "enabled": true,
+      "table": "radon",
+      "title": "IRSN - Radon métropole",
+      "group": "prescription_locale",
+      "kind": "surfacique",
+      "color": "#9D4EDD",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "classe_pot",
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Classe",
+        "Réglementation"
+      ]
+    },
+    "eaux_potables_lin": {
+      "enabled": true,
+      "table": "eaux_potables_lin",
+      "title": "Réseaux eaux potables (linéaires)",
+      "group": "information",
+      "kind": "lineaire",
+      "color": "#2A9D8F",
+      "strict_parcel": true,
+      "inclu_buffer": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "libelle"
+      ],
+      "clean_attributes": [
+        "Libelle"
+      ]
+    },
+    "eaux_potables_pct": {
+      "enabled": true,
+      "table": "eaux_potables_pct",
+      "title": "Réseaux eaux potables (ponctuels)",
+      "group": "information",
+      "kind": "ponctuelle",
+      "color": "#2A9D8F",
+      "strict_parcel": true,
+      "inclu_buffer": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "libelle"
+      ],
+      "clean_attributes": [
+        "Libelle"
+      ]
+    },
+    "eaux_usees_lin": {
+      "enabled": true,
+      "table": "eaux_usees_lin",
+      "title": "Réseaux eaux usées (linéaires)",
+      "group": "information",
+      "kind": "lineaire",
+      "color": "#2A9D8F",
+      "strict_parcel": true,
+      "inclu_buffer": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "libelle"
+      ],
+      "clean_attributes": [
+        "Libelle"
+      ]
+    },
+    "eaux_usees_pct": {
+      "enabled": true,
+      "table": "eaux_usees_pct",
+      "title": "Réseaux eaux usées (ponctuels)",
+      "group": "information",
+      "kind": "ponctuelle",
+      "color": "#2A9D8F",
+      "strict_parcel": true,
+      "inclu_buffer": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "libelle"
+      ],
+      "clean_attributes": [
+        "Libelle"
+      ]
+    },
+    "reseaux_hta": {
+      "enabled": true,
+      "table": "reseaux_hta",
+      "title": "Réseaux HTA",
+      "group": "reseaux",
+      "kind": "lineaire",
+      "color": "#6C757D",
+      "strict_parcel": true,
+      "inclu_buffer": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "type"
+      ],
+      "clean_attributes": [
+        "Type"
+      ]
+    },
+    "retrait_gonflement_argiles_gironde": {
+      "enabled": true,
+      "table": "retrait_gonflement_argiles_gironde",
+      "title": "Retrait-gonflement des argiles",
+      "group": "prescription_locale",
+      "kind": "surfacique",
+      "color": "#9D4EDD",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "niveau",
+        "alea",
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Niveau",
+        "Aléa",
+        "Réglementation"
+      ]
+    },
+    "retrait_gonflement_argiles_gironde_2026": {
+      "enabled": true,
+      "table": "retrait_gonflement_argiles_gironde_2026",
+      "title": "Retrait-gonflement des argiles - Règlementation à venir, juillet 2026",
+      "group": "prescription_locale",
+      "kind": "surfacique",
+      "color": "#9D4EDD",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "niveau",
+        "alea",
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Niveau",
+        "Aléa",
+        "Réglementation"
+      ]
+    },
+    "secteurs_carrieres_comblees": {
+      "enabled": true,
+      "table": "secteurs_carrieres_comblees",
+      "title": "Secteurs carrières comblées",
+      "group": "information",
+      "kind": "surfacique",
+      "color": "#2A9D8F",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "type_comblement",
+        "nom_cavite"
+      ],
+      "clean_attributes": [
+        "Type de comblement",
+        "Nom de la cavité"
+      ]
+    },
+    "troncons_et_fosses_latresne": {
+      "enabled": true,
+      "table": "troncons_et_fosses_latresne",
+      "title": "Fossés Latresne",
+      "group": "information",
+      "kind": "lineaire",
+      "color": "#2A9D8F",
+      "strict_parcel": true,
+      "inclu_buffer": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "observation",
+        "type_ecoulement",
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Observation",
+        "Type d'écoulement",
+        "Réglementation"
+      ]
+    },
+    "zaenr_zones": {
+      "enabled": true,
+      "table": "zaenr_zones",
+      "title": "Zone d'Accélération des Energies Renouvelables (ZAEnR)",
+      "group": "information",
+      "kind": "surfacique",
+      "color": "#2A9D8F",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "detail_fil",
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Détail filière",
+        "Réglementation"
+      ]
+    },
+    "zbrs_gironde": {
+      "enabled": true,
+      "table": "zbrs_gironde",
+      "title": "ZBRS Gironde",
+      "group": "information",
+      "kind": "surfacique",
+      "color": "#2A9D8F",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "source",
+        "legende",
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Zone de bruit",
+        "Décibels",
+        "Réglementation"
+      ]
+    },
+    "as1_captages_eau": {
+      "enabled": true,
+      "table": "as1_captages_eau",
+      "title": "Captages d'eau potable (AS1)",
+      "group": "servitude",
+      "kind": "surfacique",
+      "color": "#457B9D",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "nom_captage",
+        "perimetre_protection",
+        "ins_pro__1",
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Nom captage",
+        "Périmètre de protection",
+        "Inscription protection",
+        "Réglementation"
+      ]
+    },
+    "seveso_buffers": {
+      "enabled": true,
+      "table": "seveso_buffers",
+      "title": "Périmètre SEVESO - Procédure de participation",
+      "group": "information",
+      "kind": "surfacique",
+      "color": "#2A9D8F",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "nom_ets",
+        "lib_seveso",
+        "adresse",
+        "lib_naf",
+        "num_siret",
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Nom établissement",
+        "Libellé Seveso",
+        "Adresse",
+        "Libellé NAF",
+        "Numéro Siret",
+        "Réglementation"
+      ]
+    },
+    "el3_garonne": {
+      "enabled": true,
+      "table": "el3_garonne",
+      "title": "Servitude EL3 - Domaine public fluvial",
+      "group": "servitude",
+      "kind": "surfacique",
+      "color": "#457B9D",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Réglementation"
+      ]
+    },
+    "i4_cables_haute_tension": {
+      "enabled": true,
+      "table": "i4_cables_haute_tension",
+      "title": "Servitude I4 - Câbles haute tension",
+      "group": "servitude",
+      "kind": "lineaire",
+      "color": "#457B9D",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "tension",
+        "type",
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Tension (kV)",
+        "Type",
+        "Réglementation"
+      ]
+    },
+    "icpe_seveso": {
+      "enabled": true,
+      "table": "icpe_seveso",
+      "title": "ICPE Seveso",
+      "group": "installations_classees",
+      "kind": "surfacique",
+      "color": "#E76F51",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "nom_ets",
+        "adresse",
+        "lib_naf",
+        "lib_seveso"
+      ],
+      "clean_attributes": [
+        "Nom établissement",
+        "Adresse",
+        "Libellé NAF",
+        "Libellé Seveso"
+      ]
+    },
+    "risque_mouvement_de_terrain": {
+      "enabled": true,
+      "table": "risque_mouvement_de_terrain",
+      "title": "Risques mouvements de terrain",
+      "group": "prescription_locale",
+      "kind": "surfacique",
+      "color": "#9D4EDD",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "libelle",
+        "reglementation"
+      ],
+      "clean_attributes": [
+        "Libelle",
+        "Réglementation"
+      ]
+    },
+    "pprmvt_latresne": {
+      "enabled": true,
+      "table": "pprmvt_latresne",
+      "title": "PPRMVT",
+      "group": "information",
+      "kind": "surfacique",
+      "color": "#2A9D8F",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "etiquette",
+        "niveau_max",
+        "Ap",
+        "Ag",
+        "Af",
+        "Zone_Regl_",
+        "Zone_Reg_1"
+      ],
+      "clean_attributes": [
+        "Etiquette",
+        "Niveau maximum",
+        "Ap",
+        "Ag",
+        "Af",
+        "Zone_Regl_",
+        "Zone_Reg_1"
+      ]
+    }
+  }
+}

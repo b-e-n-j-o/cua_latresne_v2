@@ -13,7 +13,7 @@ Génère **une seule image PNG** pour une parcelle / UF :
   (Les deux premiers chemins retournés pointent vers le **même PNG** pour compatibilité
   avec l’API historique qui distinguait carte et second visuel.)
 
-La géométrie parcelle est lue uniquement dans latresne.parcelles_latresne (PostGIS),
+La géométrie parcelle est lue uniquement dans latresne.parcelles (PostGIS),
 comme l’export GeoJSON (ST_Transform(geom_2154, 4326)).
 
 Usage standalone :
@@ -55,7 +55,7 @@ warnings.filterwarnings("ignore")
 MIN_PCT_ZONAGE_URBAIN = float(os.getenv("PLU_ZONAGE_MIN_PCT", "1.0"))
 
 # Table PLU Latresne (identique au catalogue / header)
-PLU_LATRESNE_TABLE = "plu_latresne"
+zonage_plu_TABLE = "zonage_plu"
 
 # PNG : carte carrée + panneau droit (légende zonages)
 # largeur_totale / hauteur — secours si lecture PIL indisponible côté PDF
@@ -67,7 +67,7 @@ PLU_MAP_RIGHT_PANEL_RATIO = 0.34  # largeur panneau droit / côté carte
 # Couleurs PLU : nomenclature d’appui (CNIG / typezone GPU), pas palette arbitraire
 # ---------------------------------------------------------------------------
 # Ancienne palette discrète conservée pour compat. éventuelle ; le rendu utilise
-# `_color_from_typezone` + colonne `typezone` de `latresne.plu_latresne`.
+# `_color_from_typezone` + colonne `typezone` de `latresne.zonage_plu`.
 PLU_PALETTE = [
     "#2D6A4F", "#52B788", "#B7E4C7", "#74C69D",
     "#E76F51", "#F4A261", "#E9C46A", "#264653",
@@ -157,13 +157,13 @@ def zonages_urbains_pour_rapport(
     return {k for k, v in pct_stats.items() if v >= min_pct}
 
 
-def filter_plu_latresne_layer_for_report(
+def filter_zonage_plu_layer_for_report(
     layer: dict[str, Any],
     pct_stats: dict[str, float],
     min_pct: float = MIN_PCT_ZONAGE_URBAIN,
 ) -> dict[str, Any]:
     """
-    Filtre la couche catalogue `plu_latresne` : ne garde que les éléments dont le zonage
+    Filtre la couche catalogue `zonage_plu` : ne garde que les éléments dont le zonage
     représente >= min_pct % de la surface d’étude. Met des drapeaux si tout est sous le seuil.
     """
     from ..identite_fonciere import get_catalogue, get_identite_db_schema
@@ -191,12 +191,12 @@ def plu_zonage_table_rows_from_intersections(
 
 
 # ---------------------------------------------------------------------------
-# Textes « laius » réglementaires (plu_latresne)
+# Textes « laius » réglementaires (zonage_plu)
 # ---------------------------------------------------------------------------
 
 
 def fetch_laius_reglement_par_zonages(zonages: list[str]) -> dict[str, str]:
-    """Rétrocompat : laius SQL uniquement pour flux legacy ``plu_latresne`` (voir ``plu_zonage_rapport``)."""
+    """Rétrocompat : laius SQL uniquement pour flux legacy ``zonage_plu`` (voir ``plu_zonage_rapport``)."""
     from ..identite_fonciere import get_catalogue, get_identite_db_schema
     from .plu_zonage_rapport import fetch_zonage_laius_for_page, resolve_plu_zonage_page_config
 
@@ -205,7 +205,7 @@ def fetch_laius_reglement_par_zonages(zonages: list[str]) -> dict[str, str]:
 
 
 # ---------------------------------------------------------------------------
-# 1. Parcelle : latresne.parcelles_latresne uniquement (équivalent export GeoJSON)
+# 1. Parcelle : latresne.parcelles uniquement (équivalent export GeoJSON)
 # ---------------------------------------------------------------------------
 
 def _normalize_parcelle_ids(section: str, numero: str) -> tuple[str, str]:
@@ -224,7 +224,7 @@ def fetch_parcelle_geojson_db(insee: str, section: str, numero: str) -> dict:
             cur.execute(
                 """
                 SELECT ST_AsGeoJSON(ST_Transform(geom_2154, 4326)) AS geom_json
-                FROM latresne.parcelles_latresne
+                FROM latresne.parcelles
                 WHERE code_insee = %s
                   AND UPPER(TRIM(section)) = %s
                   AND LPAD(TRIM(numero), 4, '0') = %s
@@ -248,7 +248,7 @@ def fetch_parcelle_geojson_db(insee: str, section: str, numero: str) -> dict:
 def fetch_parcelle(insee: str, section: str, numero: str) -> gpd.GeoDataFrame:
     """GeoDataFrame EPSG:4326 à partir du GeoJSON parcelle en base."""
     sec, num = _normalize_parcelle_ids(section, numero)
-    print(f"  ↳ Parcelle en base latresne.parcelles_latresne : {insee} {sec} {num} …")
+    print(f"  ↳ Parcelle en base latresne.parcelles : {insee} {sec} {num} …")
     gj = fetch_parcelle_geojson_db(insee, section, numero)
     geom = shape(gj)
     if geom.is_empty:
@@ -280,8 +280,8 @@ def fetch_parcelles_uf_for_schema(
     parcelles_cadastrales: Optional[list[dict[str, Any]]],
 ) -> Tuple[gpd.GeoDataFrame, List[dict[str, Any]]]:
     """
-    Parcelles cadastrales de l’UF dans ``{db_schema}.parcelles`` ou ``…parcelles_latresne`` (legacy Latresne).
-    Même logique que l’ancien nom ``fetch_parcelles_latresne_uf``, avec schéma explicite.
+    Parcelles cadastrales de l’UF dans ``{db_schema}.parcelles`` ou ``…parcelles`` (legacy Latresne).
+    Même logique que l’ancien nom ``fetch_parcelles_uf``, avec schéma explicite.
     """
     from ..identite_fonciere import _parcelles_table_for_schema
 
@@ -331,7 +331,7 @@ def fetch_parcelles_uf_for_schema(
                 uf_3857 = uf_gdf_4326.to_crs(epsg=3857)
                 uf_union = unary_union(uf_3857.geometry)
                 wkt = uf_union.wkt
-                if sch == "latresne" and tbl == "parcelles_latresne":
+                if sch == "latresne" and tbl == "parcelles":
                     cur.execute(
                         f"""
                         SELECT
@@ -441,7 +441,7 @@ def fetch_parcelles_uf_for_schema(
     return gdf, detail_out
 
 
-def fetch_parcelles_latresne_uf(
+def fetch_parcelles_uf(
     insee: str,
     uf_gdf_4326: gpd.GeoDataFrame,
     parcelles_cadastrales: Optional[list[dict[str, Any]]],
@@ -482,7 +482,7 @@ def fetch_plu_context(parcelle_gdf: gpd.GeoDataFrame, buffer_m: float = 50.0) ->
             ST_AsGeoJSON(
                 ST_Intersection(geom_3857, ST_GeomFromText('{wkt_buffer}', 3857))
             ) AS geom_json
-        FROM latresne.plu_latresne
+        FROM latresne.zonage_plu
         WHERE ST_Intersects(geom_3857, ST_GeomFromText('{wkt_buffer}', 3857))
           AND geom_invalid IS NOT TRUE
         ORDER BY zonage_reglement;
@@ -551,7 +551,7 @@ def compute_intersection_stats(
                     ST_Area(
                         ST_Intersection(geom_3857, ST_GeomFromText('{parc_wkt}', 3857))
                     ) AS area_m2
-                FROM latresne.plu_latresne
+                FROM latresne.zonage_plu
                 WHERE ST_Intersects(geom_3857, ST_GeomFromText('{parc_wkt}', 3857))
                   AND geom_invalid IS NOT TRUE;
             """)
@@ -975,7 +975,7 @@ def generate_plu_visuals(
     map_path = str(out / f"plu_map_{tag}.png")
 
     # 1. Parcelle
-    print("\n[1/4] Récupération de la parcelle (latresne.parcelles_latresne)…")
+    print("\n[1/4] Récupération de la parcelle (latresne.parcelles)…")
     parcelle_gdf = fetch_parcelle(insee, section, numero)
 
     # 2. PLU contexte

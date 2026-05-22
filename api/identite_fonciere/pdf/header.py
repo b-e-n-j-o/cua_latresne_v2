@@ -367,7 +367,7 @@ def build_plu_zonage_page_flowables(
     """
     Page autonome : titre, encadré visuel, image carte + légende (plu_visuels), tableau
     libellés / libellés détaillés / descriptions (données issues des intersections filtrées),
-    puis blocs « laius » par zone (plu_latresne.laius_reglement). Les clés fournies dans
+    puis blocs « laius » par zone (zonage_plu.laius_reglement). Les clés fournies dans
     `zonage_laius` doivent déjà respecter le seuil surface UF (ex. ≥ 1 %), comme le corps du rapport.
     """
     pp = Path(plu_map_png_path)
@@ -557,7 +557,7 @@ def build_cover_page_flowables(
     `result` peut contenir :
     - geometry (+ srid optionnel dans result) : calcul superficie UF
     - carte_web_url | map_url : lien cliquable « Visualiser la carte web »
-    - intersections : extraction du zonage plu_latresne pour la ligne « Zonage urbain (PLU) »
+    - intersections : extraction du zonage zonage_plu pour la ligne « Zonage urbain (PLU) »
     (L’image carte PLU, la légende % et le tableau libellés / descriptions sont sur une page dédiée,
     voir `build_plu_zonage_page_flowables`.)
     - parcelles_uf_detail : liste optionnelle de dicts (ref, contenance_m2, pct_uf, idu)

@@ -14,6 +14,8 @@ from google.genai import types
 from pydantic import BaseModel, Field
 
 from .._env import DB_CONFIG, GEMINI_API_KEY, GEMINI_MODEL
+from ..commune_context import get_current_profile
+from ..commune_profile import CommuneProfile
 from .schemas import ToolCallLog, Usage
 
 try:
@@ -24,40 +26,6 @@ except ImportError:
 from .sessions import messages_get, messages_insert, session_get
 
 logger = logging.getLogger("plu_api")
-router = APIRouter()
-
-# ---------------------------------------------------------------------------
-# Prompt système
-# ---------------------------------------------------------------------------
-
-SYSTEM_PROMPT_BASE = """
-Tu es un expert en droit de l'urbanisme français, spécialisé dans l'analyse des PLU.
-Tu as accès au règlement PLU de la commune d'Argelès-sur-Mer (INSEE 66008).
-
-Workflow :
-1. Si la question concerne une ou plusieurs parcelles d'Argelès-sur-Mer (section + numéro,
-   IDU, ou unité foncière contiguë via parcelles[] / idus[]) → appelle get_contexte_parcelle
-   (zonage + prescriptions + servitudes + informations GPU, sans géométries).
-2. La carte interactive est gérée par l'interface (GET /session/{id}/map) dès qu'une parcelle
-   est associée à la session — ne pas appeler de tool cartographique.
-3. Pour une question de DROIT GÉNÉRAL de l'urbanisme (définitions, procédures,
-   notions juridiques) non liée à une parcelle précise → appelle
-   search_articles_urbanisme.
-4. Si un NUMÉRO d'article est cité (ex: L421-6, R151-1) ou si un article
-   référencé est nécessaire → appelle get_article_urbanisme_by_num.
-   Les tools PLU (zonage) concernent Argelès ; le Code de l'urbanisme est national.
-
-Règles de réponse :
-- Cite toujours les zones concernées et leurs pourcentages de couverture.
-- Pour les prescriptions, cite le libelle de chaque élément retourné par get_contexte_parcelle.
-- Pour les servitudes, cite suptype (type), et si présents typeass et nomsuplitt.
-- Pour les informations (objet informations), cite le libelle de chaque élément.
-- Appuie-toi sur les articles du règlement pour justifier tes conclusions.
-- Traite chaque zone séparément si plusieurs zones sont concernées.
-- Signale si une zone est trouvée mais sans règlement disponible.
-- Utilise EXACTEMENT les codes de zone retournés par les tools, sans les modifier.
-- Formate tes réponses en Markdown (titres, listes, gras).
-""".strip()
 
 # ---------------------------------------------------------------------------
 # Schémas
@@ -89,8 +57,9 @@ def _build_gemini_client() -> genai.Client:
 
 
 def _build_system_prompt(zones: list[dict]) -> str:
+    base = get_current_profile().system_prompt
     if not zones:
-        return SYSTEM_PROMPT_BASE
+        return base
 
     zones_block = "\n\n## Contexte réglementaire chargé pour cette session\n\n"
     for z in zones:
@@ -104,7 +73,7 @@ def _build_system_prompt(zones: list[dict]) -> str:
             f"({pct}% de la parcelle, {surf} m²)\n\n"
             f"{reglement}\n\n---\n\n"
         )
-    return SYSTEM_PROMPT_BASE + zones_block
+    return base + zones_block
 
 
 def build_contents_from_db(messages: list[dict]) -> list:
@@ -313,61 +282,62 @@ def run_turn(
 # Endpoint
 # ---------------------------------------------------------------------------
 
-@router.post("/chat/{session_id}", response_model=ChatResponse)
-def chat(session_id: str, req: ChatRequest):
-    """
-    Tour de conversation dans une session existante.
-    show_map=true si la session a des refs parcellaires ; le frontend charge le GeoJSON via GET /map.
-    """
-    t0 = time.monotonic()
+def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
+    @router.post("/chat/{session_id}", response_model=ChatResponse)
+    @bind
+    def chat(session_id: str, req: ChatRequest):
+        """
+        Tour de conversation dans une session existante.
+        show_map=true si la session a des refs parcellaires ; le frontend charge le GeoJSON via GET /map.
+        """
+        t0 = time.monotonic()
 
-    session = session_get(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail=f"Session {session_id} introuvable.")
+        session = session_get(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} introuvable.")
 
-    zones    = session.get("zones") or []
-    messages = messages_get(session_id)
+        zones = session.get("zones") or []
+        messages = messages_get(session_id)
 
-    logger.info(
-        f"session {session_id} — {len(messages)} messages — nouveau : {req.message!r}"
-    )
+        logger.info(
+            f"session {session_id} — {len(messages)} messages — nouveau : {req.message!r}"
+        )
 
-    contents = build_contents_from_db(messages)
-    contents.append(types.Content(role="user", parts=[types.Part(text=req.message)]))
+        contents = build_contents_from_db(messages)
+        contents.append(types.Content(role="user", parts=[types.Part(text=req.message)]))
 
-    try:
-        answer, tool_calls, usage = run_turn(zones, contents)
-    except Exception as e:
-        logger.error(f"agentic_loop error : {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        try:
+            answer, tool_calls, usage = run_turn(zones, contents)
+        except Exception as e:
+            logger.error(f"agentic_loop error : {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
 
-    latency_ms = int((time.monotonic() - t0) * 1000)
-    logger.info(
-        f"session {session_id} — {latency_ms}ms | "
-        f"tools={[tc.name for tc in tool_calls]} | tokens={usage.total_tokens}"
-    )
+        latency_ms = int((time.monotonic() - t0) * 1000)
+        logger.info(
+            f"session {session_id} — {latency_ms}ms | "
+            f"tools={[tc.name for tc in tool_calls]} | tokens={usage.total_tokens}"
+        )
 
-    show_map = session_show_map(session)
+        show_map = session_show_map(session)
 
-    # Persistance — raw_result exclu par Field(exclude=True), pas de fuite en base
-    messages_insert(
-        session_id=session_id,
-        user_message=req.message,
-        model_answer=answer,
-        tool_calls=[tc.model_dump() for tc in tool_calls],
-        prompt_tokens=usage.prompt_tokens,
-        candidate_tokens=usage.candidate_tokens,
-        total_tokens=usage.total_tokens,
-        latency_ms=latency_ms,
-    )
+        messages_insert(
+            session_id=session_id,
+            user_message=req.message,
+            model_answer=answer,
+            tool_calls=[tc.model_dump() for tc in tool_calls],
+            prompt_tokens=usage.prompt_tokens,
+            candidate_tokens=usage.candidate_tokens,
+            total_tokens=usage.total_tokens,
+            latency_ms=latency_ms,
+        )
 
-    return ChatResponse(
-        session_id=session_id,
-        answer=answer,
-        tool_calls=tool_calls,
-        usage=usage,
-        latency_ms=latency_ms,
-        model=GEMINI_MODEL,
-        map_data=None,
-        show_map=show_map,
-    )
+        return ChatResponse(
+            session_id=session_id,
+            answer=answer,
+            tool_calls=tool_calls,
+            usage=usage,
+            latency_ms=latency_ms,
+            model=GEMINI_MODEL,
+            map_data=None,
+            show_map=show_map,
+        )

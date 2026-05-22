@@ -96,7 +96,7 @@ def get_parcelles_via_adresse(adresse: str = Query(..., min_length=3)):
             FROM ad
             JOIN latresne.liens_adresses_parcelles lap
               ON lap.id_adresse = COALESCE(NULLIF(ad.raw_json->>'id_adr', ''), ad.id)
-            JOIN latresne.parcelles_latresne p ON p.idu = lap.id_parcelle
+            JOIN latresne.parcelles p ON p.idu = lap.id_parcelle
             WHERE p.geom_2154 IS NOT NULL
             ORDER BY UPPER(TRIM(p.section)), LPAD(TRIM(p.numero), 4, '0');
             """,

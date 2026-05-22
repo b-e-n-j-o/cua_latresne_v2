@@ -2,7 +2,7 @@
 Catalogue cartographique — GeoJSON pour MapLibre (hors LLM).
 
 Consommé uniquement par GET /session/{id}/map.
-Le LLM utilise get_contexte_parcelle pour le texte (zonage + prescriptions + servitudes + infos).
+Couches pilotées par communes/catalogs/*.json via profile.catalog.
 """
 
 import json
@@ -10,7 +10,9 @@ import json
 import psycopg2
 import psycopg2.extras
 
-from .utils import (
+from ..commune_context import get_current_profile_optional, q
+from .spatial_context import build_carto_from_catalog
+from ..tools.utils import (
     MIN_PARCEL_INTERSECTION_M2,
     build_map_infos,
     build_map_prescriptions,
@@ -152,6 +154,103 @@ def _build_parcelle_layers(resolved: dict) -> dict:
     return out
 
 
+def _legacy_carto_payload(
+    db_config: dict,
+    geom_wkb: bytes,
+    parcelle_layers: dict,
+    buffer_m: float,
+) -> dict:
+    min_m2 = MIN_PARCEL_INTERSECTION_M2
+    sql_zones = f"""
+        WITH cible AS (
+            SELECT ST_MakeValid(ST_GeomFromEWKB(%s)) AS geom
+        ),
+        cible_buffer AS (
+            SELECT ST_MakeValid(ST_Buffer(geom, %s)) AS geom FROM cible
+        ),
+        zones_hits AS (
+            SELECT
+                z.zonage_reglement AS code_zone,
+                z.libelle, z.libelong, z.typezone,
+                ST_MakeValid(z.geom_2154) AS geom_zone,
+                c.geom AS geom_parcelle,
+                cb.geom AS geom_buffer
+            FROM {q("zonage_plu")} z
+            CROSS JOIN cible c
+            CROSS JOIN cible_buffer cb
+            WHERE ST_Intersects(ST_MakeValid(z.geom_2154), cb.geom)
+        )
+        SELECT DISTINCT ON (code_zone)
+            code_zone, libelle, libelong, typezone,
+            ST_AsGeoJSON(
+                ST_Transform(
+                    ST_Multi(
+                        ST_CollectionExtract(
+                            ST_Force2D(ST_Intersection(geom_zone, geom_buffer)), 3
+                        )
+                    ),
+                    4326
+                )
+            ) AS geojson_zone,
+            ROUND(
+                (ST_Area(ST_Intersection(geom_zone, geom_parcelle))
+                    / NULLIF(ST_Area(geom_parcelle), 0) * 100)::numeric,
+                1
+            ) AS pct_parcelle_couverte
+        FROM zones_hits
+        WHERE ST_Area(ST_Intersection(geom_zone, geom_parcelle)) > {min_m2}
+          AND NOT ST_IsEmpty(ST_Intersection(geom_zone, geom_buffer))
+        ORDER BY code_zone,
+                 ST_Area(ST_Intersection(geom_zone, geom_parcelle)) DESC;
+    """
+    rows_zones = _query(db_config, sql_zones, (geom_wkb, buffer_m))
+    zone_features = []
+    for z in rows_zones:
+        geom_z = z.get("geojson_zone")
+        if not geom_z:
+            continue
+        geom_obj = json.loads(geom_z)
+        if not _geometry_has_area(geom_obj):
+            continue
+        code = z["code_zone"]
+        tz = z.get("typezone")
+        zone_features.append({
+            "type": "Feature",
+            "geometry": geom_obj,
+            "properties": {
+                "code_zone": code,
+                "libelle": z.get("libelle"),
+                "libelong": z.get("libelong"),
+                "typezone": tz,
+                "pct_parcelle_couverte": float(z["pct_parcelle_couverte"])
+                if z.get("pct_parcelle_couverte") is not None
+                else None,
+                "color": _zone_color(tz, code),
+            },
+        })
+
+    presc_rows = fetch_prescriptions_rows(
+        db_config, geom_wkb, with_geojson=True, strict_parcel=True
+    )
+    serv_rows = fetch_servitudes_rows(
+        db_config, geom_wkb, with_geojson=True, strict_parcel=True
+    )
+    infos_rows = fetch_infos_rows(
+        db_config, geom_wkb, with_geojson=True, strict_parcel=True
+    )
+
+    return {
+        "parcelle": parcelle_layers["parcelle"],
+        "parcelle_union": parcelle_layers.get("parcelle_union"),
+        "zones": {"type": "FeatureCollection", "features": zone_features},
+        "prescriptions": build_map_prescriptions(presc_rows),
+        "servitudes": build_map_servitudes(serv_rows),
+        "informations": build_map_infos(infos_rows),
+        "extra": {},
+        "error": None,
+    }
+
+
 def build_carto_payload(
     db_config: dict,
     parcelles: list[dict] | None = None,
@@ -162,7 +261,7 @@ def build_carto_payload(
     buffer_m: float = 100.0,
 ) -> dict:
     """
-    Payload GeoJSON complet pour la carte : parcelle(s), zonage PLU, prescriptions, servitudes.
+    Payload GeoJSON : parcelle(s), zonage (buffer), autres couches (strict parcelle).
     """
     try:
         resolved = resolve_unite_fonciere(
@@ -179,108 +278,23 @@ def build_carto_payload(
         geom_wkb = resolved["geom_wkb"]
         parcelle_layers = _build_parcelle_layers(resolved)
 
-        min_m2 = MIN_PARCEL_INTERSECTION_M2
-        sql_zones = f"""
-            WITH cible AS (
-                SELECT ST_MakeValid(ST_GeomFromEWKB(%s)) AS geom
-            ),
-            cible_buffer AS (
-                SELECT ST_MakeValid(ST_Buffer(geom, %s)) AS geom FROM cible
-            ),
-            zones_hits AS (
-                SELECT
-                    z.zonage_reglement AS code_zone,
-                    z.libelle,
-                    z.libelong,
-                    z.typezone,
-                    z.destdomi,
-                    ST_MakeValid(z.geom_2154) AS geom_zone,
-                    c.geom AS geom_parcelle,
-                    cb.geom AS geom_buffer
-                FROM argeles.zonage_plu z
-                CROSS JOIN cible c
-                CROSS JOIN cible_buffer cb
-                WHERE ST_Intersects(ST_MakeValid(z.geom_2154), cb.geom)
+        profile = get_current_profile_optional()
+        if profile:
+            return build_carto_from_catalog(
+                db_config,
+                profile.catalog,
+                parcelles=parcelles,
+                idus=idus,
+                section=section,
+                numero=numero,
+                idu=idu,
+                buffer_m=buffer_m,
+                parcelle_layers=parcelle_layers,
             )
-            SELECT DISTINCT ON (code_zone)
-                code_zone,
-                libelle,
-                libelong,
-                typezone,
-                destdomi,
-                ST_AsGeoJSON(
-                    ST_Transform(
-                        ST_Multi(
-                            ST_CollectionExtract(
-                                ST_Force2D(
-                                    ST_Intersection(geom_zone, geom_buffer)
-                                ),
-                                3
-                            )
-                        ),
-                        4326
-                    )
-                ) AS geojson_zone,
-                ROUND(
-                    (ST_Area(ST_Intersection(geom_zone, geom_parcelle))
-                        / NULLIF(ST_Area(geom_parcelle), 0) * 100)::numeric,
-                    1
-                ) AS pct_parcelle_couverte
-            FROM zones_hits
-            WHERE ST_Area(ST_Intersection(geom_zone, geom_parcelle)) > {min_m2}
-              AND NOT ST_IsEmpty(
-                    ST_Intersection(geom_zone, geom_buffer)
-                  )
-            ORDER BY code_zone,
-                     ST_Area(ST_Intersection(geom_zone, geom_parcelle)) DESC;
-        """
-        rows_zones = _query(db_config, sql_zones, (geom_wkb, buffer_m))
 
-        zone_features = []
-        for z in rows_zones:
-            geom_z = z.get("geojson_zone")
-            if not geom_z:
-                continue
-            geom_obj = json.loads(geom_z)
-            if not _geometry_has_area(geom_obj):
-                continue
-            code = z["code_zone"]
-            tz = z.get("typezone")
-            zone_features.append({
-                "type": "Feature",
-                "geometry": geom_obj,
-                "properties": {
-                    "code_zone": code,
-                    "libelle": z.get("libelle"),
-                    "libelong": z.get("libelong"),
-                    "typezone": tz,
-                    "destdomi": z.get("destdomi"),
-                    "pct_parcelle_couverte": float(z["pct_parcelle_couverte"])
-                    if z.get("pct_parcelle_couverte") is not None
-                    else None,
-                    "color": _zone_color(tz, code),
-                },
-            })
-
-        presc_rows = fetch_prescriptions_rows(
-            db_config, geom_wkb, buffer_m=buffer_m, with_geojson=True
+        return _legacy_carto_payload(
+            db_config, geom_wkb, parcelle_layers, buffer_m
         )
-        serv_rows = fetch_servitudes_rows(
-            db_config, geom_wkb, buffer_m=buffer_m, with_geojson=True
-        )
-        infos_rows = fetch_infos_rows(
-            db_config, geom_wkb, buffer_m=buffer_m, with_geojson=True
-        )
-
-        return {
-            "parcelle": parcelle_layers["parcelle"],
-            "parcelle_union": parcelle_layers.get("parcelle_union"),
-            "zones": {"type": "FeatureCollection", "features": zone_features},
-            "prescriptions": build_map_prescriptions(presc_rows),
-            "servitudes": build_map_servitudes(serv_rows),
-            "informations": build_map_infos(infos_rows),
-            "error": None,
-        }
 
     except Exception as e:
         return {"error": str(e)}

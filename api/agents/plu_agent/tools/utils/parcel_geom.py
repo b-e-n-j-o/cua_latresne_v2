@@ -9,6 +9,8 @@ import psycopg2
 import psycopg2.extras
 from google.genai import types
 
+from ...commune_context import q
+
 
 def _db_connect(db_config: dict):
     return psycopg2.connect(**db_config)
@@ -98,11 +100,11 @@ def resolve_unite_fonciere(
     has_idu = bool(idu_list)
     has_sn = bool(sn_sections)
 
-    sql_fetch = """
+    sql_fetch = f"""
         SELECT idu, section, numero, contenance,
                ST_MakeValid(geom_2154) AS geom,
                ST_AsGeoJSON(ST_Transform(ST_MakeValid(geom_2154), 4326)) AS geojson_wgs84
-        FROM argeles.parcelles
+        FROM {q("parcelles")}
         WHERE (%s AND idu = ANY(%s))
            OR (%s AND (section, lpad(numero, 4, '0')) IN (
                 SELECT w.sec, lpad(w.num, 4, '0')
@@ -156,10 +158,10 @@ def resolve_unite_fonciere(
             ),
         }
 
-    sql_union = """
+    sql_union = f"""
         WITH geoms AS (
             SELECT ST_MakeValid(geom_2154) AS geom
-            FROM argeles.parcelles
+            FROM {q("parcelles")}
             WHERE idu = ANY(%s)
         ),
         united AS (

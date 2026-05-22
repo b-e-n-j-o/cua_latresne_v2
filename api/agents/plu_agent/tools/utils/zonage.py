@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 
+from ...commune_context import q
 from .db import db_query
 from .parcel_geom import resolve_unite_fonciere
 
@@ -22,6 +23,35 @@ def _zone_geom(alias: str = "z") -> str:
 
 def _intersection_with_parcel(zone_alias: str = "z", parcel_alias: str = "c") -> str:
     return f"ST_Intersection({_zone_geom(zone_alias)}, {parcel_alias}.geom)"
+
+
+def intersection_with_parcel_geom_sql(
+    entity_geom_expr: str,
+    parcel_alias: str = "c",
+) -> str:
+    """Intersection entre une expression géométrique (2154) et la parcelle cible."""
+    return f"ST_Intersection({entity_geom_expr}, {parcel_alias}.geom)"
+
+
+def strict_parcel_intersection_filter_sql(
+    entity_geom_expr: str,
+    parcel_alias: str = "c",
+    min_m2: float | None = None,
+) -> str:
+    """
+    Exclut les contacts bord à bord uniquement (0 m², point ou segment nul).
+    Surfaces : aire > seuil ; linéaires : longueur > seuil ; points : intérieur parcelle.
+    """
+    threshold = float(min_m2 if min_m2 is not None else MIN_PARCEL_INTERSECTION_M2)
+    ix = intersection_with_parcel_geom_sql(entity_geom_expr, parcel_alias)
+    return f"""(
+        ST_Area({ix}) > {threshold}
+        OR ST_Length({ix}) > {threshold}
+        OR (
+            ST_GeometryType({entity_geom_expr}) IN ('ST_Point', 'ST_MultiPoint')
+            AND ST_Contains(ST_Buffer({parcel_alias}.geom, -0.05), {entity_geom_expr})
+        )
+    )"""
 
 
 def parcel_intersection_area_sql(
@@ -62,18 +92,15 @@ def fetch_zonage_reglement_rows(
             z.libelle,
             z.libelong,
             z.typezone,
-            z.destdomi,
             ROUND(ST_Area({ix})::numeric, 1) AS superficie_intersection_m2,
             ROUND(
                 (ST_Area({ix}) / NULLIF(ST_Area(c.geom), 0) * 100)::numeric,
                 1
             ) AS pct_parcelle_couverte,
-            r.nom_zone,
-            r.resume_zone,
             r.reglementation
-        FROM argeles.zonage_plu z
+        FROM {q("zonage_plu")} z
         CROSS JOIN cible c
-        LEFT JOIN argeles.plu_reglement r ON r.code_zone = z.zonage_reglement
+        LEFT JOIN {q("plu_reglement")} r ON r.code_zone = z.zonage_reglement
         WHERE ST_Intersects({zone_g}, c.geom)
           AND {parcel_intersection_filter_sql("z", "c", min_m2)}
         ORDER BY superficie_intersection_m2 DESC;

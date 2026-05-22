@@ -34,7 +34,7 @@ def test_filter():
     
     # Test spécifique PLU
     print("\n📋 AVANT FILTRAGE - PLU Latresne:")
-    plu_avant = intersections_raw.get("plu_latresne", {})
+    plu_avant = intersections_raw.get("zonage_plu", {})
     print(f"   • pct_sig: {plu_avant.get('pct_sig')}%")
     print(f"   • Nombre d'objets: {len(plu_avant.get('objets', []))}")
     if plu_avant.get('objets'):
@@ -51,7 +51,7 @@ def test_filter():
     
     # Vérification après
     print("\n📋 APRÈS FILTRAGE - PLU Latresne:")
-    plu_apres = result.get("plu_latresne", {})
+    plu_apres = result.get("zonage_plu", {})
     if plu_apres:
         print(f"   • pct_sig: {plu_apres.get('pct_sig')}%")
         print(f"   • pourcentage: {plu_apres.get('pourcentage')}%")

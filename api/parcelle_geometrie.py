@@ -83,10 +83,10 @@ def _load_cadastre_tables() -> dict[str, tuple[str, str]]:
     """
     Whitelist des tables cadastrales.
     Format env optionnel CADASTRE_COMMUNES_TABLES:
-    {"latresne":"latresne.parcelles_latresne","argeles":"argeles.parcelles","mios":"mios.parcelles"}
+    {"latresne":"latresne.parcelles","argeles":"argeles.parcelles","mios":"mios.parcelles"}
     """
     default_mapping = {
-        "LATRESNE": ("latresne", "parcelles_latresne"),
+        "LATRESNE": ("latresne", "parcelles"),
         "ARGELES": ("argeles", "parcelles"),
         "ARGELES SUR MER": ("argeles", "parcelles"),
         "MIOS": ("mios", "parcelles"),

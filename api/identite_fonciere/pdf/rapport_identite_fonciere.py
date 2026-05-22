@@ -1127,7 +1127,7 @@ def generate_rapport_pdf(
                 Avec 'geometry', génération optionnelle du PNG PLU combiné (carte + légende)
                 sur une page dédiée après la page de garde (tableau libellés / libellés détaillés /
                 descriptions après la carte, filtre ≥ 1 % comme le corps du rapport), et filtrage
-                des zonages sous 1 % pour la couche de zonage PLU active (``plu_latresne`` ou ``zonage_plu`` selon catalogue ; la carto conserve le buffer 50 m).
+                des zonages sous 1 % pour la couche de zonage PLU active (``zonage_plu`` ou ``zonage_plu`` selon catalogue ; la carto conserve le buffer 50 m).
                 Si l’UF intersecte le PPRI (`pm1_detaillee_gironde`), une page PPRI (carte +
                 légende % par codezone, tableau d’absorption si des zones ont été absorbées, + laius)
                 est insérée après la page PLU (typiquement page 3).

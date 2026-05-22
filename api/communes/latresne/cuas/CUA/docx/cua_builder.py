@@ -74,7 +74,7 @@ def render_layer_content(
     # ✅ On n'affiche plus que le pourcentage, pas les m²
     if pourcentage:
         # Ne pas afficher la phrase pour le PLU (toujours 100%)
-        if layer_key != "plu_latresne":
+        if layer_key != "zonage_plu":
             add_paragraph(
                 doc,
                 f"Part de l'unité foncière concernée : {fmt_pct(pourcentage)} de la surface cadastrale indicative."
@@ -119,7 +119,7 @@ def render_layer_content(
         print(f"🔍 DEBUG render_layer_content: {len(objets)} objet(s) à traiter pour {layer_key}")
         
         # === PATCH : Afficher les zones PLU avec leurs pourcentages ===
-        if layer_key == "plu_latresne" and objets:
+        if layer_key == "zonage_plu" and objets:
             zones = []
             for obj in objets:
                 nom_zone = obj.get("zonage_reglement") or obj.get("zone") or "Zone"
@@ -144,7 +144,7 @@ def render_layer_content(
         print(f"🔍 DEBUG: {len(objets_pour_table)} objet(s) dans objets_pour_table après traitement")
         
         # Nettoyage spécifique PLU : ne garder QUE les % et étiquettes
-        if layer_key == "plu_latresne":
+        if layer_key == "zonage_plu":
             for obj in objets_pour_table:
                 obj.pop("surface_inter_m2", None)
                 obj.pop("surface_parcelle_m2", None)
