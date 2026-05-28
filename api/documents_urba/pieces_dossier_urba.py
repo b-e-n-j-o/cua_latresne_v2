@@ -295,6 +295,13 @@ def _import_reglement_qualite_analyzer():
     Import tardif pour éviter de casser l'usage "listing only" si PyMuPDF
     n'est pas installé.
     """
+    # 1) Exécution en package (ex: python -m api.documents_urba.pieces_dossier_urba)
+    try:
+        from api.documents_urba.reglement_qualite import analyser_qualite_reglement
+        return analyser_qualite_reglement, None
+    except Exception:
+        pass
+    # 2) Exécution locale depuis le dossier (ex: python pieces_dossier_urba.py)
     try:
         from reglement_qualite import analyser_qualite_reglement
         return analyser_qualite_reglement, None
@@ -302,18 +309,17 @@ def _import_reglement_qualite_analyzer():
         return None, str(e)
 
 
-def _import_gemini_client():
-    """Import tardif du SDK Gemini pour comptage exact via API officielle."""
+def _import_tiktoken_encoder(model_name: str = "gpt-4o-mini"):
+    """Import tardif de tiktoken + encoder pour comptage exact."""
     try:
-        from google import genai
+        import tiktoken
         try:
-            from google.genai.errors import APIError
+            enc = tiktoken.encoding_for_model(model_name)
         except Exception:
-            APIError = Exception
-        client = genai.Client()
-        return client, APIError, None
+            enc = tiktoken.get_encoding("cl100k_base")
+        return enc, None
     except Exception as e:
-        return None, None, str(e)
+        return None, str(e)
 
 
 def _extract_text_for_token_count(pdf_bytes: bytes) -> tuple[str | None, str | None]:
@@ -325,22 +331,6 @@ def _extract_text_for_token_count(pdf_bytes: bytes) -> tuple[str | None, str | N
         return texte, None
     except Exception as e:
         return None, str(e)
-
-
-def _count_gemini_tokens(text: str, client, api_error_cls, model_name: str = "gemini-3.1-flash-lite") -> tuple[int, str | None]:
-    """
-    Calcule les tokens Gemini via l'API officielle.
-    Fallback: estimation chars/4 si erreur API.
-    """
-    if not text:
-        return 0, None
-    try:
-        response = client.models.count_tokens(model=model_name, contents=text)
-        return int(response.total_tokens or 0), None
-    except api_error_cls as e:
-        return len(text) // 4, f"gemini_api_error: {str(e)[:180]}"
-    except Exception as e:
-        return len(text) // 4, f"gemini_unexpected_error: {str(e)[:180]}"
 
 
 def _download_pdf_bytes(
@@ -379,8 +369,8 @@ def analyse_qualite_pieces_pdf(
     session: requests.Session | None = None,
     download_mode: str = "memory",
     tmp_dir: str | None = None,
-    use_gemini_tokenizer: bool = False,
-    gemini_model: str = "gemini-3.1-flash-lite",
+    use_tiktoken: bool = False,
+    tiktoken_model: str = "gpt-4o-mini",
     timeout: int = DEFAULT_TIMEOUT,
 ) -> dict:
     """
@@ -399,18 +389,17 @@ def analyse_qualite_pieces_pdf(
     if own_session:
         session = requests.Session()
 
-    gemini_client = None
-    gemini_api_error_cls = Exception
-    gemini_error = None
-    if use_gemini_tokenizer:
-        gemini_client, gemini_api_error_cls, gemini_error = _import_gemini_client()
+    encoder = None
+    tiktoken_error = None
+    if use_tiktoken:
+        encoder, tiktoken_error = _import_tiktoken_encoder(tiktoken_model)
 
     stats = {
         "enabled": True,
         "download_mode": download_mode,
-        "gemini_tokenizer_enabled": bool(gemini_client),
-        "gemini_model": gemini_model if use_gemini_tokenizer else None,
-        "gemini_tokenizer_error": gemini_error if (use_gemini_tokenizer and not gemini_client) else None,
+        "tiktoken_enabled": bool(encoder),
+        "tiktoken_model": tiktoken_model if use_tiktoken else None,
+        "tiktoken_error": tiktoken_error if (use_tiktoken and not encoder) else None,
         "tmp_dir": str(Path(tmp_dir).resolve()) if (download_mode == "disk" and tmp_dir) else (
             str((Path(__file__).resolve().parent / "_tmp_pdf_cache").resolve()) if download_mode == "disk" else None
         ),
@@ -419,7 +408,7 @@ def analyse_qualite_pieces_pdf(
         "llm_friendly": 0,
         "non_llm_friendly": 0,
         "tokens_estimes_total": 0,
-        "tokens_gemini_total": 0,
+        "tokens_tiktoken_total": 0,
         "verdicts": {},
         "errors": 0,
     }
@@ -437,7 +426,7 @@ def analyse_qualite_pieces_pdf(
             ]
             doc_pages_total = 0
             doc_tokens_estimes_total = 0
-            doc_tokens_gemini_total = 0
+            doc_tokens_tiktoken_total = 0
             doc_pdf_scanned = 0
             print(f"[scan-qualite] Document: {doc_name} | {len(pdf_pieces)} PDF à analyser")
 
@@ -491,22 +480,18 @@ def analyse_qualite_pieces_pdf(
                     doc_pages_total += q.n_pages
                     doc_tokens_estimes_total += q.tokens_estimes
 
-                    gemini_tokens = None
-                    gemini_token_error = None
-                    if gemini_client is not None:
+                    tiktoken_tokens = None
+                    if encoder is not None:
                         texte, text_err = _extract_text_for_token_count(pdf_bytes)
                         if texte is not None:
-                            gemini_tokens, gemini_token_error = _count_gemini_tokens(
-                                text=texte,
-                                client=gemini_client,
-                                api_error_cls=gemini_api_error_cls,
-                                model_name=gemini_model,
-                            )
-                            stats["tokens_gemini_total"] += gemini_tokens
-                            doc_tokens_gemini_total += gemini_tokens
+                            try:
+                                tiktoken_tokens = len(encoder.encode(texte))
+                                stats["tokens_tiktoken_total"] += tiktoken_tokens
+                                doc_tokens_tiktoken_total += tiktoken_tokens
+                            except Exception:
+                                tiktoken_tokens = None
                         else:
-                            gemini_token_error = f"extract_text_error: {text_err}"
-                            logger.warning("Extraction texte Gemini impossible pour %s: %s", piece.get("file_name"), text_err)
+                            logger.warning("Extraction texte tiktoken impossible pour %s: %s", piece.get("file_name"), text_err)
 
                     piece["qualite_pdf"] = {
                         "ok": True,
@@ -517,13 +502,12 @@ def analyse_qualite_pieces_pdf(
                         "pct_pages_textuelles": q.pct_pages_textuelles,
                         "chars_total": q.chars_total,
                         "tokens_estimes": q.tokens_estimes,
-                        "tokens_gemini": gemini_tokens,
-                        "tokens_gemini_error": gemini_token_error,
+                        "tokens_tiktoken": tiktoken_tokens,
                         "n_blocs_image": q.n_blocs_image,
                         "n_blocs_texte": q.n_blocs_texte,
                     }
                     state = "LLM ✅" if q.utilisable else "LLM ❌"
-                    tk_str = f", tokens_gemini={gemini_tokens}" if gemini_tokens is not None else ""
+                    tk_str = f", tiktoken={tiktoken_tokens}" if tiktoken_tokens is not None else ""
                     print(f"[scan-qualite]    -> {q.verdict} ({state}), pages={q.n_pages}, tokens_est={q.tokens_estimes}{tk_str}")
                 except Exception as e:
                     stats["errors"] += 1
@@ -538,7 +522,7 @@ def analyse_qualite_pieces_pdf(
                 "pdf_scanned": doc_pdf_scanned,
                 "pages_total": doc_pages_total,
                 "tokens_estimes_total": doc_tokens_estimes_total,
-                "tokens_gemini_total": doc_tokens_gemini_total if gemini_client is not None else None,
+                "tokens_tiktoken_total": doc_tokens_tiktoken_total if encoder is not None else None,
             }
     finally:
         if own_session:
@@ -548,7 +532,7 @@ def analyse_qualite_pieces_pdf(
         "[scan-qualite] Terminé | "
         f"pdf={stats['pdf_scanned']} pages={stats['pages_total']} "
         f"tokens_est={stats['tokens_estimes_total']} "
-        f"tokens_gemini={stats['tokens_gemini_total'] if gemini_client is not None else 'n/a'} "
+        f"tokens_tk={stats['tokens_tiktoken_total'] if encoder is not None else 'n/a'} "
         f"llm_ok={stats['llm_friendly']} llm_ko={stats['non_llm_friendly']} erreurs={stats['errors']}"
     )
     dossier["analyse_qualite_pdf"] = stats
@@ -564,8 +548,8 @@ class GirondeBatchRequest(BaseModel):
     extra_excluded_insee: list[str] = []
     latest_only: bool = True
     scan_qualite: bool = True
-    use_gemini_tokenizer: bool = False
-    gemini_model: str = "gemini-3.1-flash-lite"
+    use_tiktoken: bool = False
+    tiktoken_model: str = "gpt-4o-mini"
     download_mode: str = "memory"  # memory | disk
     tmp_dir: str | None = None
 
@@ -591,9 +575,9 @@ def _aggregate_commune_metrics(insee: str, result: dict) -> dict[str, Any]:
     pdf_scanned = int(qa.get("pdf_scanned") or 0)
     pages_total = int(qa.get("pages_total") or 0)
     tokens_est_total = int(qa.get("tokens_estimes_total") or 0)
-    tokens_gem_total = qa.get("tokens_gemini_total")
-    if tokens_gem_total is not None:
-        tokens_gem_total = int(tokens_gem_total)
+    tokens_tk_total = qa.get("tokens_tiktoken_total")
+    if tokens_tk_total is not None:
+        tokens_tk_total = int(tokens_tk_total)
 
     avg_pages_per_doc = (pages_total / docs_count) if docs_count else 0.0
     avg_pages_per_pdf = (pages_total / pdf_scanned) if pdf_scanned else 0.0
@@ -606,9 +590,9 @@ def _aggregate_commune_metrics(insee: str, result: dict) -> dict[str, Any]:
         "pages_total": pages_total,
         "avg_pages_per_doc": round(avg_pages_per_doc, 2),
         "avg_pages_per_pdf": round(avg_pages_per_pdf, 2),
-        "tokens_total": tokens_gem_total if tokens_gem_total is not None else tokens_est_total,
+        "tokens_total": tokens_tk_total if tokens_tk_total is not None else tokens_est_total,
         "tokens_estimes_total": tokens_est_total,
-        "tokens_gemini_total": tokens_gem_total,
+        "tokens_tiktoken_total": tokens_tk_total,
         "analyse_qualite_pdf": qa,
         "documents": result.get("documents", []),
     }
@@ -655,8 +639,8 @@ def _run_batch_gironde_sync(job_id: str, req: GirondeBatchRequest) -> None:
                         session=session,
                         download_mode=req.download_mode,
                         tmp_dir=req.tmp_dir,
-                        use_gemini_tokenizer=req.use_gemini_tokenizer,
-                        gemini_model=req.gemini_model,
+                        use_tiktoken=req.use_tiktoken,
+                        tiktoken_model=req.tiktoken_model,
                     )
                 communes.append(_aggregate_commune_metrics(insee, data))
             except Exception as e:
@@ -670,7 +654,7 @@ def _run_batch_gironde_sync(job_id: str, req: GirondeBatchRequest) -> None:
                     "avg_pages_per_pdf": 0.0,
                     "tokens_total": 0,
                     "tokens_estimes_total": 0,
-                    "tokens_gemini_total": None,
+                    "tokens_tiktoken_total": None,
                     "analyse_qualite_pdf": {},
                     "documents": [],
                 })
@@ -786,14 +770,14 @@ def _cli():
         help="Dossier temporaire quand --download-mode=disk (par défaut: _tmp_pdf_cache à côté du script)",
     )
     ap.add_argument(
-        "--use-gemini-tokenizer",
+        "--use-tiktoken",
         action="store_true",
-        help="Calcule aussi le nombre de tokens exact avec l'API Gemini",
+        help="Calcule aussi le nombre de tokens exact avec tiktoken (si installé)",
     )
     ap.add_argument(
-        "--gemini-model",
-        default="gemini-3.1-flash-lite",
-        help="Modèle Gemini pour count_tokens (défaut: gemini-3.1-flash-lite)",
+        "--tiktoken-model",
+        default="gpt-4o-mini",
+        help="Modèle tiktoken (défaut: gpt-4o-mini, fallback cl100k_base)",
     )
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
@@ -812,8 +796,8 @@ def _cli():
             result,
             download_mode=args.download_mode,
             tmp_dir=args.tmp_dir,
-            use_gemini_tokenizer=args.use_gemini_tokenizer,
-            gemini_model=args.gemini_model,
+            use_tiktoken=args.use_tiktoken,
+            tiktoken_model=args.tiktoken_model,
         )
 
     if args.json:
@@ -844,13 +828,13 @@ def _cli():
                     print(f"    │  • {p['file_name']}{title}")
         dstat = doc.get("statistiques_pdf")
         if dstat:
-            tk_total = dstat.get("tokens_gemini_total")
+            tk_total = dstat.get("tokens_tiktoken_total")
             tk_str = str(tk_total) if tk_total is not None else "n/a"
             print(
                 f"  Stats PDF doc : {dstat.get('pdf_scanned', 0)} PDF | "
                 f"{dstat.get('pages_total', 0)} pages | "
                 f"tokens_est={dstat.get('tokens_estimes_total', 0)} | "
-                f"tokens_gemini={tk_str}"
+                f"tokens_tiktoken={tk_str}"
             )
     print(f"\n{result['documents_count']} document(s) au total.")
 
@@ -867,10 +851,10 @@ def _cli():
         print(f"LLM friendly        : {qa.get('llm_friendly')}")
         print(f"Non LLM friendly    : {qa.get('non_llm_friendly')}")
         print(f"Tokens estimés      : {qa.get('tokens_estimes_total')}")
-        if qa.get("gemini_tokenizer_enabled"):
-            print(f"Tokens Gemini       : {qa.get('tokens_gemini_total')} ({qa.get('gemini_model')})")
-        elif qa.get("gemini_model"):
-            print(f"Tokens Gemini       : indisponible ({qa.get('gemini_tokenizer_error')})")
+        if qa.get("tiktoken_enabled"):
+            print(f"Tokens tiktoken     : {qa.get('tokens_tiktoken_total')} ({qa.get('tiktoken_model')})")
+        elif qa.get("tiktoken_model"):
+            print(f"Tokens tiktoken     : indisponible ({qa.get('tiktoken_error')})")
         print(f"Erreurs             : {qa.get('errors')}")
         if qa.get("verdicts"):
             print("\nRépartition verdicts :")
