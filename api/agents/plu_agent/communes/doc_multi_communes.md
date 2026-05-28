@@ -30,9 +30,15 @@
 ### Hors HTTP (tests CLI)
 Pas de ContextVar → `current_schema()` défaut **`argeles`** ; chemins « legacy » ou catalogue via ce défaut.
 
+### Tools LLM par commune
+Chaque `CommuneProfile` définit `llm_tool_names` : seuls ces tools sont déclarés à Gemini
+et branchés dans le dispatch (`routes/chat.py`). Ex. `get_reglement_zone` uniquement si
+la table `{schema}.plu_reglement` existe (Latresne) ; Argelès garde la liste par défaut.
+
 ### Ajouter une commune (checklist)
 1. Schéma BDD + tables GPU / sessions (`plu_sessions`, `plu_messages`).
 2. `communes/<slug>.py` + entrée registre `communes/__init__.py`.
 3. `catalogs/<slug>.json` + prompt `prompts/<slug>_system.md`.
-4. `create_plu_router(...)` + `include_router` dans `main.py`.
-5. Frontend : route `/api/plu/{slug}/…` (ex. `communeConfig.ts`).
+4. `llm_tool_names` dans le profil (optionnel : `get_reglement_zone` si `plu_reglement`).
+5. `create_plu_router(...)` + `include_router` dans `main.py`.
+6. Frontend : route `/api/plu/{slug}/…` (ex. `communeConfig.ts`).

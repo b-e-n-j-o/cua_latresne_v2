@@ -29,7 +29,7 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .commune_profile import CommuneProfile
-from .communes import ARGELES_PROFILE, LATRESNE_PROFILE, get_commune_profile
+from .communes import ARGELES_PROFILE, FRANCE_PROFILE, LATRESNE_PROFILE, get_commune_profile
 from .routes import register_routes
 
 
@@ -47,6 +47,7 @@ def create_plu_router(profile: CommuneProfile) -> APIRouter:
 
 argeles_router = create_plu_router(ARGELES_PROFILE)
 latresne_router = create_plu_router(LATRESNE_PROFILE)
+france_router = create_plu_router(FRANCE_PROFILE)
 
 # Compatibilité imports existants (main.py historique, scripts)
 router = argeles_router
@@ -61,7 +62,7 @@ def create_standalone_app() -> FastAPI:
         description="LLM outillé PLU — un préfixe HTTP par client / schéma SQL",
         version="2.1.0",
     )
-    for slug in ("argeles", "latresne"):
+    for slug in ("argeles", "latresne", "france"):
         app.include_router(create_plu_router(get_commune_profile(slug)))
     app.add_middleware(
         CORSMiddleware,

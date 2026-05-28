@@ -1,4 +1,25 @@
 {
-  "_doc": "Surcharges Argelès — vide = socle default.json tel quel",
-  "layers": {}
+  "_doc": "Argelès — socle GPU = default.json. Couches supplémentaires : éditer ce fichier (keep + clean_attributes).",
+  "layers": {
+    "aoc": {
+      "enabled": true,
+      "table": "aoc",
+      "title": "AOC viticoles",
+      "group": "information",
+      "kind": "surfacique",
+      "color": "#2A9D8F",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "denom",
+        "crinao"
+      ],
+      "clean_attributes": [
+        "Domaine",
+        "Code CRINAOC"
+      ]
+    }
+  }
 }

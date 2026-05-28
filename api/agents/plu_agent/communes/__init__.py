@@ -24,10 +24,12 @@ Ajouter une commune
 
 from ..commune_profile import CommuneProfile
 from .argeles import ARGELES_PROFILE
+from .france import FRANCE_PROFILE
 from .latresne import LATRESNE_PROFILE
 
 COMMUNE_PROFILES: dict[str, CommuneProfile] = {
     ARGELES_PROFILE.slug: ARGELES_PROFILE,
+    FRANCE_PROFILE.slug: FRANCE_PROFILE,
     LATRESNE_PROFILE.slug: LATRESNE_PROFILE,
 }
 

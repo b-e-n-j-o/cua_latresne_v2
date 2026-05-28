@@ -315,6 +315,8 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
         )
 
         t0 = time.monotonic()
+        current_profile = get_current_profile()
+        is_france_live_profile = current_profile.slug == "france"
 
         zones: list[dict] = []
         session_section = None
@@ -322,7 +324,7 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
         session_idu = None
         parcelles_refs = None
 
-        if refs:
+        if refs and not is_france_live_profile:
             zones_result = get_zonage_et_reglements(
                 DB_CONFIG,
                 parcelles=parcelles_arg,
@@ -335,6 +337,19 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
                 raise HTTPException(status_code=400, detail=zones_result["error"])
 
             zones = zones_result.get("zones", [])
+            first = refs[0]
+            session_section = first["section"] if first["type"] == "sn" else None
+            session_numero = first["numero"] if first["type"] == "sn" else None
+            session_idu = first["idu"] if first["type"] == "idu" else None
+            parcelles_refs = parcelles_refs_to_json(
+                parcelles=parcelles_arg,
+                idus=req.idus,
+                section=req.section,
+                numero=req.numero,
+                idu=req.idu,
+            )
+        elif refs and is_france_live_profile:
+            # Profil France (GPU live) : pas de préchargement SQL local
             first = refs[0]
             session_section = first["section"] if first["type"] == "sn" else None
             session_numero = first["numero"] if first["type"] == "sn" else None
@@ -384,7 +399,12 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
                 latency_ms=latency_ms,
             )
 
-        show_map = session_show_map(session_get(session_id)) if refs else False
+        # Carte session (GET /map) dépend des tables géométriques locales ; on la désactive pour france.
+        show_map = (
+            session_show_map(session_get(session_id))
+            if refs and not is_france_live_profile
+            else False
+        )
 
         return SessionResponse(
             session_id=session_id,

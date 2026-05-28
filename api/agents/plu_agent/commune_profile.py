@@ -50,7 +50,8 @@ class CommuneProfile:
     api_tags: tuple[str, ...]
     system_prompt: str
     catalog: LayerCatalog = field(repr=False)
-    # Tools LLM exposés à Gemini pour cette commune (dispatch filtre par profil).
+    # Tools LLM exposés à Gemini pour cette commune (filtrés dans routes/chat.py).
+    # Ajouter get_reglement_zone si la table {schema}.plu_reglement est alimentée.
     llm_tool_names: tuple[str, ...] = (
         "get_parcelle",
         "get_contexte_parcelle",

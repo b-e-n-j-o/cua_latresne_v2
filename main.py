@@ -37,7 +37,9 @@ from api.communes.latresne.tiles_mbtiles import router as latresne_mbtiles_route
 from api.parcelle_geometrie import router as parcelle_geometrie_router
 from api.plu.chat import router as chat_router
 from api.plu.fetch_plu import router as plu_router
+from api.documents_urba.pieces_dossier_urba import router as pieces_dossier_urba_router
 from api.agents.plu_agent.api import argeles_router as plu_agent_argeles_router
+from api.agents.plu_agent.api import france_router as plu_agent_france_router
 from api.agents.plu_agent.api import latresne_router as plu_agent_latresne_router
 from api.lidar.lidar_router import router as lidar_router
 from api.mnt.router_mnt import router as mnt_router
@@ -232,10 +234,12 @@ app.include_router(dpe_router)
 app.include_router(plu_router)
 app.include_router(chat_router)
 app.include_router(plu_agent_argeles_router)
+app.include_router(plu_agent_france_router)
 app.include_router(plu_agent_latresne_router)
 app.include_router(identite_parcelle_router)
 app.include_router(identite_fonciere_router)
 app.include_router(reglement_router)
+app.include_router(pieces_dossier_urba_router)
 app.include_router(latresne_router)
 app.include_router(parcelles_geojson_router)
 app.include_router(communes_parcelles_geojson_router)

@@ -21,4 +21,11 @@ ARGELES_PROFILE = build_commune_profile(
         _PROMPTS / "argeles_system.md",
         default="Expert PLU Argelès-sur-Mer.",
     ),
+    llm_tool_names=(
+        "get_parcelle",
+        "get_contexte_parcelle",
+        "get_reglement_zone",
+        "search_articles_urbanisme",
+        "get_article_urbanisme_by_num",
+    ),
 )

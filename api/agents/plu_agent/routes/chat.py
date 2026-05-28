@@ -19,9 +19,9 @@ from ..commune_profile import CommuneProfile
 from .schemas import ToolCallLog, Usage
 
 try:
-    from ..tools import TOOL_DECLARATIONS, build_dispatch
+    from ..tools import build_dispatch, build_tool_declarations
 except ImportError:
-    from tools import TOOL_DECLARATIONS, build_dispatch
+    from tools import build_dispatch, build_tool_declarations
 
 from .sessions import messages_get, messages_insert, session_get
 
@@ -194,6 +194,12 @@ def _call_tool(dispatch: dict, name: str, args: dict) -> tuple[str, str, dict | 
             f"{result.get('servitudes_count', 0)} servitude(s), "
             f"{result.get('informations_count', 0)} information(s)"
         )
+    elif result.get("found") is not None and name == "get_reglement_zone":
+        if result.get("found"):
+            n = len(result.get("reglementation") or "")
+            summary = f"règlement {result.get('code_zone')} — {n} caractères"
+        else:
+            summary = f"zone {result.get('code_zone')} — non trouvé"
     elif "error" in result and result["error"]:
         summary = f"erreur : {result['error']}"
     else:
@@ -268,11 +274,13 @@ def run_turn(
     Exécute un tour agentique complet.
     Appelé aussi par sessions.py pour le premier tour à la création de session.
     """
-    client   = _build_gemini_client()
-    dispatch = build_dispatch(DB_CONFIG)
-    config   = types.GenerateContentConfig(
+    profile    = get_current_profile()
+    tool_names = profile.llm_tool_names
+    client     = _build_gemini_client()
+    dispatch   = build_dispatch(DB_CONFIG, tool_names)
+    config     = types.GenerateContentConfig(
         system_instruction=_build_system_prompt(zones),
-        tools=[TOOL_DECLARATIONS],
+        tools=[build_tool_declarations(tool_names)],
         temperature=0.1,
     )
     return _agentic_loop(client, dispatch, contents, config)
