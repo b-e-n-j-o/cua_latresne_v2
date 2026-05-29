@@ -11,10 +11,12 @@ import os
 import sys
 from datetime import datetime, timezone
 
+import httpx
 import requests
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import create_engine, text
 
 from admin_routes import router as admin_router
@@ -122,6 +124,55 @@ project_management_module.supabase = supabase
 project_directory_module.supabase = supabase
 
 app = FastAPI(title="Kerelia CUA API", version="2.1")
+
+# Render : INTERNAL_TOKEN + SLACK_WEBHOOK_RENDER_ALERT — header x-internal-token pour curl/scripts.
+_INTERNAL_AGENT_TOKEN = (
+    os.getenv("INTERNAL_TOKEN")
+    or os.getenv("KERELIA_INTERNAL_AGENT_TOKEN")
+    or os.getenv("INTERNAL_AGENT_TOKEN")
+    or ""
+).strip()
+_SLACK_RENDER_ALERT_WEBHOOK = (os.getenv("SLACK_WEBHOOK_RENDER_ALERT") or "").strip()
+_SCANNER_UA_FRAGMENTS = ("python-requests", "curl", "wget", "nikto", "sqlmap")
+
+
+def _client_ip(request: Request) -> str:
+    forwarded = (request.headers.get("x-forwarded-for") or "").strip()
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    if request.client:
+        return request.client.host
+    return "unknown"
+
+
+async def _notify_slack_render_alert(message: str) -> None:
+    if not _slack_notifications_allowed() or not _SLACK_RENDER_ALERT_WEBHOOK:
+        return
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                _SLACK_RENDER_ALERT_WEBHOOK,
+                json={"text": message},
+                timeout=10.0,
+            )
+    except Exception as e:
+        _logger.warning("Slack render alert failed: %s", e)
+
+
+@app.middleware("http")
+async def block_scanners(request: Request, call_next):
+    """Bloque les UA type scanner sauf si x-internal-token correspond au secret env."""
+    if not _INTERNAL_AGENT_TOKEN:
+        return await call_next(request)
+    ua = request.headers.get("user-agent") or ""
+    token = (request.headers.get("x-internal-token") or "").strip()
+    is_scanner = any(fragment in ua.lower() for fragment in _SCANNER_UA_FRAGMENTS)
+    if is_scanner and token != _INTERNAL_AGENT_TOKEN:
+        msg = f"Scanner bloqué | IP: {_client_ip(request)} | UA: {ua} | Path: {request.url.path}"
+        _logger.warning(msg)
+        await _notify_slack_render_alert(msg)
+        return JSONResponse(status_code=403, content={"detail": "Forbidden"})
+    return await call_next(request)
 
 
 @app.on_event("startup")

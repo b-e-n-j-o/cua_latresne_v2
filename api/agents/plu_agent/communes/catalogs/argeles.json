@@ -20,6 +20,26 @@
         "Domaine",
         "Code CRINAOC"
       ]
+    },
+    "hauteurs": {
+      "enabled": true,
+      "table": "hauteurs",
+      "title": "Règlement des hauteurs de construction",
+      "group": "reglementation",
+      "kind": "surfacique",
+      "color": "#E9C46A",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "hauteur",
+        "legende"
+      ],
+      "clean_attributes": [
+        "Hauteur",
+        "Légende"
+      ]
     }
   }
 }

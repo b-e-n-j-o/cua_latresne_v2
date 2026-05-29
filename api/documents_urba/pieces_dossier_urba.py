@@ -733,17 +733,66 @@ async def status_gironde_batch(job_id: str):
     return job
 
 
+@router.get("/urban-documents/batch/gironde/jobs")
+async def list_gironde_batch_jobs(limit: int = 10, include_running: bool = True):
+    """
+    Liste compacte des jobs (sans report/logs) — pratique pour retrouver un job_id.
+    Le plus récent est en premier ; `latest_job_id` pointe le dernier run.
+    """
+    jobs = []
+    for jid, data in JOBS.items():
+        if data.get("type") != "gironde_urban_docs_batch":
+            continue
+        status = data.get("status")
+        if not include_running and status not in {"success", "error"}:
+            continue
+        params = data.get("params") or {}
+        jobs.append({
+            "job_id": jid,
+            "status": status,
+            "created_at": data.get("created_at"),
+            "end_time": data.get("end_time"),
+            "start_insee": params.get("start_insee"),
+            "end_insee": params.get("end_insee"),
+            "processed_communes": data.get("processed_communes"),
+            "total_communes": data.get("total_communes"),
+            "summary": data.get("summary"),
+        })
+    jobs.sort(key=lambda j: j.get("end_time") or j.get("created_at") or "", reverse=True)
+    jobs = jobs[:limit]
+    return {
+        "success": True,
+        "count": len(jobs),
+        "latest_job_id": jobs[0]["job_id"] if jobs else None,
+        "jobs": jobs,
+    }
+
+
 @router.get("/urban-documents/batch/gironde/results")
-async def list_gironde_batch_results(limit: int = 10):
+async def list_gironde_batch_results(limit: int = 10, compact: bool = False):
     jobs = []
     for jid, data in JOBS.items():
         if data.get("type") != "gironde_urban_docs_batch":
             continue
         if data.get("status") not in {"success", "error"}:
             continue
-        jobs.append({"job_id": jid, **data})
+        if compact:
+            params = data.get("params") or {}
+            jobs.append({
+                "job_id": jid,
+                "status": data.get("status"),
+                "end_time": data.get("end_time"),
+                "start_insee": params.get("start_insee"),
+                "end_insee": params.get("end_insee"),
+                "summary": data.get("summary"),
+            })
+        else:
+            jobs.append({"job_id": jid, **data})
     jobs.sort(key=lambda j: j.get("end_time", ""), reverse=True)
-    return {"success": True, "count": len(jobs), "results": jobs[:limit]}
+    out = {"success": True, "count": len(jobs), "results": jobs[:limit]}
+    if compact and jobs:
+        out["latest_job_id"] = jobs[0]["job_id"]
+    return out
 
 
 # ---------- CLI debug ----------

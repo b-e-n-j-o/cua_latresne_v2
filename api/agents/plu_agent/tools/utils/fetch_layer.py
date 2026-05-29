@@ -170,7 +170,7 @@ def _llm_attr_label(spec: LayerSpec, index: int, column: str) -> str:
 def _llm_attr_value(column: str, val) -> str | None:
     if val is None:
         return None
-    if column in ("txt", "reglementation", "laius_reglement") and val:
+    if column in ("txt", "reglementation", "laius_reglement", "legende") and val:
         txt = str(val).strip()
         if len(txt) > TXT_MAX_LLM:
             return txt[:TXT_MAX_LLM] + "…"
