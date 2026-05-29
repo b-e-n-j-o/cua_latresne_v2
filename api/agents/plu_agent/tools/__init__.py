@@ -22,6 +22,8 @@ from .geoportail_contexte_live import (
 )
 from .parcelle import DECL_PARCELLE, get_parcelle
 from .resolve_commune_insee import DECL_RESOLVE_COMMUNE_INSEE, resolve_commune_insee
+from .reglement_ppri import DECL_REGLEMENT_PPRI, get_reglement_ppri
+from .reglement_pprmvt import DECL_REGLEMENT_PPRMVT, get_reglement_pprmvt
 from .reglement_zone import DECL_REGLEMENT_ZONE, get_reglement_zone
 from .recherche_articles import (
     DECL_SEARCH_ARTICLES,
@@ -38,6 +40,8 @@ TOOL_DECLARATIONS_BY_NAME: dict[str, types.FunctionDeclaration] = {
     "search_articles_urbanisme": DECL_SEARCH_ARTICLES,
     "get_article_urbanisme_by_num": DECL_GET_ARTICLE_BY_NUM,
     "get_reglement_zone": DECL_REGLEMENT_ZONE,
+    "get_reglement_pprmvt": DECL_REGLEMENT_PPRMVT,
+    "get_reglement_ppri": DECL_REGLEMENT_PPRI,
 }
 
 DEFAULT_LLM_TOOL_NAMES = tuple(TOOL_DECLARATIONS_BY_NAME.keys())
@@ -56,6 +60,8 @@ TOOL_FUNCTIONS = {
     "search_articles_urbanisme": search_articles_urbanisme,
     "get_article_urbanisme_by_num": get_article_urbanisme_by_num,
     "get_reglement_zone": get_reglement_zone,
+    "get_reglement_pprmvt": get_reglement_pprmvt,
+    "get_reglement_ppri": get_reglement_ppri,
 }
 
 TOOL_RESPONSE_SHAPES = {
@@ -131,6 +137,34 @@ TOOL_RESPONSE_SHAPES = {
         "code_zone": "string — code tel qu'en base",
         "reglementation": "string | null — texte intégral du règlement",
         "found": "boolean",
+        "error": "string | null",
+    },
+    "get_reglement_pprmvt": {
+        "dispositions_generales": (
+            "array — DG1/DG2/DG3 : code_zone, type=dispositions_generales, libelle, "
+            "reglementation, found, error"
+        ),
+        "zones": (
+            "array — par code demandé : type=zone, libelle, reglementation, found, error"
+        ),
+        "dispositions_generales_found": "integer — 0 à 3",
+        "zones_found": "integer",
+        "zones_requested": "array — codes zones demandés (hors DG)",
+        "error": "string | null — erreur globale SQL",
+    },
+    "get_reglement_ppri": {
+        "dispositions_communes": (
+            "array — règlement général / chapitre A : type=dispositions_communes, "
+            "libelle, reglementation (texte fusionné), blocs[], found"
+        ),
+        "zones": (
+            "array — par zone PPRI : zone_code, libelle, reglementation, blocs[], found"
+        ),
+        "dispositions_communes_found": "integer",
+        "zones_found": "integer",
+        "zones_requested": "array",
+        "zones_available_in_db": "array — codes zone présents en base (aide debug)",
+        "code_insee": "string",
         "error": "string | null",
     },
 }
@@ -230,6 +264,8 @@ __all__ = [
     "get_geoportail_contexte_live",
     "resolve_commune_insee",
     "get_reglement_zone",
+    "get_reglement_pprmvt",
+    "get_reglement_ppri",
     "search_articles_urbanisme",
     "get_article_urbanisme_by_num",
     "print_tools_mapping",

@@ -85,9 +85,16 @@ class FileResultSummary(BaseModel):
     tokens: TokenUsageBreakdown | None = None
 
 
+class BatchJobCancelResponse(BaseModel):
+    ok: bool = True
+    job_id: str
+    status: str
+    message: str
+
+
 class BatchJobStatusResponse(BaseModel):
     job_id: str
-    status: Literal["queued", "running", "done", "failed"]
+    status: Literal["queued", "running", "done", "failed", "cancelled"]
     total: int
     processed: int
     current_file: str | None = None
@@ -144,8 +151,14 @@ def _run_batch_job(job_id: str, *, skip_judge: bool) -> None:
     job["status"] = "running"
     job["started_at"] = job.get("started_at") or _utc_now_iso()
 
+    cancelled = False
     try:
         for stem, txt_path in files:
+            if JOBS.get(job_id, {}).get("cancel_requested"):
+                cancelled = True
+                logger.info("Job %s — annulation demandée avant %s", job_id, stem)
+                break
+
             job["current_file"] = stem
             raw = txt_path.read_text(encoding="utf-8")
             out_sub = work_dir / "outputs" / stem
@@ -161,8 +174,19 @@ def _run_batch_job(job_id: str, *, skip_judge: bool) -> None:
                 stem,
                 result.get("status"),
             )
-        job["status"] = "done"
-        job["download_ready"] = _has_any_md(work_dir)
+
+            if JOBS.get(job_id, {}).get("cancel_requested"):
+                cancelled = True
+                logger.info("Job %s — annulation demandée après %s", job_id, stem)
+                break
+
+        if cancelled:
+            job["status"] = "cancelled"
+            job["error"] = "Annulé par l'utilisateur"
+            job["download_ready"] = _has_any_md(work_dir)
+        else:
+            job["status"] = "done"
+            job["download_ready"] = _has_any_md(work_dir)
     except Exception as e:
         logger.exception("Job batch markdown %s en erreur", job_id)
         job["status"] = "failed"
@@ -275,6 +299,7 @@ async def start_batch_job(
         "skip_judge": skip_judge,
         "download_ready": False,
         "tokens_total": None,
+        "cancel_requested": False,
     }
 
     background_tasks.add_task(_run_batch_job, job_id, skip_judge=skip_judge)
@@ -325,7 +350,7 @@ async def download_batch_zip(job_id: str):
     job = JOBS.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"job_id inconnu : {job_id}")
-    if job["status"] not in ("done", "failed"):
+    if job["status"] not in ("done", "failed", "cancelled"):
         raise HTTPException(status_code=409, detail="Job encore en cours")
     if not job.get("download_ready"):
         raise HTTPException(status_code=404, detail="Aucun markdown produit pour ce job")
@@ -340,12 +365,47 @@ async def download_batch_zip(job_id: str):
     )
 
 
-@router.delete("/batch/jobs/{job_id}")
-async def delete_batch_job(job_id: str):
-    job = JOBS.pop(job_id, None)
+@router.post("/batch/jobs/{job_id}/cancel", response_model=BatchJobCancelResponse)
+async def cancel_batch_job(job_id: str):
+    """
+    Demande l'arrêt du batch : le fichier en cours (appel LLM) va au bout,
+    puis les fichiers restants ne sont pas traités.
+    """
+    job = JOBS.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"job_id inconnu : {job_id}")
+
+    status = job["status"]
+    if status in ("done", "failed", "cancelled"):
+        return BatchJobCancelResponse(
+            job_id=job_id,
+            status=status,
+            message="Job déjà terminé",
+        )
+
+    job["cancel_requested"] = True
+    return BatchJobCancelResponse(
+        job_id=job_id,
+        status=status,
+        message=(
+            "Annulation demandée — le traitement s'arrêtera après le fichier en cours "
+            "(l'appel Gemini en cours ne peut pas être interrompu)."
+        ),
+    )
+
+
+@router.delete("/batch/jobs/{job_id}")
+async def delete_batch_job(job_id: str):
+    """Supprime le job et les fichiers /tmp (demande aussi l'annulation si encore actif)."""
+    job = JOBS.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"job_id inconnu : {job_id}")
+
+    if job["status"] in ("queued", "running"):
+        job["cancel_requested"] = True
+
+    JOBS.pop(job_id, None)
     work_dir = job.get("work_dir")
     if work_dir:
         shutil.rmtree(work_dir, ignore_errors=True)
-    return {"ok": True, "job_id": job_id}
+    return {"ok": True, "job_id": job_id, "cancel_requested": True}

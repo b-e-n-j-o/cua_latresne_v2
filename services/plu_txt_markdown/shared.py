@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MODEL = "gemini-3.1-pro-preview"
+MODEL = "gemini-3.1-pro"
 
 TOKEN_USAGE_KEYS = (
     "prompt_token_count",

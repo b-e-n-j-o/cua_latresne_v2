@@ -76,14 +76,34 @@ def _build_system_prompt(zones: list[dict]) -> str:
     return base + zones_block
 
 
+def serialize_contents(items: list[types.Content]) -> list[dict]:
+    """Sérialise la chaîne Gemini d'un tour pour persistance JSONB."""
+    return [c.model_dump(mode="json", exclude_none=True) for c in items]
+
+
+def deserialize_contents(blob) -> list[types.Content]:
+    """Reconstruit les Content depuis le JSONB (psycopg2 renvoie déjà du Python)."""
+    if isinstance(blob, str):
+        blob = json.loads(blob)
+    return [types.Content.model_validate(d) for d in (blob or [])]
+
+
 def build_contents_from_db(messages: list[dict]) -> list:
+    """
+    Rejoue l'historique Gemini : gemini_parts (fc/fr + texte) si présent,
+    sinon fallback texte plat (anciennes sessions).
+    """
     contents = []
     for msg in messages:
-        role = "model" if msg["role"] == "model" else "user"
-        contents.append(types.Content(
-            role=role,
-            parts=[types.Part(text=msg["content"])],
-        ))
+        parts_blob = msg.get("gemini_parts")
+        if msg["role"] == "model" and parts_blob:
+            contents.extend(deserialize_contents(parts_blob))
+        else:
+            role = "model" if msg["role"] == "model" else "user"
+            contents.append(types.Content(
+                role=role,
+                parts=[types.Part(text=msg["content"])],
+            ))
     return contents
 
 
@@ -222,6 +242,20 @@ def _call_tool(dispatch: dict, name: str, args: dict) -> tuple[str, str, dict | 
             summary = f"règlement {result.get('code_zone')} — {n} caractères"
         else:
             summary = f"zone {result.get('code_zone')} — non trouvé"
+    elif name == "get_reglement_pprmvt":
+        dg_ok = result.get("dispositions_generales_found", 0)
+        z_ok = result.get("zones_found", 0)
+        z_req = len(result.get("zones_requested") or [])
+        summary = f"PPRMVT — DG {dg_ok}/3, zones {z_ok}/{z_req}"
+        if result.get("error"):
+            summary += f" | {result['error']}"
+    elif name == "get_reglement_ppri":
+        dc_ok = result.get("dispositions_communes_found", 0)
+        z_ok = result.get("zones_found", 0)
+        z_req = len(result.get("zones_requested") or [])
+        summary = f"PPRI — communes {dc_ok}/1, zones {z_ok}/{z_req}"
+        if result.get("error"):
+            summary += f" | {result['error']}"
     elif "error" in result and result["error"]:
         summary = f"erreur : {result['error']}"
     else:
@@ -291,10 +325,11 @@ def _agentic_loop(
 def run_turn(
     zones: list[dict],
     contents: list,
-) -> tuple[str, list[ToolCallLog], Usage]:
+) -> tuple[str, list[ToolCallLog], Usage, list[types.Content]]:
     """
     Exécute un tour agentique complet.
     Appelé aussi par sessions.py pour le premier tour à la création de session.
+    Retourne aussi new_contents : la chaîne Gemini du tour (fc/fr + texte final).
     """
     profile    = get_current_profile()
     tool_names = profile.llm_tool_names
@@ -305,7 +340,9 @@ def run_turn(
         tools=[build_tool_declarations(tool_names)],
         temperature=0.1,
     )
-    return _agentic_loop(client, dispatch, contents, config)
+    start = len(contents)
+    answer, tool_calls, usage = _agentic_loop(client, dispatch, contents, config)
+    return answer, tool_calls, usage, contents[start:]
 
 
 # ---------------------------------------------------------------------------
@@ -337,7 +374,7 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
         contents.append(types.Content(role="user", parts=[types.Part(text=req.message)]))
 
         try:
-            answer, tool_calls, usage = run_turn(zones, contents)
+            answer, tool_calls, usage, new_contents = run_turn(zones, contents)
         except Exception as e:
             logger.error(f"agentic_loop error : {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e))
@@ -355,6 +392,7 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
             user_message=req.message,
             model_answer=answer,
             tool_calls=[tc.model_dump() for tc in tool_calls],
+            gemini_parts=serialize_contents(new_contents),
             prompt_tokens=usage.prompt_tokens,
             candidate_tokens=usage.candidate_tokens,
             total_tokens=usage.total_tokens,

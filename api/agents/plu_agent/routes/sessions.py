@@ -181,10 +181,10 @@ def session_get(session_id: str) -> dict | None:
 def messages_get(session_id: str) -> list[dict]:
     messages = get_current_profile().messages_table()
     sql = f"""
-        SELECT role, content, tool_calls, created_at
+        SELECT role, content, tool_calls, gemini_parts, created_at
         FROM {messages}
         WHERE session_id = %s
-        ORDER BY created_at ASC;
+        ORDER BY created_at ASC, id ASC;
     """
     conn = _db_conn()
     with conn:
@@ -194,21 +194,31 @@ def messages_get(session_id: str) -> list[dict]:
     conn.close()
     for row in rows:
         row["tool_calls"] = _parse_json_field(row.get("tool_calls"))
+        row["gemini_parts"] = _parse_json_field(row.get("gemini_parts"))
     return rows
 
 
-def messages_insert(session_id, user_message, model_answer, tool_calls,
-                    prompt_tokens, candidate_tokens, total_tokens, latency_ms):
+def messages_insert(
+    session_id,
+    user_message,
+    model_answer,
+    tool_calls=None,
+    gemini_parts=None,
+    prompt_tokens=None,
+    candidate_tokens=None,
+    total_tokens=None,
+    latency_ms=None,
+):
     profile = get_current_profile()
     messages = profile.messages_table()
     sessions = profile.sessions_table()
     sql_msg = f"""
         INSERT INTO {messages}
-            (session_id, role, content, tool_calls, prompt_tokens,
-             candidate_tokens, total_tokens, latency_ms)
+            (session_id, role, content, tool_calls, gemini_parts,
+             prompt_tokens, candidate_tokens, total_tokens, latency_ms)
         VALUES
-            (%s, 'user',  %s, NULL,  NULL, NULL, NULL, NULL),
-            (%s, 'model', %s, %s,    %s,   %s,   %s,   %s);
+            (%s, 'user',  %s, NULL, NULL, NULL, NULL, NULL, NULL),
+            (%s, 'model', %s, %s,   %s,   %s,   %s,   %s,   %s);
     """
     sql_session = f"""
         UPDATE {sessions}
@@ -223,7 +233,8 @@ def messages_insert(session_id, user_message, model_answer, tool_calls,
             cur.execute(sql_msg, (
                 session_id, user_message,
                 session_id, model_answer,
-                json.dumps(tool_calls, default=str),
+                json.dumps(tool_calls, default=str) if tool_calls is not None else None,
+                json.dumps(gemini_parts, default=str) if gemini_parts is not None else None,
                 prompt_tokens, candidate_tokens, total_tokens, latency_ms,
             ))
             cur.execute(sql_session, (total_tokens, session_id))
@@ -299,7 +310,7 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
     @router.post("/session", response_model=SessionResponse)
     @bind
     def create_session(req: SessionRequest):
-        from .chat import run_turn, session_show_map
+        from .chat import run_turn, serialize_contents, session_show_map
 
         parcelles_arg = (
             [{"section": p.section, "numero": p.numero} for p in req.parcelles]
@@ -382,7 +393,7 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
         if req.question:
             contents = [types.Content(role="user", parts=[types.Part(text=req.question)])]
             try:
-                answer, tool_calls, usage = run_turn(zones, contents)
+                answer, tool_calls, usage, new_contents = run_turn(zones, contents)
             except Exception as e:
                 logger.error(f"agentic_loop error : {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e))
@@ -393,6 +404,7 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
                 user_message=req.question,
                 model_answer=answer,
                 tool_calls=[tc.model_dump() for tc in tool_calls],
+                gemini_parts=serialize_contents(new_contents),
                 prompt_tokens=usage.prompt_tokens,
                 candidate_tokens=usage.candidate_tokens,
                 total_tokens=usage.total_tokens,
