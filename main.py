@@ -43,6 +43,7 @@ from api.documents_urba.pieces_dossier_urba import router as pieces_dossier_urba
 from api.agents.plu_agent.api import argeles_router as plu_agent_argeles_router
 from api.agents.plu_agent.api import france_router as plu_agent_france_router
 from api.agents.plu_agent.api import latresne_router as plu_agent_latresne_router
+from api.agents.plu_agent.api import mios_router as plu_agent_mios_router
 from api.lidar.lidar_router import router as lidar_router
 from api.mnt.router_mnt import router as mnt_router
 from api.tiles_generic import router as tiles_router
@@ -66,6 +67,7 @@ from services.history.project_management import router as project_management_rou
 import services.history.project_management as project_management_module
 from services.history.project_directory import router as project_directory_router
 import services.history.project_directory as project_directory_module
+from services.plu_txt_markdown.router import router as plu_txt_markdown_router
 
 
 logging.basicConfig(
@@ -287,6 +289,7 @@ app.include_router(chat_router)
 app.include_router(plu_agent_argeles_router)
 app.include_router(plu_agent_france_router)
 app.include_router(plu_agent_latresne_router)
+app.include_router(plu_agent_mios_router)
 app.include_router(identite_parcelle_router)
 app.include_router(identite_fonciere_router)
 app.include_router(reglement_router)
@@ -311,6 +314,9 @@ app.include_router(cua_pipeline_router)
 
 # --- Pipelines Supabase + debug ---
 app.include_router(pipelines_supabase_router)
+
+# --- PLU : TXT brut → Markdown (batch LLM) ---
+app.include_router(plu_txt_markdown_router)
 
 # --- LiDAR HD (nuage de points) ---
 app.include_router(lidar_router, prefix="/lidar")

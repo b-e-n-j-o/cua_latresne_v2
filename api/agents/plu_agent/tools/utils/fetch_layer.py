@@ -7,7 +7,7 @@ import logging
 
 import psycopg2
 
-from ...commune_context import q
+from ...commune_context import current_schema, q
 from ...layer_catalog import LayerSpec
 from .db import db_query
 from .servitudes import _geom_2154_sql
@@ -245,16 +245,50 @@ def fetch_extra_layers_llm(
     from .catalog_bridge import active_catalog, extra_layers
 
     cat = catalog or active_catalog()
+    sch = current_schema()
+    specs = list(extra_layers(cat, context_llm=True))
     groups: dict[str, list[dict]] = {}
     total = 0
-    for spec in extra_layers(cat, context_llm=True):
+    hit_parts: list[str] = []
+
+    for spec in specs:
         rows = fetch_layer_rows(db_config, geom_wkb, spec, with_geojson=False)
-        items = rows_to_llm_items(rows, spec)
-        if not items:
+        n = len(rows)
+        if not n:
+            logger.debug(
+                "get_extra_layers — %s → 0 [%s.%s]",
+                spec.id,
+                sch,
+                spec.table,
+            )
             continue
+        items = rows_to_llm_items(rows, spec)
         g = spec.group or "autre"
         groups.setdefault(g, []).extend(items)
         total += len(items)
+        hit_parts.append(f"{spec.id}({n})")
+        logger.info(
+            "get_extra_layers — %s → %d entité(s) [%s.%s]",
+            spec.id,
+            n,
+            sch,
+            spec.table,
+        )
+
+    if hit_parts:
+        logger.info(
+            "get_extra_layers — %d entité(s) sur %d couche(s) : %s",
+            total,
+            len(hit_parts),
+            ", ".join(hit_parts),
+        )
+    else:
+        logger.info(
+            "get_extra_layers — aucune intersection (%d couche(s) testées, schéma %s)",
+            len(specs),
+            sch,
+        )
+
     return {"couches_supplementaires": groups, "couches_supplementaires_count": total}
 
 
@@ -272,9 +306,12 @@ def fetch_extra_layers_carto(
     from .catalog_bridge import active_catalog, extra_layers
 
     cat = catalog or active_catalog()
+    sch = current_schema()
     buf = float(buffer_m)
     out: dict = {}
-    for spec in extra_layers(cat, context_carto=True):
+    hit_parts: list[str] = []
+    specs = list(extra_layers(cat, context_carto=True))
+    for spec in specs:
         rows = fetch_layer_rows(
             db_config,
             geom_wkb,
@@ -283,5 +320,25 @@ def fetch_extra_layers_carto(
             display_buffer_m=buf,
         )
         features = rows_to_map_features(rows, spec)
+        if features:
+            hit_parts.append(f"{spec.id}({len(features)})")
+            logger.info(
+                "get_extra_layers_carto — %s → %d feature(s) [%s.%s]",
+                spec.id,
+                len(features),
+                sch,
+                spec.table,
+            )
         out[spec.id] = {"type": "FeatureCollection", "features": features}
+    if hit_parts:
+        logger.info(
+            "get_extra_layers_carto — %s",
+            ", ".join(hit_parts),
+        )
+    elif specs:
+        logger.info(
+            "get_extra_layers_carto — aucune intersection (%d couche(s), schéma %s)",
+            len(specs),
+            sch,
+        )
     return out

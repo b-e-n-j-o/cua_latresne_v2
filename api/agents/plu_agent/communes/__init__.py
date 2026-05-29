@@ -11,7 +11,8 @@ Centraliser les instances `CommuneProfile` et les exposer par slug :
 Structure du package
 --------------------
   - `argeles.py`   → ARGELES_PROFILE (production actuelle)
-  - `latresne.py`  → LATRESNE_PROFILE (squelette, schéma `latresne`)
+  - `latresne.py`  → LATRESNE_PROFILE (schéma `latresne`)
+  - `mios.py`      → MIOS_PROFILE (schéma `mios`)
   - `prompts/`     → fichiers Markdown des prompts système (un par commune)
 
 Ajouter une commune
@@ -26,11 +27,13 @@ from ..commune_profile import CommuneProfile
 from .argeles import ARGELES_PROFILE
 from .france import FRANCE_PROFILE
 from .latresne import LATRESNE_PROFILE
+from .mios import MIOS_PROFILE
 
 COMMUNE_PROFILES: dict[str, CommuneProfile] = {
     ARGELES_PROFILE.slug: ARGELES_PROFILE,
     FRANCE_PROFILE.slug: FRANCE_PROFILE,
     LATRESNE_PROFILE.slug: LATRESNE_PROFILE,
+    MIOS_PROFILE.slug: MIOS_PROFILE,
 }
 
 

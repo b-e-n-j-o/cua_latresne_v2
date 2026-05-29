@@ -678,7 +678,7 @@
     },
     "pprmvt_latresne": {
       "enabled": true,
-      "table": "pprmvt_latresne",
+      "table": "pprmvt",
       "title": "PPRMVT",
       "group": "information",
       "kind": "surfacique",
@@ -688,22 +688,16 @@
       "context_llm": true,
       "context_carto": true,
       "keep": [
-        "etiquette",
-        "niveau_max",
-        "Ap",
-        "Ag",
-        "Af",
-        "Zone_Regl_",
-        "Zone_Reg_1"
+        "codezone",
+        "nom",
+        "typereg",
+        "reglementation"
       ],
       "clean_attributes": [
-        "Etiquette",
-        "Niveau maximum",
-        "Ap",
-        "Ag",
-        "Af",
-        "Zone_Regl_",
-        "Zone_Reg_1"
+        "Code zone",
+        "Nom",
+        "Type règlement",
+        "Réglementation"
       ]
     }
   }

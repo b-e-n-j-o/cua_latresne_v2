@@ -162,6 +162,21 @@ def _zones_for_summary(result: dict) -> list[dict]:
     return []
 
 
+def _extra_layers_summary(result: dict) -> str:
+    """Résumé des couches catalogue intersectées (groupées par layer_id)."""
+    groups = result.get("couches_supplementaires") or {}
+    counts: dict[str, int] = {}
+    for items in groups.values():
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            lid = str(item.get("layer_id") or "?")
+            counts[lid] = counts.get(lid, 0) + 1
+    return ", ".join(f"{lid}({n})" for lid, n in sorted(counts.items()))
+
+
 def _call_tool(dispatch: dict, name: str, args: dict) -> tuple[str, str, dict | None]:
     """
     Exécute le tool.
@@ -182,17 +197,24 @@ def _call_tool(dispatch: dict, name: str, args: dict) -> tuple[str, str, dict | 
 
     # Résumé lisible pour les logs et la sidebar
     zone_items = _zones_for_summary(result)
+    extra_summary = _extra_layers_summary(result)
     if zone_items:
         summary = ", ".join(
             f"{z.get('code_zone')} ({z.get('pct_parcelle_couverte', '?')}%)"
             for z in zone_items
         )
+        if extra_summary:
+            summary += f" | extra: {extra_summary}"
+        elif result.get("couches_supplementaires_count") == 0 and name == "get_contexte_parcelle":
+            summary += " | extra: aucune"
     elif result.get("zones_count") is not None or result.get("prescriptions_count") is not None:
+        extra_bit = f", extra: {extra_summary}" if extra_summary else ""
         summary = (
             f"contexte parcelle — {result.get('zones_count', len(zone_items))} zone(s), "
             f"{result.get('prescriptions_count', 0)} prescription(s), "
             f"{result.get('servitudes_count', 0)} servitude(s), "
             f"{result.get('informations_count', 0)} information(s)"
+            f"{extra_bit}"
         )
     elif result.get("found") is not None and name == "get_reglement_zone":
         if result.get("found"):
