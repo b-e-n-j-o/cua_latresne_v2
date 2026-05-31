@@ -38,11 +38,13 @@ def _build_tokens_summary(
     judge_stats: dict | None,
 ) -> dict:
     extract_tokens = (extract_stats or {}).get("tokens") or empty_token_usage()
-    judge_tokens = (judge_stats or {}).get("tokens") if judge_stats else None
+    # Si judge_stats est absent, on utilise empty_token_usage() au lieu de None
+    judge_tokens = (judge_stats or {}).get("tokens") if judge_stats else empty_token_usage()
+    
     total = merge_token_usages(extract_tokens, judge_tokens)
     return {
         "extract": extract_tokens,
-        "judge": judge_tokens,
+        "judge": judge_tokens if judge_stats else None, # On peut laisser None dans le rapport final si souhaité
         "total": total,
     }
 

@@ -153,17 +153,22 @@ TOOL_RESPONSE_SHAPES = {
         "error": "string | null — erreur globale SQL",
     },
     "get_reglement_ppri": {
-        "dispositions_communes": (
-            "array — règlement général / chapitre A : type=dispositions_communes, "
-            "libelle, reglementation (texte fusionné), blocs[], found"
+        "dispositions_generales": (
+            "array — dispositions générales fusionnées (zone_code DG) : "
+            "type=dispositions_generales, libelle, reglementation, blocs[], found"
         ),
+        "dispositions_communes": "array — alias de dispositions_generales (rétrocompat)",
         "zones": (
             "array — par zone PPRI : zone_code, libelle, reglementation, blocs[], found"
         ),
-        "dispositions_communes_found": "integer",
+        "dispositions_generales_found": "integer — 0 ou 1 (ligne DG)",
+        "dispositions_communes_found": "integer — alias de dispositions_generales_found",
         "zones_found": "integer",
         "zones_requested": "array",
         "zones_available_in_db": "array — codes zone présents en base (aide debug)",
+        "zones_ppri_reference": (
+            "object — liste de référence : dispositions_generales=DG, zones_couleur=[...]"
+        ),
         "code_insee": "string",
         "error": "string | null",
     },

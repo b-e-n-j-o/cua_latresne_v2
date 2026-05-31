@@ -1,4 +1,4 @@
-"""Tool get_reglement_ppri — règlement PPRI Latresne (dispositions communes + zones)."""
+"""Tool get_reglement_ppri — règlement PPRI Latresne (dispositions générales DG + zones)."""
 
 from __future__ import annotations
 
@@ -16,9 +16,27 @@ logger = logging.getLogger("plu_tools")
 TABLE_NAME = "ppri_reglements"
 DEFAULT_CODE_INSEE = "33234"
 
-# zone_code explicites hors zonage couleur (dispositions / règlement commun).
+# Ligne unique des dispositions générales fusionnées (ingestion PPRI).
+DG_ZONE_CODE = "DG"
+DG_LIBELLE = "Dispositions générales (PPRI)"
+
+# Codes zone couleur Latresne (table latresne.ppri_reglements) — source de vérité pour le LLM.
+PPRI_ZONES_COULEUR: tuple[str, ...] = (
+    "BLEUE",
+    "BLEUE_CLAIRE",
+    "BYZANTINE",
+    "GRENAT",
+    "ROUGE_CENTRE",
+    "ROUGE_INDUS",
+    "ROUGE_NON_URBA",
+    "ROUGE_URBA",
+)
+
+_PPRI_ZONES_COULEUR_HELP = ", ".join(PPRI_ZONES_COULEUR)
+
+# Anciens / synonymes de zone_code pour les dispositions (hors zonage couleur).
 DISPOSITION_ZONE_CODES: frozenset[str] = frozenset({
-    "DG",
+    DG_ZONE_CODE,
     "DISPOSITIONS_GENERALES",
     "REGLEMENT_GENERAL",
     "COMMUN",
@@ -50,13 +68,19 @@ def _resolve_insee() -> str:
 
 def _row_to_bloc(row: dict[str, Any]) -> dict[str, Any]:
     text = (row.get("reglementation") or "").strip()
-    zc = (row.get("zone_code") or "").strip() or None
+    zc_raw = (row.get("zone_code") or "").strip()
+    zc = _norm_zone_code(zc_raw) if zc_raw else None
     chapitre = (row.get("chapitre") or "").strip() or None
     titre = (row.get("titre_zone") or "").strip() or None
     libelle_parts = [p for p in (chapitre, titre) if p]
-    libelle = " — ".join(libelle_parts) if libelle_parts else (
-        f"Dispositions communes (PPRI)" if not zc else f"PPRI — {zc}"
-    )
+    if libelle_parts:
+        libelle = " — ".join(libelle_parts)
+    elif zc == DG_ZONE_CODE:
+        libelle = DG_LIBELLE
+    elif zc:
+        libelle = f"PPRI — {zc}"
+    else:
+        libelle = DG_LIBELLE
     return {
         "id": row.get("id"),
         "zone_code": zc,
@@ -85,39 +109,7 @@ def _is_disposition_row(row: dict[str, Any]) -> bool:
     return False
 
 
-def _aggregate_blocs(blocs: list[dict[str, Any]], *, type_label: str, zone_code: str | None) -> dict[str, Any]:
-    found_blocs = [b for b in blocs if b.get("found")]
-    texts = [b["reglementation"] for b in found_blocs]
-    combined = "\n\n---\n\n".join(texts) if texts else None
-    if zone_code:
-        libelle = f"Zone {zone_code} (PPRI)"
-        if found_blocs and found_blocs[0].get("titre_zone"):
-            libelle = f"{found_blocs[0]['titre_zone']} (PPRI)"
-    else:
-        libelle = "Dispositions communes et règlement général (PPRI)"
-    return {
-        "type": type_label,
-        "zone_code": zone_code,
-        "libelle": libelle,
-        "reglementation": combined,
-        "blocs": blocs,
-        "blocs_count": len(blocs),
-        "blocs_found": len(found_blocs),
-        "found": bool(texts),
-        "error": None if texts else "Aucun texte de réglementation en base pour cette entrée.",
-    }
-
-
-def get_reglement_ppri(
-    db_config: dict,
-    codes_zone: list[str] | None = None,
-    *,
-    include_dispositions_communes: bool = True,
-) -> dict:
-    """
-    Récupère le règlement PPRI depuis ``{schema}.ppri_reglements`` :
-    dispositions communes (chapitre A / zone_code vide) + zones demandées.
-    """
+def _parse_requested_codes(codes_zone: list[str] | str | None) -> list[str]:
     if codes_zone is None:
         requested_raw: list = []
     elif isinstance(codes_zone, str):
@@ -137,30 +129,130 @@ def get_reglement_ppri(
             continue
         seen.add(c)
         requested.append(c)
+    return requested
 
-    code_insee = _resolve_insee()
+
+def _aggregate_blocs(
+    blocs: list[dict[str, Any]],
+    *,
+    type_label: str,
+    zone_code: str | None,
+    libelle: str | None = None,
+) -> dict[str, Any]:
+    found_blocs = [b for b in blocs if b.get("found")]
+    texts = [b["reglementation"] for b in found_blocs]
+    combined = "\n\n---\n\n".join(texts) if texts else None
+    if libelle is None:
+        if zone_code and zone_code != DG_ZONE_CODE:
+            libelle = f"Zone {zone_code} (PPRI)"
+            if found_blocs and found_blocs[0].get("titre_zone"):
+                libelle = f"{found_blocs[0]['titre_zone']} (PPRI)"
+        else:
+            libelle = DG_LIBELLE
+    return {
+        "type": type_label,
+        "zone_code": zone_code,
+        "libelle": libelle,
+        "reglementation": combined,
+        "blocs": blocs,
+        "blocs_count": len(blocs),
+        "blocs_found": len(found_blocs),
+        "found": bool(texts),
+        "error": None if texts else "Aucun texte de réglementation en base pour cette entrée.",
+    }
+
+
+def _fetch_rows(
+    db_config: dict,
+    code_insee: str,
+    requested: list[str],
+    *,
+    include_dispositions_generales: bool,
+) -> list[dict[str, Any]]:
+    or_clauses: list[str] = []
+    params: list[Any] = [code_insee]
+
+    if requested:
+        ph = ", ".join("%s" for _ in requested)
+        or_clauses.append(f"upper(trim(zone_code)) IN ({ph})")
+        params.extend(requested)
+
+    if include_dispositions_generales:
+        legacy = sorted(DISPOSITION_ZONE_CODES)
+        ph = ", ".join("%s" for _ in legacy)
+        or_clauses.append(
+            f"(zone_code IS NULL OR trim(coalesce(zone_code, '')) = '' "
+            f"OR upper(trim(zone_code)) IN ({ph}))"
+        )
+        params.extend(legacy)
+
+    if not or_clauses:
+        return []
+
     sql = f"""
         SELECT {SELECT_COLS}
         FROM {q(TABLE_NAME)}
         WHERE code_insee = %s
+          AND ({' OR '.join(or_clauses)})
         ORDER BY
-            CASE WHEN zone_code IS NULL OR trim(zone_code) = '' THEN 0 ELSE 1 END,
+            CASE WHEN upper(trim(coalesce(zone_code, ''))) = %s THEN 0
+                 WHEN zone_code IS NULL OR trim(coalesce(zone_code, '')) = '' THEN 1
+                 ELSE 2 END,
             chapitre NULLS LAST,
             zone_code NULLS LAST,
             id
     """
+    params.append(DG_ZONE_CODE)
+    return db_query(db_config, sql, tuple(params))
+
+
+def get_reglement_ppri(
+    db_config: dict,
+    codes_zone: list[str] | None = None,
+    *,
+    include_dispositions_communes: bool = True,
+) -> dict:
+    """
+    Récupère le règlement PPRI depuis ``{schema}.ppri_reglements`` :
+    dispositions générales (``zone_code`` = DG, texte fusionné DG1–DG3) + zones demandées.
+    """
+    requested = _parse_requested_codes(codes_zone)
+    include_dg = include_dispositions_communes
+    code_insee = _resolve_insee()
+
+    if not requested and not include_dg:
+        return {
+            "dispositions_communes": [],
+            "dispositions_generales": [],
+            "zones": [],
+            "dispositions_communes_found": 0,
+            "dispositions_generales_found": 0,
+            "zones_found": 0,
+            "zones_requested": [],
+            "code_insee": code_insee,
+            "zones_available_in_db": [],
+            "error": "Aucune zone demandée et dispositions générales désactivées.",
+        }
 
     try:
-        rows = db_query(db_config, sql, (code_insee,))
+        rows = _fetch_rows(
+            db_config,
+            code_insee,
+            requested,
+            include_dispositions_generales=include_dg,
+        )
     except Exception as e:
         logger.error("get_reglement_ppri — SQL échoué : %s", e)
         return {
             "dispositions_communes": [],
+            "dispositions_generales": [],
             "zones": [],
             "dispositions_communes_found": 0,
+            "dispositions_generales_found": 0,
             "zones_found": 0,
             "zones_requested": requested,
             "code_insee": code_insee,
+            "zones_available_in_db": [],
             "error": str(e),
         }
 
@@ -170,7 +262,7 @@ def get_reglement_ppri(
     for row in rows:
         bloc = _row_to_bloc(row)
         if _is_disposition_row(row):
-            disposition_blocs.append({**bloc, "type": "dispositions_communes"})
+            disposition_blocs.append({**bloc, "type": "dispositions_generales"})
             continue
         zc = _norm_zone_code(row.get("zone_code") or "")
         if not zc:
@@ -178,27 +270,32 @@ def get_reglement_ppri(
         by_zone.setdefault(zc, []).append({**bloc, "type": "zone"})
 
     dispositions_out: list[dict] = []
-    if include_dispositions_communes:
+    if include_dg:
         if disposition_blocs:
             dispositions_out.append(
                 _aggregate_blocs(
                     disposition_blocs,
-                    type_label="dispositions_communes",
-                    zone_code=None,
+                    type_label="dispositions_generales",
+                    zone_code=DG_ZONE_CODE,
+                    libelle=DG_LIBELLE,
                 )
             )
         else:
-            dispositions_out.append({
-                "type": "dispositions_communes",
-                "zone_code": None,
-                "libelle": "Dispositions communes et règlement général (PPRI)",
+            empty = {
+                "type": "dispositions_generales",
+                "zone_code": DG_ZONE_CODE,
+                "libelle": DG_LIBELLE,
                 "reglementation": None,
                 "blocs": [],
                 "blocs_count": 0,
                 "blocs_found": 0,
                 "found": False,
-                "error": "Aucune disposition commune trouvée en base.",
-            })
+                "error": (
+                    f"Aucune disposition générale trouvée en base "
+                    f"(attendu zone_code = {DG_ZONE_CODE!r})."
+                ),
+            }
+            dispositions_out.append(empty)
 
     zones_out: list[dict] = []
     for code in requested:
@@ -225,12 +322,18 @@ def get_reglement_ppri(
 
     return {
         "dispositions_communes": dispositions_out,
+        "dispositions_generales": dispositions_out,
         "zones": zones_out,
         "dispositions_communes_found": disp_found,
+        "dispositions_generales_found": disp_found,
         "zones_found": zones_found,
         "zones_requested": requested,
         "code_insee": code_insee,
         "zones_available_in_db": sorted(by_zone.keys()),
+        "zones_ppri_reference": {
+            "dispositions_generales": DG_ZONE_CODE,
+            "zones_couleur": list(PPRI_ZONES_COULEUR),
+        },
         "error": None,
     }
 
@@ -240,13 +343,12 @@ DECL_REGLEMENT_PPRI = types.FunctionDeclaration(
     description=(
         "Récupère le règlement écrit du PPRI (Plan de Prévention des Risques "
         "d'Inondation) de Latresne depuis ppri_reglements. "
-        "Inclut toujours les dispositions communes / règlement général "
-        "(chapitre A, hors code couleur de zone) puis le texte des zones "
-        "demandées (ex. GRENAT, ROUGE_URBANISEE, BLEUE, BLEU_CLAIR). "
-        "Chaque entrée distingue dispositions_communes vs zone ; plusieurs blocs "
-        "par zone sont fusionnés avec métadonnées (chapitre, titre_zone, pages PDF). "
-        "Ne pas confondre avec get_reglement_zone (PLU) ni get_reglement_pprmvt (PPRMVT). "
-        "Utiliser les codes zone EXACTS retournés par get_contexte_parcelle ou la cartographie PPRI."
+        "Inclut TOUJOURS automatiquement les dispositions générales (zone_code DG, "
+        "texte fusionné DG1–DG3) — ne pas passer DG dans codes_zone. "
+        f"Zones couleur valides (orthographe exacte) : {_PPRI_ZONES_COULEUR_HELP}. "
+        "Passer dans codes_zone uniquement les zones intersectant la parcelle "
+        "(codes issus de get_contexte_parcelle / cartographie PPRI quand disponibles). "
+        "Ne pas confondre avec get_reglement_zone (PLU) ni get_reglement_pprmvt (PPRMVT)."
     ),
     parameters=types.Schema(
         type=types.Type.OBJECT,
@@ -255,15 +357,15 @@ DECL_REGLEMENT_PPRI = types.FunctionDeclaration(
                 type=types.Type.ARRAY,
                 items=types.Schema(type=types.Type.STRING),
                 description=(
-                    "Codes des zones PPRI (ex. ['BLEUE', 'ROUGE_URBANISEE']). "
-                    "Les dispositions communes (règlement général) sont toujours incluses."
+                    f"Une ou plusieurs zones couleur PPRI parmi : {_PPRI_ZONES_COULEUR_HELP}. "
+                    f"Ex. ['BLEUE', 'ROUGE_URBA']. DG ({DG_ZONE_CODE}) est ajouté automatiquement."
                 ),
             ),
             "include_dispositions_communes": types.Schema(
                 type=types.Type.BOOLEAN,
                 description=(
-                    "Inclure le règlement général / chapitre A (défaut : true). "
-                    "Mettre false uniquement pour ne charger que des zones."
+                    f"Inclure les dispositions générales (zone_code {DG_ZONE_CODE}, défaut true). "
+                    "Mettre false uniquement pour ne charger que des zones couleur."
                 ),
             ),
         },

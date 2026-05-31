@@ -253,7 +253,7 @@ def _call_tool(dispatch: dict, name: str, args: dict) -> tuple[str, str, dict | 
         dc_ok = result.get("dispositions_communes_found", 0)
         z_ok = result.get("zones_found", 0)
         z_req = len(result.get("zones_requested") or [])
-        summary = f"PPRI — communes {dc_ok}/1, zones {z_ok}/{z_req}"
+        summary = f"PPRI — DG {dc_ok}/1, zones {z_ok}/{z_req}"
         if result.get("error"):
             summary += f" | {result['error']}"
     elif "error" in result and result["error"]:
