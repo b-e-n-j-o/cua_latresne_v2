@@ -10,7 +10,11 @@ from .parcel_geom import (
     normalize_parcel_refs,
     parcel_tool_properties,
     parcelles_refs_to_json,
+    refs_from_messages,
     refs_from_session,
+    refs_from_tool_calls,
+    refs_from_user_text,
+    resolve_session_refs,
     resolve_unite_fonciere,
 )
 from .prescriptions import (
@@ -33,7 +37,11 @@ __all__ = [
     "normalize_parcel_refs",
     "parcel_tool_properties",
     "parcelles_refs_to_json",
+    "refs_from_messages",
     "refs_from_session",
+    "refs_from_tool_calls",
+    "refs_from_user_text",
+    "resolve_session_refs",
     "resolve_unite_fonciere",
     "get_zonage_et_reglements",
     "fetch_zonage_reglement_rows",

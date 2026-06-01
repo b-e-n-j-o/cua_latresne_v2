@@ -23,7 +23,12 @@ try:
 except ImportError:
     from tools import build_dispatch, build_tool_declarations
 
-from .sessions import messages_get, messages_insert, session_get
+from .sessions import (
+    messages_get,
+    messages_insert,
+    session_get,
+    session_persist_refs_from_tool_calls,
+)
 
 logger = logging.getLogger("plu_api")
 
@@ -107,13 +112,13 @@ def build_contents_from_db(messages: list[dict]) -> list:
     return contents
 
 
-def session_show_map(session: dict) -> bool:
-    """True si la session porte des refs cadastrales (carte via GET /session/{id}/map)."""
+def session_show_map(session: dict, messages: list[dict] | None = None) -> bool:
+    """True si la session a des refs cadastrales (stockées ou déductibles de l'historique)."""
     try:
-        from ..tools.utils.parcel_geom import refs_from_session
+        from ..tools.utils.parcel_geom import resolve_session_refs
     except ImportError:
-        from tools.utils.parcel_geom import refs_from_session
-    return bool(refs_from_session(session))
+        from tools.utils.parcel_geom import resolve_session_refs
+    return bool(resolve_session_refs(session, messages))
 
 
 def _parcelle_result_for_llm(result: dict) -> dict:
@@ -385,19 +390,25 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
             f"tools={[tc.name for tc in tool_calls]} | tokens={usage.total_tokens}"
         )
 
-        show_map = session_show_map(session)
+        tool_calls_payload = [tc.model_dump() for tc in tool_calls]
 
         messages_insert(
             session_id=session_id,
             user_message=req.message,
             model_answer=answer,
-            tool_calls=[tc.model_dump() for tc in tool_calls],
+            tool_calls=tool_calls_payload,
             gemini_parts=serialize_contents(new_contents),
             prompt_tokens=usage.prompt_tokens,
             candidate_tokens=usage.candidate_tokens,
             total_tokens=usage.total_tokens,
             latency_ms=latency_ms,
         )
+
+        session_persist_refs_from_tool_calls(session_id, tool_calls_payload)
+
+        session = session_get(session_id) or session
+        messages = messages_get(session_id)
+        show_map = session_show_map(session, messages)
 
         return ChatResponse(
             session_id=session_id,

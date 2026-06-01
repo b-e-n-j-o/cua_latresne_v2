@@ -20,12 +20,12 @@ from ..commune_profile import CommuneProfile
 
 try:
     from ..cartography.carto import build_carto_payload
-    from ..tools.utils.parcel_geom import refs_from_session
+    from ..tools.utils.parcel_geom import refs_from_session, resolve_session_refs
 except ImportError:
     from cartography.carto import build_carto_payload
-    from tools.utils.parcel_geom import refs_from_session
+    from tools.utils.parcel_geom import refs_from_session, resolve_session_refs
 
-from .sessions import session_get
+from .sessions import messages_get, session_get, session_persist_refs
 
 logger = logging.getLogger("plu_api")
 
@@ -50,9 +50,23 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
 
         refs = refs_from_session(session)
         if not refs:
+            messages = messages_get(session_id)
+            refs = resolve_session_refs(session, messages)
+            if refs and not refs_from_session(session):
+                session_persist_refs(session_id, **refs)
+                session = session_get(session_id) or session
+                logger.info(
+                    "map fetch — refs reconstituées depuis l'historique session=%s",
+                    session_id,
+                )
+
+        if not refs:
             raise HTTPException(
                 status_code=422,
-                detail="La session ne contient aucune référence cadastrale.",
+                detail=(
+                    "La session ne contient aucune référence cadastrale. "
+                    "Indiquez une parcelle (section + numéro ou IDU) dans votre message."
+                ),
             )
 
         logger.info(

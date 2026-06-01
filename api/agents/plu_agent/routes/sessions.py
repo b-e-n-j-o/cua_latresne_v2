@@ -21,10 +21,18 @@ from .schemas import ToolCallLog, Usage
 
 try:
     from ..tools.utils import get_zonage_et_reglements
-    from ..tools.utils.parcel_geom import normalize_parcel_refs, parcelles_refs_to_json
+    from ..tools.utils.parcel_geom import (
+        normalize_parcel_refs,
+        parcelles_refs_to_json,
+        refs_from_tool_calls,
+    )
 except ImportError:
     from tools.utils import get_zonage_et_reglements
-    from tools.utils.parcel_geom import normalize_parcel_refs, parcelles_refs_to_json
+    from tools.utils.parcel_geom import (
+        normalize_parcel_refs,
+        parcelles_refs_to_json,
+        refs_from_tool_calls,
+    )
 
 logger = logging.getLogger("plu_api")
 
@@ -160,6 +168,69 @@ def session_create(section, numero, idu, parcelles_refs, zones, model) -> str:
             session_id = str(cur.fetchone()[0])
     conn.close()
     return session_id
+
+
+def session_persist_refs(session_id: str, **refs_kw) -> bool:
+    """
+    Enregistre les refs parcellaires sur la session (carte GET /map, show_map).
+    Retourne True si au moins une ref a été persistée.
+    """
+    refs = normalize_parcel_refs(
+        refs_kw.get("parcelles"),
+        refs_kw.get("idus"),
+        refs_kw.get("section"),
+        refs_kw.get("numero"),
+        refs_kw.get("idu"),
+    )
+    if not refs:
+        return False
+
+    first = refs[0]
+    section = first["section"] if first["type"] == "sn" else None
+    numero = first["numero"] if first["type"] == "sn" else None
+    idu_col = first["idu"] if first["type"] == "idu" else None
+
+    parcelles_list = [
+        {"section": r["section"], "numero": r["numero"]}
+        for r in refs
+        if r["type"] == "sn"
+    ] or None
+    idus_list = [r["idu"] for r in refs if r["type"] == "idu"] or None
+    parcelles_refs = parcelles_refs_to_json(
+        parcelles=parcelles_list,
+        idus=idus_list,
+        section=section,
+        numero=numero,
+        idu=idu_col,
+    )
+
+    sessions = get_current_profile().sessions_table()
+    sql = f"""
+        UPDATE {sessions}
+        SET section = COALESCE(%s, section),
+            numero  = COALESCE(%s, numero),
+            idu     = COALESCE(%s, idu),
+            geojson = COALESCE(%s, geojson),
+            updated_at = now()
+        WHERE id = %s;
+    """
+    conn = _db_conn()
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (section, numero, idu_col, parcelles_refs, session_id))
+    conn.close()
+    return True
+
+
+def session_persist_refs_from_tool_calls(
+    session_id: str,
+    tool_calls: list[dict] | None,
+) -> bool:
+    """Persiste les refs extraites des tool_calls d'un tour agentique."""
+    kw = refs_from_tool_calls(tool_calls)
+    if not kw:
+        return False
+    return session_persist_refs(session_id, **kw)
 
 
 def session_get(session_id: str) -> dict | None:
@@ -399,24 +470,26 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
                 raise HTTPException(status_code=500, detail=str(e))
 
             latency_ms = int((time.monotonic() - t0) * 1000)
+            tool_calls_payload = [tc.model_dump() for tc in tool_calls]
             messages_insert(
                 session_id=session_id,
                 user_message=req.question,
                 model_answer=answer,
-                tool_calls=[tc.model_dump() for tc in tool_calls],
+                tool_calls=tool_calls_payload,
                 gemini_parts=serialize_contents(new_contents),
                 prompt_tokens=usage.prompt_tokens,
                 candidate_tokens=usage.candidate_tokens,
                 total_tokens=usage.total_tokens,
                 latency_ms=latency_ms,
             )
+            session_persist_refs_from_tool_calls(session_id, tool_calls_payload)
 
         # Carte session (GET /map) dépend des tables géométriques locales ; on la désactive pour france.
-        show_map = (
-            session_show_map(session_get(session_id))
-            if refs and not is_france_live_profile
-            else False
-        )
+        session_row = session_get(session_id)
+        show_map = False
+        if not is_france_live_profile and session_row:
+            msgs = messages_get(session_id) if req.question else None
+            show_map = session_show_map(session_row, msgs)
 
         return SessionResponse(
             session_id=session_id,

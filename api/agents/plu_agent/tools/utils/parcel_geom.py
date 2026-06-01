@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 import psycopg2
@@ -210,17 +211,150 @@ def resolve_unite_fonciere(
     }
 
 
+_GEOJSON_GEOM_TYPES = frozenset({
+    "Feature",
+    "FeatureCollection",
+    "Polygon",
+    "MultiPolygon",
+    "Point",
+    "LineString",
+    "MultiLineString",
+    "MultiPoint",
+    "GeometryCollection",
+})
+
+_PARCEL_ARG_KEYS = ("parcelles", "idus", "section", "numero", "idu")
+
+
+def _refs_kwargs_from_normalized(refs: list[dict]) -> dict[str, Any]:
+    """Arguments build_carto_payload / tools à partir de refs normalisées."""
+    if not refs:
+        return {}
+    parcelles = [
+        {"section": r["section"], "numero": r["numero"]}
+        for r in refs
+        if r["type"] == "sn"
+    ]
+    idus = [r["idu"] for r in refs if r["type"] == "idu"]
+    out: dict[str, Any] = {}
+    if len(refs) == 1:
+        if refs[0]["type"] == "sn":
+            out["section"] = refs[0]["section"]
+            out["numero"] = refs[0]["numero"]
+        else:
+            out["idu"] = refs[0]["idu"]
+    if parcelles:
+        out["parcelles"] = parcelles
+    if idus:
+        out["idus"] = idus
+    return out
+
+
+def refs_kwargs_from_tool_args(args: dict | None) -> dict[str, Any]:
+    """Extrait section/numero/parcelles/idus des args d'un tool Gemini."""
+    if not isinstance(args, dict):
+        return {}
+    kw = {k: args[k] for k in _PARCEL_ARG_KEYS if args.get(k) is not None}
+    refs = normalize_parcel_refs(
+        kw.get("parcelles"),
+        kw.get("idus"),
+        kw.get("section"),
+        kw.get("numero"),
+        kw.get("idu"),
+    )
+    return _refs_kwargs_from_normalized(refs)
+
+
+def refs_from_tool_calls(tool_calls: list[dict] | None) -> dict[str, Any]:
+    """Dernier appel tool contenant des refs parcellaires (tour le plus récent en priorité)."""
+    for tc in reversed(tool_calls or []):
+        kw = refs_kwargs_from_tool_args(tc.get("args") if isinstance(tc, dict) else None)
+        if kw:
+            return kw
+    return {}
+
+
+def refs_from_user_text(text: str) -> dict[str, Any]:
+    """
+    Heuristique section/numéro ou IDU dans un message utilisateur
+    (alignée sur le parseur frontend PluChat).
+    """
+    if not text or not str(text).strip():
+        return {}
+
+    idu_matches = re.findall(r"\b([0-9A-Z]{10}\d{4})\b", text, re.IGNORECASE)
+    if len(idu_matches) > 1:
+        return {"idus": [u.upper() for u in idu_matches]}
+    if len(idu_matches) == 1:
+        return {"idu": idu_matches[0].upper()}
+
+    pairs: list[dict] = []
+    seen: set[str] = set()
+    for m in re.finditer(r"\b([A-Za-z]{1,2})\s+(\d{1,4})\b", text):
+        section = m.group(1).upper()
+        numero = m.group(2)
+        key = f"{section}:{numero.zfill(4)}"
+        if key in seen:
+            continue
+        seen.add(key)
+        pairs.append({"section": section, "numero": numero})
+
+    if len(pairs) >= 2:
+        return {"parcelles": pairs}
+    if len(pairs) == 1:
+        return {"section": pairs[0]["section"], "numero": pairs[0]["numero"]}
+
+    section_num = re.search(
+        r"section\s+([A-Za-z]{1,2})\s+(?:n[°o]?\s*|num[ée]ro\s+)?(\d{1,4})\b",
+        text,
+        re.IGNORECASE,
+    )
+    if section_num:
+        return {
+            "section": section_num.group(1).upper(),
+            "numero": section_num.group(2),
+        }
+    return {}
+
+
+def refs_from_messages(messages: list[dict]) -> dict[str, Any]:
+    """
+    Refs depuis tool_calls persistés, sinon depuis le premier message utilisateur.
+    """
+    for msg in reversed(messages or []):
+        if msg.get("role") != "model":
+            continue
+        kw = refs_from_tool_calls(msg.get("tool_calls"))
+        if kw:
+            return kw
+
+    for msg in messages or []:
+        if msg.get("role") != "user":
+            continue
+        content = msg.get("content")
+        if not content:
+            continue
+        kw = refs_from_user_text(str(content))
+        if kw:
+            return kw
+    return {}
+
+
 def refs_from_session(session: dict) -> dict[str, Any]:
     """Reconstruit les arguments tools depuis une ligne plu_sessions."""
     raw = session.get("geojson")
     if raw:
         try:
             data = json.loads(raw) if isinstance(raw, str) else raw
-            if isinstance(data, dict) and (data.get("parcelles") or data.get("idus")):
-                return {
-                    "parcelles": data.get("parcelles"),
-                    "idus": data.get("idus"),
-                }
+            if isinstance(data, dict):
+                if data.get("parcelles") or data.get("idus"):
+                    return {
+                        "parcelles": data.get("parcelles") or None,
+                        "idus": data.get("idus") or None,
+                    }
+                # Ancien format : vraie géométrie GeoJSON dans geojson — ignorer
+                if data.get("type") in _GEOJSON_GEOM_TYPES:
+                    pass
         except (json.JSONDecodeError, TypeError):
             pass
 
@@ -234,6 +368,21 @@ def refs_from_session(session: dict) -> dict[str, Any]:
     return {}
 
 
+def resolve_session_refs(
+    session: dict,
+    messages: list[dict] | None = None,
+) -> dict[str, Any]:
+    """
+    Refs parcellaires pour la carto : colonnes session, puis historique (tools / texte).
+    """
+    refs = refs_from_session(session)
+    if refs:
+        return refs
+    if messages:
+        return refs_from_messages(messages)
+    return {}
+
+
 def parcelles_refs_to_json(
     parcelles: list[dict] | None,
     idus: list[str] | None,
@@ -243,7 +392,7 @@ def parcelles_refs_to_json(
 ) -> str | None:
     """Sérialise les refs pour la colonne geojson de plu_sessions (métadonnées, pas de géométrie)."""
     refs = normalize_parcel_refs(parcelles, idus, section, numero, idu)
-    if len(refs) <= 1 and not (parcelles or idus):
+    if not refs:
         return None
     payload: dict = {"parcelles": [], "idus": []}
     for r in refs:
@@ -253,9 +402,7 @@ def parcelles_refs_to_json(
             payload["idus"].append(r["idu"])
     if not payload["parcelles"] and not payload["idus"]:
         return None
-    if len(refs) > 1 or parcelles or idus:
-        return json.dumps(payload, ensure_ascii=False)
-    return None
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def parcel_tool_properties() -> dict[str, types.Schema]:
