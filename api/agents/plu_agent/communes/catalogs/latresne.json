@@ -699,6 +699,24 @@
         "Type règlement",
         "Réglementation"
       ]
+    },
+    "ebati": {
+      "enabled": true,
+      "table": "batiments_latresne",
+      "title": "Bâtiments",
+      "group": "ebati",
+      "kind": "surfacique",
+      "color": "#F5480A",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "type"
+      ],
+      "clean_attributes": [
+        "Type"
+      ]
     }
   }
 }
