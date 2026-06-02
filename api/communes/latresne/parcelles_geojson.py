@@ -72,6 +72,21 @@ def _slug_to_commune_label(slug: str) -> str:
     return value.title()
 
 
+def _table_has_column(cur, schema_name: str, table_name: str, column_name: str) -> bool:
+    cur.execute(
+        """
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = %s
+          AND table_name = %s
+          AND column_name = %s
+        LIMIT 1
+        """,
+        (schema_name, table_name, column_name),
+    )
+    return cur.fetchone() is not None
+
+
 def _build_geojson_payload(schema_name: str, table_name: str, commune_label: str) -> dict:
     conn = psycopg2.connect(
         host=SUPABASE_HOST,
@@ -83,6 +98,24 @@ def _build_geojson_payload(schema_name: str, table_name: str, commune_label: str
     cur = None
     try:
         cur = conn.cursor()
+        has_geom_3857 = _table_has_column(cur, schema_name, table_name, "geom_3857")
+
+        if has_geom_3857:
+            geom_expr = sql.SQL(
+                """
+                ST_AsGeoJSON(
+                    CASE
+                        WHEN geom_2154 IS NOT NULL THEN ST_Transform(geom_2154, 4326)
+                        WHEN geom_3857 IS NOT NULL THEN ST_Transform(geom_3857, 4326)
+                    END
+                )::json
+                """
+            )
+            where_clause = sql.SQL("geom_2154 IS NOT NULL OR geom_3857 IS NOT NULL")
+        else:
+            geom_expr = sql.SQL("ST_AsGeoJSON(ST_Transform(geom_2154, 4326))::json")
+            where_clause = sql.SQL("geom_2154 IS NOT NULL")
+
         query = sql.SQL(
             """
             SELECT json_build_object(
@@ -98,18 +131,20 @@ def _build_geojson_payload(schema_name: str, table_name: str, commune_label: str
                                 'insee', code_insee,
                                 'contenance', contenance
                             ),
-                            'geometry', ST_AsGeoJSON(ST_Transform(geom_2154, 4326))::json
+                            'geometry', {geom_expr}
                         )
                     ),
                     '[]'::json
                 )
             )
-            FROM {}.{}
-            WHERE geom_2154 IS NOT NULL
+            FROM {schema}.{table}
+            WHERE {where_clause}
             """
         ).format(
-            sql.Identifier(schema_name),
-            sql.Identifier(table_name),
+            geom_expr=geom_expr,
+            schema=sql.Identifier(schema_name),
+            table=sql.Identifier(table_name),
+            where_clause=where_clause,
         )
         cur.execute(query, (commune_label,))
         payload = cur.fetchone()[0]
