@@ -40,9 +40,9 @@ services:
       - key: GOOGLE_API_KEY
         sync: false
 
-  # ETL quotidien Latresne — tourne sur Render (UTC). 0 3 * * * = 03:00 UTC (~4h/5h Paris selon DST)
+  # ETL quotidien — communes listées dans services/ingestion_cadastre/config/etl_communes.json
   - type: cron
-    name: etl-latresne-daily
+    name: etl-communes-daily
     env: python
     region: frankfurt
     schedule: "0 3 * * *"

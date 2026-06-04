@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cron Render — ETL quotidien Latresne (s'exécute sur l'infra Render, pas sur votre Mac).
+# Cron Render — ETL quotidien pour toutes les communes de config/etl_communes.json
 #
 # Deux options dans le dashboard Render :
 #
@@ -22,21 +22,11 @@ cd "${ROOT}"
 MODE="${1:-}"
 
 if [[ "${MODE}" == "--http" ]]; then
-  BASE="${RENDER_EXTERNAL_URL:-${BACKEND_URL:-https://api.kerelia.fr}}"
-  BASE="${BASE%/}"
-  if [[ -z "${INTERNAL_TOKEN:-}" ]]; then
-    echo "INTERNAL_TOKEN requis pour POST ${BASE}/admin/etl/commune" >&2
-    exit 1
-  fi
-  exec curl -sfS -X POST "${BASE}/admin/etl/commune" \
-    -H "Content-Type: application/json" \
-    -H "x-internal-token: ${INTERNAL_TOKEN}" \
-    -d '{"schema":"latresne","insee":"33234","parcelles_mode":"etalab"}'
+  echo "Mode --http : lancer un POST /admin/etl/commune par commune (voir config/etl_communes.json)" >&2
+  echo "Sur Render, préférer l'exécution Python directe (sans --http)." >&2
+  exit 1
 fi
 
-# Exécution directe Python (même image / deps que le backend)
+# Exécution directe Python — liste dans config/etl_communes.json
 export PYTHONPATH="${ROOT}:${PYTHONPATH:-}"
-exec python services/ingestion_cadastre/run_etl_commune.py \
-  --schema latresne \
-  --insee 33234 \
-  --parcelles-mode etalab
+exec python services/ingestion_cadastre/run_etl_all_communes.py

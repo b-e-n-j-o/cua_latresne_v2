@@ -1,0 +1,20 @@
+[
+  {
+    "schema": "latresne",
+    "insee": "33234",
+    "label": "Latresne",
+    "parcelles_mode": "etalab"
+  },
+  {
+    "schema": "argeles",
+    "insee": "66136",
+    "label": "Argelès-sur-Mer",
+    "parcelles_mode": "etalab"
+  },
+  {
+    "schema": "mios",
+    "insee": "33189",
+    "label": "Mios",
+    "parcelles_mode": "etalab"
+  }
+]
