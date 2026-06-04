@@ -7,6 +7,7 @@ Contenu sauvegardé (JSONB ``plu_messages.raw_llm_context``) :
   - message utilisateur du tour
   - chaque appel tool : args, résultat brut, JSON renvoyé au modèle
   - réponse finale du modèle
+  - ``gemini_rounds`` / ``gemini_usage_total`` : tokens facturés Gemini (usage_metadata)
 """
 
 from __future__ import annotations
@@ -18,6 +19,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 import psycopg2
+
+from ..llm_token_usage import merge_token_usages, parse_usage_metadata
 
 logger = logging.getLogger("plu_api")
 
@@ -54,6 +57,23 @@ class TurnRawContextCapture:
     model_name: str | None = None
     tool_invocations: list[dict[str, Any]] = field(default_factory=list)
     model_answer: str | None = None
+    gemini_rounds: list[dict[str, Any]] = field(default_factory=list)
+
+    def add_gemini_round(
+        self,
+        usage_metadata: Any,
+        *,
+        round_index: int,
+        with_tool_calls: bool,
+    ) -> None:
+        tokens = parse_usage_metadata(usage_metadata)
+        self.gemini_rounds.append(
+            {
+                "round": round_index,
+                "with_tool_calls": with_tool_calls,
+                **tokens,
+            }
+        )
 
     def add_tool_invocation(
         self,
@@ -79,8 +99,10 @@ class TurnRawContextCapture:
         self.model_answer = text
 
     def to_dict(self) -> dict[str, Any]:
+        gemini_usage_total = merge_token_usages(*self.gemini_rounds)
+
         return {
-            "version": 1,
+            "version": 2,
             "captured_at": _utc_now_iso(),
             "commune": self.commune_slug,
             "model": self.model_name,
@@ -91,6 +113,8 @@ class TurnRawContextCapture:
             "tool_invocations": self.tool_invocations,
             "tool_count": len(self.tool_invocations),
             "model_answer": self.model_answer,
+            "gemini_rounds": self.gemini_rounds,
+            "gemini_usage_total": gemini_usage_total,
         }
 
 

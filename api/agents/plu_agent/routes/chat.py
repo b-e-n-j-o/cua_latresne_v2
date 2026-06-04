@@ -316,8 +316,10 @@ def _agentic_loop(
     """
     tool_calls_log: list[ToolCallLog] = []
     total_prompt = total_candidates = total_tokens = 0
+    gemini_round = 0
 
     while True:
+        gemini_round += 1
         response  = client.models.generate_content(
             model=GEMINI_MODEL, contents=contents, config=config
         )
@@ -334,6 +336,13 @@ def _agentic_loop(
             p.function_call for p in candidate.content.parts
             if p.function_call is not None
         ]
+
+        if capture is not None:
+            capture.add_gemini_round(
+                meta,
+                round_index=gemini_round,
+                with_tool_calls=bool(function_calls),
+            )
 
         if not function_calls:
             usage = Usage(
