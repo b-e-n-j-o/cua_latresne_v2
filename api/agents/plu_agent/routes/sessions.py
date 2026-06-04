@@ -162,6 +162,7 @@ def session_create(
 ) -> str:
     """parcelles_refs : JSON stocké dans la colonne geojson (liste de refs, pas de géométrie)."""
     profile = get_current_profile()
+    ensure_user_id_column(profile.schema)
     sessions = profile.sessions_table()
     sql = f"""
         INSERT INTO {sessions}
@@ -171,7 +172,6 @@ def session_create(
     """
     conn = _db_conn()
     with conn:
-        ensure_user_id_column(conn, profile.schema)
         with conn.cursor() as cur:
             cur.execute(sql, (
                 section, numero, idu, parcelles_refs,
@@ -248,14 +248,15 @@ def session_persist_refs_from_tool_calls(
 
 
 def session_get(session_id: str) -> dict | None:
-    sessions = get_current_profile().sessions_table()
+    profile = get_current_profile()
+    ensure_user_id_column(profile.schema)
+    sessions = profile.sessions_table()
     sql = f"SELECT * FROM {sessions} WHERE id = %s;"
     conn = _db_conn()
-    with conn:
-        ensure_user_id_column(conn, get_current_profile().schema)
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(sql, (session_id,))
-            row = cur.fetchone()
+    conn.autocommit = True
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(sql, (session_id,))
+        row = cur.fetchone()
     conn.close()
     if not row:
         return None
@@ -413,6 +414,7 @@ def session_delete(session_id: str, user_id: str) -> bool:
 
 def _sessions_list(user_id: str, limit: int = 50) -> list[dict]:
     profile = get_current_profile()
+    ensure_user_id_column(profile.schema)
     sessions = profile.sessions_table()
     messages = profile.messages_table()
     sql = f"""
@@ -426,11 +428,10 @@ def _sessions_list(user_id: str, limit: int = 50) -> list[dict]:
         LIMIT %s;
     """
     conn = _db_conn()
-    with conn:
-        ensure_user_id_column(conn, profile.schema)
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(sql, (user_id, limit))
-            rows = [dict(r) for r in cur.fetchall()]
+    conn.autocommit = True
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(sql, (user_id, limit))
+        rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     for row in rows:
         row["zones"] = _parse_json_field(row.get("zones")) or []

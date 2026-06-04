@@ -13,6 +13,7 @@ import os
 from functools import lru_cache
 
 import httpx
+import psycopg2
 from fastapi import Header, HTTPException
 
 logger = logging.getLogger("plu_api")
@@ -62,16 +63,23 @@ def _user_id_column_exists(conn, schema: str) -> bool:
         return cur.fetchone() is not None
 
 
-def ensure_user_id_column(conn, schema: str) -> None:
+def ensure_user_id_column(schema: str) -> None:
     """
-    Vérifie que la colonne user_id existe (pas d'ALTER en requête HTTP :
-    sur Supabase, ALTER TABLE peut dépasser statement_timeout).
+    Vérifie que la colonne user_id existe (connexion dédiée en autocommit pour
+    ne jamais laisser de transaction ouverte ni bloquer d'autres requêtes).
     """
     if schema in _SCHEMAS_USER_COLUMN_READY:
         return
-    if _user_id_column_exists(conn, schema):
-        _SCHEMAS_USER_COLUMN_READY.add(schema)
-        return
+    from .._env import DB_CONFIG
+
+    conn = psycopg2.connect(**DB_CONFIG)
+    conn.autocommit = True
+    try:
+        if _user_id_column_exists(conn, schema):
+            _SCHEMAS_USER_COLUMN_READY.add(schema)
+            return
+    finally:
+        conn.close()
     logger.error(
         "Migration manquante : %s.plu_sessions.user_id — voir "
         "api/agents/plu_agent/migrations/001_plu_sessions_user_id.sql",
