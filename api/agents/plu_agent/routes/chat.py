@@ -8,7 +8,7 @@ import json
 import logging
 import time
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field
@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from .._env import DB_CONFIG, GEMINI_API_KEY, GEMINI_MODEL
 from ..commune_context import get_current_profile
 from ..commune_profile import CommuneProfile
+from .llm_raw_context import TurnRawContextCapture, build_capture
 from .schemas import ToolCallLog, Usage
 
 try:
@@ -23,9 +24,11 @@ try:
 except ImportError:
     from tools import build_dispatch, build_tool_declarations
 
+from .plu_auth import get_plu_user_id
 from .sessions import (
     messages_get,
     messages_insert,
+    require_session_for_user,
     session_get,
     session_persist_refs_from_tool_calls,
 )
@@ -47,6 +50,7 @@ class ChatResponse(BaseModel):
     usage:       Usage
     latency_ms:  int
     model:       str
+    model_message_id: str | None = None
     map_data:    dict | None = None  # GeoJSON optionnel ; préférer show_map + GET /session/{id}/map
     show_map:    bool = False        # True si la session a des refs parcellaires (carte via GET /map)
 
@@ -202,7 +206,12 @@ def _extra_layers_summary(result: dict) -> str:
     return ", ".join(f"{lid}({n})" for lid, n in sorted(counts.items()))
 
 
-def _call_tool(dispatch: dict, name: str, args: dict) -> tuple[str, str, dict | None]:
+def _call_tool(
+    dispatch: dict,
+    name: str,
+    args: dict,
+    capture: TurnRawContextCapture | None = None,
+) -> tuple[str, str, dict | None]:
     """
     Exécute le tool.
     Retourne (json_result, résumé_court, raw_result).
@@ -214,11 +223,21 @@ def _call_tool(dispatch: dict, name: str, args: dict) -> tuple[str, str, dict | 
         return json.dumps(err), f"tool inconnu : {name}", err
 
     result     = fn(**args)
+    result_for_llm = _result_for_llm(name, result)
     result_str = json.dumps(
-        _result_for_llm(name, result),
+        result_for_llm,
         ensure_ascii=False,
         default=str,
     )
+
+    if capture is not None:
+        capture.add_tool_invocation(
+            name=name,
+            args=args,
+            raw_result=result,
+            result_sent_to_llm=result_str,
+            result_summary="",  # rempli après calcul du summary
+        )
 
     # Résumé lisible pour les logs et la sidebar
     zone_items = _zones_for_summary(result)
@@ -261,10 +280,24 @@ def _call_tool(dispatch: dict, name: str, args: dict) -> tuple[str, str, dict | 
         summary = f"PPRI — DG {dc_ok}/1, zones {z_ok}/{z_req}"
         if result.get("error"):
             summary += f" | {result['error']}"
+    elif name == "get_ppr_reglement":
+        z_req = result.get("zone_codes_requested") or []
+        z_ok = result.get("zones_found", 0)
+        labels = result.get("sous_zone_labels") or []
+        summary = f"PPR — {z_ok} bloc(s), zones {', '.join(z_req) or '—'}"
+        if labels:
+            summary += f" | sous-zones {', '.join(labels[:3])}"
+        if result.get("hors_zonage_ppr"):
+            summary += " | zone III (hors zonage 1/2)"
+        if result.get("error"):
+            summary += f" | {result['error']}"
     elif "error" in result and result["error"]:
         summary = f"erreur : {result['error']}"
     else:
         summary = "ok"
+
+    if capture is not None and capture.tool_invocations:
+        capture.tool_invocations[-1]["result_summary"] = summary
 
     return result_str, summary, result
 
@@ -274,6 +307,7 @@ def _agentic_loop(
     dispatch: dict,
     contents: list,
     config:   types.GenerateContentConfig,
+    capture:  TurnRawContextCapture | None = None,
 ) -> tuple[str, list[ToolCallLog], Usage]:
     """
     Boucle tool-calling jusqu'à réponse finale.
@@ -307,12 +341,16 @@ def _agentic_loop(
                 candidate_tokens=total_candidates or None,
                 total_tokens=total_tokens or None,
             )
+            if capture is not None:
+                capture.set_model_answer(response.text)
             return response.text, tool_calls_log, usage
 
         parts = []
         for fc in function_calls:
             logger.info(f"tool_call → {fc.name}({dict(fc.args)})")
-            result_str, summary, raw_result = _call_tool(dispatch, fc.name, dict(fc.args))
+            result_str, summary, raw_result = _call_tool(
+                dispatch, fc.name, dict(fc.args), capture=capture
+            )
             logger.info(f"  ↳ {summary}")
 
             tool_calls_log.append(ToolCallLog(
@@ -330,7 +368,10 @@ def _agentic_loop(
 def run_turn(
     zones: list[dict],
     contents: list,
-) -> tuple[str, list[ToolCallLog], Usage, list[types.Content]]:
+    *,
+    user_message: str = "",
+    prior_messages: list[dict] | None = None,
+) -> tuple[str, list[ToolCallLog], Usage, list[types.Content], dict]:
     """
     Exécute un tour agentique complet.
     Appelé aussi par sessions.py pour le premier tour à la création de session.
@@ -340,14 +381,25 @@ def run_turn(
     tool_names = profile.llm_tool_names
     client     = _build_gemini_client()
     dispatch   = build_dispatch(DB_CONFIG, tool_names)
+    system_instruction = _build_system_prompt(zones)
     config     = types.GenerateContentConfig(
-        system_instruction=_build_system_prompt(zones),
+        system_instruction=system_instruction,
         tools=[build_tool_declarations(tool_names)],
         temperature=0.1,
     )
+    capture = build_capture(
+        system_instruction=system_instruction,
+        session_zones=zones,
+        user_message=user_message,
+        prior_messages=prior_messages or [],
+        commune_slug=profile.slug,
+        model_name=profile.gemini_model or GEMINI_MODEL,
+    )
     start = len(contents)
-    answer, tool_calls, usage = _agentic_loop(client, dispatch, contents, config)
-    return answer, tool_calls, usage, contents[start:]
+    answer, tool_calls, usage = _agentic_loop(
+        client, dispatch, contents, config, capture=capture
+    )
+    return answer, tool_calls, usage, contents[start:], capture.to_dict()
 
 
 # ---------------------------------------------------------------------------
@@ -357,16 +409,18 @@ def run_turn(
 def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
     @router.post("/chat/{session_id}", response_model=ChatResponse)
     @bind
-    def chat(session_id: str, req: ChatRequest):
+    def chat(
+        session_id: str,
+        req: ChatRequest,
+        user_id: str = Depends(get_plu_user_id),
+    ):
         """
         Tour de conversation dans une session existante.
         show_map=true si la session a des refs parcellaires ; le frontend charge le GeoJSON via GET /map.
         """
         t0 = time.monotonic()
 
-        session = session_get(session_id)
-        if not session:
-            raise HTTPException(status_code=404, detail=f"Session {session_id} introuvable.")
+        session = require_session_for_user(session_id, user_id)
 
         zones = session.get("zones") or []
         messages = messages_get(session_id)
@@ -379,7 +433,12 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
         contents.append(types.Content(role="user", parts=[types.Part(text=req.message)]))
 
         try:
-            answer, tool_calls, usage, new_contents = run_turn(zones, contents)
+            answer, tool_calls, usage, new_contents, raw_llm_context = run_turn(
+                zones,
+                contents,
+                user_message=req.message,
+                prior_messages=messages,
+            )
         except Exception as e:
             logger.error(f"agentic_loop error : {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e))
@@ -392,7 +451,7 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
 
         tool_calls_payload = [tc.model_dump() for tc in tool_calls]
 
-        messages_insert(
+        model_message_id = messages_insert(
             session_id=session_id,
             user_message=req.message,
             model_answer=answer,
@@ -402,6 +461,7 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
             candidate_tokens=usage.candidate_tokens,
             total_tokens=usage.total_tokens,
             latency_ms=latency_ms,
+            raw_llm_context=raw_llm_context,
         )
 
         session_persist_refs_from_tool_calls(session_id, tool_calls_payload)
@@ -417,6 +477,7 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
             usage=usage,
             latency_ms=latency_ms,
             model=GEMINI_MODEL,
+            model_message_id=model_message_id,
             map_data=None,
             show_map=show_map,
         )

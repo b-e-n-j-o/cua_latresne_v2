@@ -15,3 +15,18 @@ class Usage(BaseModel):
     prompt_tokens: int | None = None
     candidate_tokens: int | None = None
     total_tokens: int | None = None
+
+
+class SessionMessageItem(BaseModel):
+    id: str
+    role: str
+    content: str
+    tool_calls: list[dict] | None = None
+    created_at: str | None = None
+    has_raw_context: bool = False
+
+
+class RawLlmContextResponse(BaseModel):
+    message_id: str
+    session_id: str
+    raw_context: dict

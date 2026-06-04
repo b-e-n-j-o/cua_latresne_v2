@@ -16,12 +16,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from .processor import process_txt_content
-from .shared import merge_token_usages
+from .shared import (
+    ALLOWED_GEMINI_MODELS,
+    DEFAULT_GEMINI_MODEL,
+    log_gemini_tokens,
+    merge_token_usages,
+    validate_gemini_model,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -98,12 +104,21 @@ class BatchJobStatusResponse(BaseModel):
     total: int
     processed: int
     current_file: str | None = None
+    model: str | None = None
     started_at: str | None = None
     finished_at: str | None = None
     error: str | None = None
     results: list[FileResultSummary] = Field(default_factory=list)
     download_ready: bool = False
     tokens_total: TokenUsageBreakdown | None = None
+
+
+class FileCompareResponse(BaseModel):
+    zone: str
+    source_txt: str
+    markdown: str | None = None
+    status: str | None = None
+    routed_to: str | None = None
 
 
 def _token_usage_from_dict(data: dict | None) -> TokenUsage | None:
@@ -143,10 +158,19 @@ def _aggregate_job_tokens(results: list[dict]) -> TokenUsageBreakdown:
     )
 
 
+def _find_md_for_zone(work_dir: Path, zone: str) -> tuple[Path | None, str | None]:
+    for bucket in ("validated", "review_needed"):
+        md_path = work_dir / "outputs" / zone / bucket / f"{zone}.md"
+        if md_path.is_file():
+            return md_path, bucket
+    return None, None
+
+
 def _run_batch_job(job_id: str, *, skip_judge: bool) -> None:
     job = JOBS[job_id]
     work_dir = Path(job["work_dir"])
     files: list[tuple[str, Path]] = job["input_files"]
+    model_id = job.get("model", DEFAULT_GEMINI_MODEL)
 
     job["status"] = "running"
     job["started_at"] = job.get("started_at") or _utc_now_iso()
@@ -239,17 +263,28 @@ def _build_zip_bytes(work_dir: Path) -> bytes:
     return buf.getvalue()
 
 
+@router.get("/batch/models")
+async def list_gemini_models():
+    return {"models": list(ALLOWED_GEMINI_MODELS), "default": DEFAULT_GEMINI_MODEL}
+
+
 @router.post("/batch/jobs", response_model=BatchJobStartResponse)
 async def start_batch_job(
     background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(..., description="Fichiers .txt à convertir"),
     skip_judge: bool = False,
+    model: str = Query(default=DEFAULT_GEMINI_MODEL, description="Modèle Gemini"),
 ):
     if not _gemini_configured():
         raise HTTPException(
             status_code=503,
             detail="GEMINI_API_KEY (ou GOOGLE_API_KEY) non configurée sur le serveur",
         )
+
+    try:
+        model_id = validate_gemini_model(model)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
     if not files:
         raise HTTPException(status_code=400, detail="Aucun fichier fourni")
@@ -297,6 +332,7 @@ async def start_batch_job(
         "work_dir": str(work_dir),
         "input_files": input_files,
         "skip_judge": skip_judge,
+        "model": model_id,
         "download_ready": False,
         "tokens_total": None,
         "cancel_requested": False,
@@ -336,12 +372,39 @@ async def get_batch_job(job_id: str):
         total=job["total"],
         processed=job["processed"],
         current_file=job.get("current_file"),
+        model=job.get("model"),
         started_at=job.get("started_at"),
         finished_at=job.get("finished_at"),
         error=job.get("error"),
         results=results,
         download_ready=bool(job.get("download_ready")),
         tokens_total=tokens_total,
+    )
+
+
+@router.get("/batch/jobs/{job_id}/files/{zone}/compare", response_model=FileCompareResponse)
+async def compare_batch_file(job_id: str, zone: str):
+    """Texte source + markdown généré pour comparaison côte à côte."""
+    job = JOBS.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"job_id inconnu : {job_id}")
+
+    work_dir = Path(job["work_dir"])
+    txt_path = work_dir / "inputs" / f"{zone}.txt"
+    if not txt_path.is_file():
+        raise HTTPException(status_code=404, detail=f"Fichier source introuvable : {zone}")
+
+    source_txt = txt_path.read_text(encoding="utf-8")
+    md_path, routed_to = _find_md_for_zone(work_dir, zone)
+    markdown = md_path.read_text(encoding="utf-8") if md_path else None
+
+    result = next((r for r in job.get("results", []) if r.get("zone") == zone), None)
+    return FileCompareResponse(
+        zone=zone,
+        source_txt=source_txt,
+        markdown=markdown,
+        status=result.get("status") if result else None,
+        routed_to=result.get("routed_to") if result else routed_to,
     )
 
 

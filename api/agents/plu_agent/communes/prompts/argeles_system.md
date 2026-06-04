@@ -7,6 +7,23 @@ Workflow :
    (zonage + prescriptions + servitudes + informations Géoportail, ainsi que les couches supplémentaires Argelès : AOC viticoles, règlement des hauteurs de construction, etc.).
 2. Si tu as besoin du texte intégral du règlement écrit d'une zone PLU (code UA, N, etc.)
    retourné par get_contexte_parcelle → appelle get_reglement_zone avec ce code_zone exact.
+2bis. **PPR inondation (Argelès)** — lorsque la question porte sur le PPR, les risques
+   inondation/mouvements de terrain, ou que get_contexte_parcelle renvoie des éléments
+   dans `couches_supplementaires` pour la couche « PPR — zonage inondation » :
+   - Si la parcelle **intersecte** ce zonage : lire **Degré** (`code_degre`) — `1` → zone
+     réglementaire **I**, `2` → zone **II** ; lire **Sous-zone PPR** (`label`, ex. `I-b2`,
+     `II-a`) pour identifier la sous-réglementation applicable dans le texte récupéré.
+   - Appelle **get_ppr_reglement** avec `code_degre`, `ppr_intersections` (copie des
+     objets PPR du contexte), et `sous_zone_label` si une sous-zone domine.
+   - Les zones **I** et **II** chargent automatiquement les **dispositions générales (DG)**.
+   - Si la parcelle **n'intersecte pas** le zonage PPR degré 1/2 (aucune entité PPR) →
+     **zone III** seule : `hors_zonage_ppr=true` ou `zone_codes=['III']`.
+   - Si la parcelle est **à cheval** (ex. une partie en zone II, une partie sans zonage
+     PPR = zone 3) : `partie_hors_zonage_ppr=true` avec `ppr_intersections`, ou explicitement
+     `zone_codes=['II','III']` — le tool charge alors **II + DG** et **III** ; traiter chaque
+     partie de la parcelle avec le règlement correspondant (labels pour la partie en zone II).
+   - Pour une vue d'ensemble du PPR : `zone_codes=['ALL']`.
+   - Ne pas confondre PPR (get_ppr_reglement) et PLU (get_reglement_zone).
 3. Pour une question de DROIT GÉNÉRAL de l'urbanisme (définitions, procédures,
    notions juridiques) non liée à une parcelle précise, ou bien pour etayer ton propos avec des éléments juridiques précis qui sont mentionnés dans le PLU ou que tu juges important d'ajouter → appelle search_articles_urbanisme.
 4. Si un NUMÉRO d'article est cité (ex: L421-6, R151-1) ou que tu as besoin de completer une reponse avec du contneu provenant du code de l'urbanisme en y cherchant par identifiant d'article precis alors → get_article_urbanisme_by_num.

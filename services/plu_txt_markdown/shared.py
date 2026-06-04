@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import Any
 
@@ -7,7 +8,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MODEL = "gemini-3.1-flash-lite"
+ALLOWED_GEMINI_MODELS: tuple[str, ...] = (
+    "gemini-3.1-pro-preview",
+    "gemini-3.5-flash",
+    "gemini-3.1-flash-lite",
+)
+DEFAULT_GEMINI_MODEL = "gemini-3.1-pro-preview"
+# Rétrocompatibilité des imports existants
+MODEL = DEFAULT_GEMINI_MODEL
 
 TOKEN_USAGE_KEYS = (
     "prompt_token_count",
@@ -44,6 +52,35 @@ def parse_usage_metadata(usage: Any) -> dict[str, int]:
         "cached_content_token_count": cached,
         "total_token_count": total,
     }
+
+
+def validate_gemini_model(model: str | None) -> str:
+    m = (model or DEFAULT_GEMINI_MODEL).strip()
+    if m not in ALLOWED_GEMINI_MODELS:
+        allowed = ", ".join(ALLOWED_GEMINI_MODELS)
+        raise ValueError(f"Modèle Gemini invalide : {m!r}. Valeurs acceptées : {allowed}")
+    return m
+
+
+def log_gemini_tokens(
+    logger: logging.Logger,
+    *,
+    context: str,
+    phase: str,
+    tokens: dict[str, int] | None,
+) -> None:
+    if not tokens:
+        return
+    logger.info(
+        "%s | %s — entrée=%s sortie=%s réflexion=%s cache=%s (total=%s)",
+        context,
+        phase,
+        tokens.get("prompt_token_count", 0),
+        tokens.get("candidates_token_count", 0),
+        tokens.get("thoughts_token_count", 0),
+        tokens.get("cached_content_token_count", 0),
+        tokens.get("total_token_count", 0),
+    )
 
 
 def merge_token_usages(*parts: dict[str, int] | None) -> dict[str, int]:

@@ -13,7 +13,7 @@ Les géométries ne transitent jamais par Gemini — uniquement ce endpoint :
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from .._env import DB_CONFIG
 from ..commune_profile import CommuneProfile
@@ -25,7 +25,8 @@ except ImportError:
     from cartography.carto import build_carto_payload
     from tools.utils.parcel_geom import refs_from_session, resolve_session_refs
 
-from .sessions import messages_get, session_get, session_persist_refs
+from .plu_auth import get_plu_user_id
+from .sessions import messages_get, require_session_for_user, session_get, session_persist_refs
 
 logger = logging.getLogger("plu_api")
 
@@ -33,7 +34,11 @@ logger = logging.getLogger("plu_api")
 def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
     @router.get("/session/{session_id}/map")
     @bind
-    def get_session_map(session_id: str, buffer_m: float = 100.0):
+    def get_session_map(
+        session_id: str,
+        buffer_m: float = 100.0,
+        user_id: str = Depends(get_plu_user_id),
+    ):
         """
         Données cartographiques GeoJSON (EPSG:4326) d'une session existante.
 
@@ -41,12 +46,7 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
           - buffer_m  : buffer (m) pour le zonage PLU uniquement (défaut: 100).
             Prescriptions, servitudes et informations : intersection stricte parcelle.
         """
-        session = session_get(session_id)
-        if not session:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Session {session_id} introuvable.",
-            )
+        session = require_session_for_user(session_id, user_id)
 
         refs = refs_from_session(session)
         if not refs:

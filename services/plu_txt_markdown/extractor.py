@@ -1,10 +1,19 @@
+import logging
 import re
 import sys
 import time
 from pathlib import Path
 from google.genai import types
 
-from .shared import MODEL, compute_cost, get_client, parse_usage_metadata
+from .shared import (
+    compute_cost,
+    get_client,
+    log_gemini_tokens,
+    parse_usage_metadata,
+    validate_gemini_model,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def clean_plu_text(raw: str) -> str:
@@ -16,13 +25,20 @@ def clean_plu_text(raw: str) -> str:
     return text.strip()
 
 
-def extract_zone(prompt: str, raw: str) -> tuple[str, dict]:
+def extract_zone(
+    prompt: str,
+    raw: str,
+    *,
+    model: str | None = None,
+    log_context: str | None = None,
+) -> tuple[str, dict]:
+    model_id = validate_gemini_model(model)
     raw_clean = clean_plu_text(raw)
     full_prompt = f"{prompt}\n\n---\nTEXTE SOURCE À RETRANSCRIRE :\n\n{raw_clean}"
 
     t0 = time.perf_counter()
     response = get_client().models.generate_content(
-        model=MODEL,
+        model=model_id,
         contents=full_prompt,
         config=types.GenerateContentConfig(
             temperature=0.0,
@@ -32,6 +48,8 @@ def extract_zone(prompt: str, raw: str) -> tuple[str, dict]:
     elapsed_sec = time.perf_counter() - t0
 
     tokens = parse_usage_metadata(response.usage_metadata)
+    ctx = log_context or "extraction"
+    log_gemini_tokens(logger, context=ctx, phase="extract", tokens=tokens)
     input_tok = tokens["prompt_token_count"]
     output_tok = tokens["candidates_token_count"]
     thinking_tok = tokens["thoughts_token_count"]

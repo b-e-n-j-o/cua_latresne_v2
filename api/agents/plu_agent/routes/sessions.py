@@ -10,14 +10,16 @@ import time
 
 import psycopg2
 import psycopg2.extras
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from google.genai import types
 from pydantic import BaseModel, Field
 
 from .._env import DB_CONFIG, GEMINI_MODEL
 from ..commune_context import get_current_profile
 from ..commune_profile import CommuneProfile
-from .schemas import ToolCallLog, Usage
+from .llm_raw_context import ensure_raw_llm_context_column
+from .plu_auth import ensure_user_id_column, get_plu_user_id, session_belongs_to_user
+from .schemas import RawLlmContextResponse, SessionMessageItem, ToolCallLog, Usage
 
 try:
     from ..tools.utils import get_zonage_et_reglements
@@ -73,6 +75,7 @@ class SessionResponse(BaseModel):
     usage:         Usage | None = None
     latency_ms:    int | None = None
     model:         str
+    model_message_id: str | None = None
     map_data:      dict | None = None  # déprécié : toujours null ; géométries via GET /session/{id}/map
     show_map:      bool = False
 
@@ -87,7 +90,7 @@ class SessionStateResponse(BaseModel):
     zones:        list[dict]
     total_tokens: int
     total_turns:  int
-    messages:     list[dict]
+    messages:     list[SessionMessageItem]
 
 
 class SessionListItem(BaseModel):
@@ -148,22 +151,33 @@ def _session_title(section, numero, idu, preview, parcelles_refs: str | None = N
     return "Conversation PLU"
 
 
-def session_create(section, numero, idu, parcelles_refs, zones, model) -> str:
+def session_create(
+    section,
+    numero,
+    idu,
+    parcelles_refs,
+    zones,
+    model,
+    user_id: str,
+) -> str:
     """parcelles_refs : JSON stocké dans la colonne geojson (liste de refs, pas de géométrie)."""
-    sessions = get_current_profile().sessions_table()
+    profile = get_current_profile()
+    sessions = profile.sessions_table()
     sql = f"""
         INSERT INTO {sessions}
-            (section, numero, idu, geojson, zones, model)
-        VALUES (%s, %s, %s, %s, %s, %s)
+            (section, numero, idu, geojson, zones, model, user_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
         RETURNING id;
     """
     conn = _db_conn()
     with conn:
+        ensure_user_id_column(conn, profile.schema)
         with conn.cursor() as cur:
             cur.execute(sql, (
                 section, numero, idu, parcelles_refs,
                 json.dumps(zones, default=str),
                 model,
+                user_id,
             ))
             session_id = str(cur.fetchone()[0])
     conn.close()
@@ -238,6 +252,7 @@ def session_get(session_id: str) -> dict | None:
     sql = f"SELECT * FROM {sessions} WHERE id = %s;"
     conn = _db_conn()
     with conn:
+        ensure_user_id_column(conn, get_current_profile().schema)
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(sql, (session_id,))
             row = cur.fetchone()
@@ -246,19 +261,35 @@ def session_get(session_id: str) -> dict | None:
         return None
     session = dict(row)
     session["zones"] = _parse_json_field(session.get("zones")) or []
+    if session.get("user_id") is not None:
+        session["user_id"] = str(session["user_id"])
+    return session
+
+
+def require_session_for_user(session_id: str, user_id: str) -> dict:
+    """Charge une session ou 404 si absente / autre utilisateur."""
+    session = session_get(session_id)
+    if not session_belongs_to_user(session, user_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Session {session_id} introuvable.",
+        )
     return session
 
 
 def messages_get(session_id: str) -> list[dict]:
     messages = get_current_profile().messages_table()
     sql = f"""
-        SELECT role, content, tool_calls, gemini_parts, created_at
+        SELECT id, role, content, tool_calls, gemini_parts, created_at,
+               (raw_llm_context IS NOT NULL) AS has_raw_context
         FROM {messages}
         WHERE session_id = %s
         ORDER BY created_at ASC, id ASC;
     """
+    profile = get_current_profile()
     conn = _db_conn()
     with conn:
+        ensure_raw_llm_context_column(conn, profile.schema)
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(sql, (session_id,))
             rows = [dict(r) for r in cur.fetchall()]
@@ -279,17 +310,24 @@ def messages_insert(
     candidate_tokens=None,
     total_tokens=None,
     latency_ms=None,
-):
+    raw_llm_context: dict | None = None,
+) -> str | None:
+    """Insère user + model ; retourne l'id du message model (pour GET raw-context)."""
     profile = get_current_profile()
     messages = profile.messages_table()
     sessions = profile.sessions_table()
-    sql_msg = f"""
+    sql_user = f"""
         INSERT INTO {messages}
             (session_id, role, content, tool_calls, gemini_parts,
              prompt_tokens, candidate_tokens, total_tokens, latency_ms)
-        VALUES
-            (%s, 'user',  %s, NULL, NULL, NULL, NULL, NULL, NULL),
-            (%s, 'model', %s, %s,   %s,   %s,   %s,   %s,   %s);
+        VALUES (%s, 'user', %s, NULL, NULL, NULL, NULL, NULL, NULL);
+    """
+    sql_model = f"""
+        INSERT INTO {messages}
+            (session_id, role, content, tool_calls, gemini_parts,
+             prompt_tokens, candidate_tokens, total_tokens, latency_ms, raw_llm_context)
+        VALUES (%s, 'model', %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id;
     """
     sql_session = f"""
         UPDATE {sessions}
@@ -299,34 +337,81 @@ def messages_insert(
         WHERE id = %s;
     """
     conn = _db_conn()
+    model_message_id: str | None = None
     with conn:
+        ensure_raw_llm_context_column(conn, profile.schema)
         with conn.cursor() as cur:
-            cur.execute(sql_msg, (
-                session_id, user_message,
-                session_id, model_answer,
-                json.dumps(tool_calls, default=str) if tool_calls is not None else None,
-                json.dumps(gemini_parts, default=str) if gemini_parts is not None else None,
-                prompt_tokens, candidate_tokens, total_tokens, latency_ms,
-            ))
+            cur.execute(sql_user, (session_id, user_message))
+            cur.execute(
+                sql_model,
+                (
+                    session_id,
+                    model_answer,
+                    json.dumps(tool_calls, default=str) if tool_calls is not None else None,
+                    json.dumps(gemini_parts, default=str) if gemini_parts is not None else None,
+                    prompt_tokens,
+                    candidate_tokens,
+                    total_tokens,
+                    latency_ms,
+                    json.dumps(raw_llm_context, default=str) if raw_llm_context else None,
+                ),
+            )
+            row = cur.fetchone()
+            if row:
+                model_message_id = str(row[0])
             cur.execute(sql_session, (total_tokens, session_id))
     conn.close()
+    return model_message_id
 
 
-def session_delete(session_id: str) -> bool:
+def message_get_raw_context(session_id: str, message_id: str) -> dict | None:
+    messages = get_current_profile().messages_table()
+    sql = f"""
+        SELECT id, session_id, role, raw_llm_context
+        FROM {messages}
+        WHERE id = %s AND session_id = %s
+        LIMIT 1;
+    """
+    conn = _db_conn()
+    with conn:
+        ensure_raw_llm_context_column(conn, get_current_profile().schema)
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, (message_id, session_id))
+            row = cur.fetchone()
+    conn.close()
+    if not row:
+        return None
+    raw = _parse_json_field(row.get("raw_llm_context"))
+    if not raw:
+        return None
+    return {
+        "message_id": str(row["id"]),
+        "session_id": str(row["session_id"]),
+        "role": row.get("role"),
+        "raw_context": raw,
+    }
+
+
+def session_delete(session_id: str, user_id: str) -> bool:
+    if not session_belongs_to_user(session_get(session_id), user_id):
+        return False
     profile = get_current_profile()
     sql_msgs = f"DELETE FROM {profile.messages_table()} WHERE session_id = %s;"
-    sql_session = f"DELETE FROM {profile.sessions_table()} WHERE id = %s RETURNING id;"
+    sql_session = (
+        f"DELETE FROM {profile.sessions_table()} "
+        f"WHERE id = %s AND user_id = %s RETURNING id;"
+    )
     conn = _db_conn()
     with conn:
         with conn.cursor() as cur:
             cur.execute(sql_msgs, (session_id,))
-            cur.execute(sql_session, (session_id,))
+            cur.execute(sql_session, (session_id, user_id))
             deleted = cur.fetchone() is not None
     conn.close()
     return deleted
 
 
-def _sessions_list(limit: int = 50) -> list[dict]:
+def _sessions_list(user_id: str, limit: int = 50) -> list[dict]:
     profile = get_current_profile()
     sessions = profile.sessions_table()
     messages = profile.messages_table()
@@ -336,13 +421,15 @@ def _sessions_list(limit: int = 50) -> list[dict]:
              WHERE m.session_id = s.id AND m.role = 'user'
              ORDER BY m.created_at ASC LIMIT 1) AS preview
         FROM {sessions} s
+        WHERE s.user_id = %s
         ORDER BY s.updated_at DESC
         LIMIT %s;
     """
     conn = _db_conn()
     with conn:
+        ensure_user_id_column(conn, profile.schema)
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(sql, (limit,))
+            cur.execute(sql, (user_id, limit))
             rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     for row in rows:
@@ -357,9 +444,12 @@ def _sessions_list(limit: int = 50) -> list[dict]:
 def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
     @router.get("/sessions", response_model=SessionsListResponse)
     @bind
-    def list_sessions(limit: int = 50):
+    def list_sessions(
+        limit: int = 50,
+        user_id: str = Depends(get_plu_user_id),
+    ):
         limit = max(1, min(limit, 100))
-        rows = _sessions_list(limit=limit)
+        rows = _sessions_list(user_id=user_id, limit=limit)
         return SessionsListResponse(sessions=[
             SessionListItem(
                 session_id=row["id"],
@@ -380,7 +470,10 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
 
     @router.post("/session", response_model=SessionResponse)
     @bind
-    def create_session(req: SessionRequest):
+    def create_session(
+        req: SessionRequest,
+        user_id: str = Depends(get_plu_user_id),
+    ):
         from .chat import run_turn, serialize_contents, session_show_map
 
         parcelles_arg = (
@@ -453,25 +546,32 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
             parcelles_refs=parcelles_refs,
             zones=zones,
             model=GEMINI_MODEL,
+            user_id=user_id,
         )
         logger.info(f"session créée : {session_id} — zones : {zones_summary(zones)}")
 
         answer = None
         tool_calls = []
         usage = None
+        model_message_id = None
         latency_ms = int((time.monotonic() - t0) * 1000)
 
         if req.question:
             contents = [types.Content(role="user", parts=[types.Part(text=req.question)])]
             try:
-                answer, tool_calls, usage, new_contents = run_turn(zones, contents)
+                answer, tool_calls, usage, new_contents, raw_llm_context = run_turn(
+                    zones,
+                    contents,
+                    user_message=req.question,
+                    prior_messages=[],
+                )
             except Exception as e:
                 logger.error(f"agentic_loop error : {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e))
 
             latency_ms = int((time.monotonic() - t0) * 1000)
             tool_calls_payload = [tc.model_dump() for tc in tool_calls]
-            messages_insert(
+            model_message_id = messages_insert(
                 session_id=session_id,
                 user_message=req.question,
                 model_answer=answer,
@@ -481,6 +581,7 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
                 candidate_tokens=usage.candidate_tokens,
                 total_tokens=usage.total_tokens,
                 latency_ms=latency_ms,
+                raw_llm_context=raw_llm_context,
             )
             session_persist_refs_from_tool_calls(session_id, tool_calls_payload)
 
@@ -500,22 +601,27 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
             usage=usage,
             latency_ms=latency_ms,
             model=GEMINI_MODEL,
+            model_message_id=model_message_id if req.question else None,
             map_data=None,
             show_map=show_map,
         )
 
     @router.delete("/session/{session_id}", status_code=204)
     @bind
-    def delete_session(session_id: str):
-        if not session_delete(session_id):
+    def delete_session(
+        session_id: str,
+        user_id: str = Depends(get_plu_user_id),
+    ):
+        if not session_delete(session_id, user_id):
             raise HTTPException(status_code=404, detail=f"Session {session_id} introuvable.")
 
     @router.get("/session/{session_id}", response_model=SessionStateResponse)
     @bind
-    def get_session(session_id: str):
-        session = session_get(session_id)
-        if not session:
-            raise HTTPException(status_code=404, detail=f"Session {session_id} introuvable.")
+    def get_session(
+        session_id: str,
+        user_id: str = Depends(get_plu_user_id),
+    ):
+        session = require_session_for_user(session_id, user_id)
         messages = messages_get(session_id)
         return SessionStateResponse(
             session_id=str(session["id"]),
@@ -528,12 +634,43 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
             total_tokens=session.get("total_tokens", 0),
             total_turns=session.get("total_turns", 0),
             messages=[
-                {
-                    "role": m["role"],
-                    "content": m["content"],
-                    "tool_calls": m.get("tool_calls"),
-                    "created_at": str(m["created_at"]),
-                }
+                SessionMessageItem(
+                    id=str(m["id"]),
+                    role=m["role"],
+                    content=m["content"],
+                    tool_calls=m.get("tool_calls"),
+                    created_at=str(m["created_at"]),
+                    has_raw_context=bool(m.get("has_raw_context")),
+                )
                 for m in messages
             ],
+        )
+
+    @router.get(
+        "/session/{session_id}/messages/{message_id}/raw-context",
+        response_model=RawLlmContextResponse,
+    )
+    @bind
+    def get_message_raw_context(
+        session_id: str,
+        message_id: str,
+        user_id: str = Depends(get_plu_user_id),
+    ):
+        """Contexte brut LLM (prompt + sorties tools) pour un message assistant."""
+        require_session_for_user(session_id, user_id)
+        row = message_get_raw_context(session_id, message_id)
+        if not row:
+            raise HTTPException(
+                status_code=404,
+                detail="Contexte brut introuvable pour ce message.",
+            )
+        if row.get("role") != "model":
+            raise HTTPException(
+                status_code=400,
+                detail="Le contexte brut n'est disponible que pour les réponses assistant.",
+            )
+        return RawLlmContextResponse(
+            message_id=row["message_id"],
+            session_id=row["session_id"],
+            raw_context=row["raw_context"],
         )

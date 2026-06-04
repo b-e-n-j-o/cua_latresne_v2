@@ -22,6 +22,7 @@ from .geoportail_contexte_live import (
 )
 from .parcelle import DECL_PARCELLE, get_parcelle
 from .resolve_commune_insee import DECL_RESOLVE_COMMUNE_INSEE, resolve_commune_insee
+from .reglement_ppr import DECL_REGLEMENT_PPR, get_ppr_reglement
 from .reglement_ppri import DECL_REGLEMENT_PPRI, get_reglement_ppri
 from .reglement_pprmvt import DECL_REGLEMENT_PPRMVT, get_reglement_pprmvt
 from .reglement_zone import DECL_REGLEMENT_ZONE, get_reglement_zone
@@ -42,6 +43,7 @@ TOOL_DECLARATIONS_BY_NAME: dict[str, types.FunctionDeclaration] = {
     "get_reglement_zone": DECL_REGLEMENT_ZONE,
     "get_reglement_pprmvt": DECL_REGLEMENT_PPRMVT,
     "get_reglement_ppri": DECL_REGLEMENT_PPRI,
+    "get_ppr_reglement": DECL_REGLEMENT_PPR,
 }
 
 DEFAULT_LLM_TOOL_NAMES = tuple(TOOL_DECLARATIONS_BY_NAME.keys())
@@ -62,6 +64,7 @@ TOOL_FUNCTIONS = {
     "get_reglement_zone": get_reglement_zone,
     "get_reglement_pprmvt": get_reglement_pprmvt,
     "get_reglement_ppri": get_reglement_ppri,
+    "get_ppr_reglement": get_ppr_reglement,
 }
 
 TOOL_RESPONSE_SHAPES = {
@@ -151,6 +154,17 @@ TOOL_RESPONSE_SHAPES = {
         "zones_found": "integer",
         "zones_requested": "array — codes zones demandés (hors DG)",
         "error": "string | null — erreur globale SQL",
+    },
+    "get_ppr_reglement": {
+        "zone_codes_requested": "array — DG, I, II, III chargées",
+        "zone_codes_fetched": "array — zones trouvées en base",
+        "sous_zone_labels": "array — labels PPR (ex. I-b2) pour cibler le texte",
+        "dispositions_generales": "object | null — bloc DG",
+        "zones": "array — blocs I, II, III avec reglementation markdown",
+        "zones_found": "integer",
+        "hors_zonage_ppr": "boolean — true si zone III seule (hors degré 1/2)",
+        "guidance": "string | null — consigne pour le modèle",
+        "error": "string | null",
     },
     "get_reglement_ppri": {
         "dispositions_generales": (
@@ -271,6 +285,7 @@ __all__ = [
     "get_reglement_zone",
     "get_reglement_pprmvt",
     "get_reglement_ppri",
+    "get_ppr_reglement",
     "search_articles_urbanisme",
     "get_article_urbanisme_by_num",
     "print_tools_mapping",

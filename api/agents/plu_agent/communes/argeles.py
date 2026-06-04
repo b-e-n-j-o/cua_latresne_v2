@@ -25,6 +25,7 @@ ARGELES_PROFILE = build_commune_profile(
         "get_parcelle",
         "get_contexte_parcelle",
         "get_reglement_zone",
+        "get_ppr_reglement",
         "search_articles_urbanisme",
         "get_article_urbanisme_by_num",
     ),

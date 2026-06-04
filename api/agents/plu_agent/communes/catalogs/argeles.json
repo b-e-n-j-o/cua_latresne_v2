@@ -40,6 +40,30 @@
         "Hauteur",
         "Légende"
       ]
+    },
+    "ppr": {
+      "enabled": true,
+      "table": "ppr",
+      "title": "PPR — zonage inondation (degrés 1 et 2)",
+      "group": "pprt",
+      "kind": "surfacique",
+      "color": "#457B9D",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "code_degre",
+        "label",
+        "degre",
+        "risque"
+      ],
+      "clean_attributes": [
+        "Degré",
+        "Sous-zone PPR",
+        "Libellé degré",
+        "Risque"
+      ]
     }
   }
 }

@@ -11,7 +11,7 @@ from pathlib import Path
 
 from .extractor import clean_plu_text, extract_zone
 from .judge import AuditReport, audit, summarize_report
-from .shared import empty_token_usage, merge_token_usages
+from .shared import empty_token_usage, log_gemini_tokens, merge_token_usages, validate_gemini_model
 
 
 def needs_review(report: AuditReport) -> bool:
@@ -55,7 +55,9 @@ def process_txt_content(
     out_dir: Path,
     *,
     skip_judge: bool = False,
+    model: str | None = None,
 ) -> dict:
+    model_id = validate_gemini_model(model)
     """
     Extrait le markdown, audite (optionnel), écrit ``<stem>.md`` (+ ``.audit.json`` si juge).
     Retourne un dict résumé pour l'API.
@@ -70,7 +72,12 @@ def process_txt_content(
     t_zone_start = time.perf_counter()
 
     try:
-        md, extract_stats = extract_zone(prompt_extract, raw_text)
+        md, extract_stats = extract_zone(
+            prompt_extract,
+            raw_text,
+            model=model_id,
+            log_context=zone_stem,
+        )
     except Exception as e:
         logger.exception("Extraction échouée pour %s", zone_stem)
         return {
@@ -92,7 +99,13 @@ def process_txt_content(
     else:
         raw_clean = clean_plu_text(raw_text)
         try:
-            report, judge_stats = audit(raw_clean, md, prompt_path=JUDGE_PROMPT_PATH)
+            report, judge_stats = audit(
+                raw_clean,
+                md,
+                prompt_path=JUDGE_PROMPT_PATH,
+                model=model_id,
+                log_context=zone_stem,
+            )
             audit_llm_sec = judge_stats.get("elapsed_sec", 0.0)
         except Exception as e:
             logger.exception("Audit échoué pour %s", zone_stem)
@@ -119,6 +132,7 @@ def process_txt_content(
     total_cost = extract_stats.get("total_usd", 0.0) + judge_cost
     total_zone_sec = time.perf_counter() - t_zone_start
     tokens = _build_tokens_summary(extract_stats, judge_stats)
+    log_gemini_tokens(logger, context=zone_stem, phase="total_fichier", tokens=tokens.get("total"))
 
     return {
         "zone": zone_stem,

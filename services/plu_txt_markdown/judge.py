@@ -1,4 +1,5 @@
 import json
+import logging
 import sys
 import time
 from pathlib import Path
@@ -6,7 +7,15 @@ from typing import Literal
 from pydantic import BaseModel, Field, ValidationError
 from google.genai import types
 
-from .shared import MODEL, compute_cost, get_client, parse_usage_metadata
+from .shared import (
+    compute_cost,
+    get_client,
+    log_gemini_tokens,
+    parse_usage_metadata,
+    validate_gemini_model,
+)
+
+logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent
 
@@ -59,14 +68,14 @@ class AuditReport(BaseModel):
     issues: list[Issue] = Field(default_factory=list)
 
 
-def _generate_audit_with_retries(full_prompt: str) -> tuple[object, float]:
+def _generate_audit_with_retries(full_prompt: str, *, model: str) -> tuple[object, float]:
     """Appelle ``generate_content`` avec backoff sur erreurs transitoires. Retourne (response, elapsed_sec)."""
     last: BaseException | None = None
     for attempt in range(AUDIT_MAX_ATTEMPTS):
         t0 = time.perf_counter()
         try:
             response = get_client().models.generate_content(
-                model=MODEL,
+                model=model,
                 contents=full_prompt,
                 config=types.GenerateContentConfig(
                     temperature=0.0,
@@ -101,14 +110,18 @@ def audit(
     raw_clean: str,
     md: str,
     prompt_path: str | Path | None = None,
+    *,
+    model: str | None = None,
+    log_context: str | None = None,
 ) -> tuple[AuditReport, dict]:
+    model_id = validate_gemini_model(model)
     path = Path(prompt_path) if prompt_path is not None else ROOT / "prompts" / "judge.txt"
     if not path.is_file():
         path = ROOT / path
     prompt_template = path.read_text(encoding="utf-8")
     full_prompt = prompt_template.format(raw=raw_clean, md=md)
 
-    response, elapsed_sec = _generate_audit_with_retries(full_prompt)
+    response, elapsed_sec = _generate_audit_with_retries(full_prompt, model=model_id)
 
     raw_text = (response.text or "").strip()
     finish = None
@@ -129,6 +142,8 @@ def audit(
         ) from e
 
     tokens = parse_usage_metadata(response.usage_metadata)
+    ctx = log_context or "audit"
+    log_gemini_tokens(logger, context=ctx, phase="judge", tokens=tokens)
     input_tok = tokens["prompt_token_count"]
     output_tok = tokens["candidates_token_count"]
     thinking_tok = tokens["thoughts_token_count"]
