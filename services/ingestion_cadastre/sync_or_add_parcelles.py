@@ -36,7 +36,10 @@ import requests
 from shapely.geometry import shape
 from sqlalchemy import create_engine, text
 
-from env_loader import BACKEND_ROOT, load_project_env
+try:
+    from services.ingestion_cadastre.env_loader import BACKEND_ROOT, load_project_env
+except ImportError:
+    from env_loader import BACKEND_ROOT, load_project_env
 
 load_project_env()
 

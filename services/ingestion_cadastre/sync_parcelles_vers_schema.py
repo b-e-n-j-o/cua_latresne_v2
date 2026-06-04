@@ -23,7 +23,10 @@ from pathlib import Path
 
 import psycopg
 
-from env_loader import ENV_BACKEND, load_project_env
+try:
+    from services.ingestion_cadastre.env_loader import ENV_BACKEND, load_project_env
+except ImportError:
+    from env_loader import ENV_BACKEND, load_project_env
 
 logging.basicConfig(
     level=logging.INFO,

@@ -1,8 +1,11 @@
+# Blueprint Render — racine du service = dossier contenant ce fichier (cua_latresne_v4).
+# Dashboard Render → Settings → Root Directory doit pointer ici si le repo est plus large.
+
 services:
   - type: web
     name: kerelia-cua-api
-    env: python
-    region: frankfurt  # 🇪🇺 proche de toi
+    runtime: python
+    region: frankfurt
     plan: starter
 
     buildCommand: |
@@ -40,10 +43,11 @@ services:
       - key: GOOGLE_API_KEY
         sync: false
 
-  # ETL quotidien — communes listées dans services/ingestion_cadastre/config/etl_communes.json
+  # Cron ETL quotidien (UTC). Communes : config/etl_communes.json
+  # Si le Blueprint échoue sur le cron : créer le job à la main (Dashboard → New → Cron Job).
   - type: cron
     name: etl-communes-daily
-    env: python
+    runtime: python
     region: frankfurt
     schedule: "0 3 * * *"
     buildCommand: |

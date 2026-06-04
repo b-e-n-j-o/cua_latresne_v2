@@ -53,7 +53,10 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-from env_loader import ENV_BACKEND, load_project_env
+try:
+    from services.ingestion_cadastre.env_loader import ENV_BACKEND, load_project_env
+except ImportError:
+    from env_loader import ENV_BACKEND, load_project_env
 
 
 def connect_supabase(db_url: str | None = None):
