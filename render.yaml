@@ -19,7 +19,51 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      - key: SUPABASE_HOST
+        sync: false
+      - key: SUPABASE_USER
+        sync: false
+      - key: SUPABASE_PASSWORD
+        sync: false
+      - key: SUPABASE_DB
+        sync: false
+      - key: SUPABASE_PORT
+        sync: false
+      - key: INTERNAL_TOKEN
+        sync: false
+      - key: SLACK_WEBHOOK
+        sync: false
+      - key: SLACK_DEPLOY_WEBHOOK
+        sync: false
       - key: OPENAI_API_KEY
         sync: false
       - key: GOOGLE_API_KEY
+        sync: false
+
+  # ETL quotidien Latresne — tourne sur Render (UTC). 0 3 * * * = 03:00 UTC (~4h/5h Paris selon DST)
+  - type: cron
+    name: etl-latresne-daily
+    env: python
+    region: frankfurt
+    schedule: "0 3 * * *"
+    buildCommand: |
+      apt-get update && apt-get install -y gdal-bin libgdal-dev
+      pip install -r requirements.txt
+    startCommand: bash services/ingestion_cadastre/scripts/render_cron_etl_latresne.sh
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.8
+      - key: SUPABASE_HOST
+        sync: false
+      - key: SUPABASE_USER
+        sync: false
+      - key: SUPABASE_PASSWORD
+        sync: false
+      - key: SUPABASE_DB
+        sync: false
+      - key: SUPABASE_PORT
+        sync: false
+      - key: SLACK_WEBHOOK
+        sync: false
+      - key: SLACK_DEPLOY_WEBHOOK
         sync: false

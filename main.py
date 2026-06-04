@@ -52,6 +52,7 @@ from api.tiles_mbtiles_parcelles import router as tiles_parcelles
 from api.topography_consolidated import router as topo_router
 from services.ingestion_cadastre.router_ingest_parcelles import router as parcelles_ingest_router
 from services.ingestion_cadastre.router_sync_parcelles import router as parcelles_sync_router
+from services.ingestion_cadastre.router_etl_commune import router as etl_commune_router
 from services.ingestion_mnt_lidar.router_ingestion_mnt_lidar import router as ingestion_mnt_lidar_router
 from app.deps import supabase
 from app.routers.cerfa import router as cerfa_router
@@ -274,6 +275,7 @@ app.include_router(admin_router)
 app.include_router(cua_docx_viewer_routes.router)
 app.include_router(parcelles_ingest_router, prefix="/admin")
 app.include_router(parcelles_sync_router, prefix="/admin")
+app.include_router(etl_commune_router, prefix="/admin")
 app.include_router(ingestion_mnt_lidar_router, prefix="/admin")
 
 
