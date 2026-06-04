@@ -13,7 +13,6 @@ import os
 from functools import lru_cache
 
 import httpx
-import psycopg2
 from fastapi import Header, HTTPException
 
 logger = logging.getLogger("plu_api")
@@ -47,24 +46,45 @@ def _supabase_auth_config() -> tuple[str, str]:
     return url, key
 
 
-def ensure_user_id_column(conn, schema: str) -> None:
-    if schema in _SCHEMAS_USER_COLUMN_READY:
-        return
+def _user_id_column_exists(conn, schema: str) -> bool:
     with conn.cursor() as cur:
         cur.execute(
-            f"""
-            ALTER TABLE "{schema}".plu_sessions
-            ADD COLUMN IF NOT EXISTS user_id UUID
             """
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = %s
+              AND table_name = 'plu_sessions'
+              AND column_name = 'user_id'
+            LIMIT 1
+            """,
+            (schema,),
         )
-        cur.execute(
-            f"""
-            CREATE INDEX IF NOT EXISTS plu_sessions_user_id_updated_at_idx
-            ON "{schema}".plu_sessions (user_id, updated_at DESC)
-            """
-        )
-    _SCHEMAS_USER_COLUMN_READY.add(schema)
-    logger.info("Colonne user_id prête sur %s.plu_sessions", schema)
+        return cur.fetchone() is not None
+
+
+def ensure_user_id_column(conn, schema: str) -> None:
+    """
+    Vérifie que la colonne user_id existe (pas d'ALTER en requête HTTP :
+    sur Supabase, ALTER TABLE peut dépasser statement_timeout).
+    """
+    if schema in _SCHEMAS_USER_COLUMN_READY:
+        return
+    if _user_id_column_exists(conn, schema):
+        _SCHEMAS_USER_COLUMN_READY.add(schema)
+        return
+    logger.error(
+        "Migration manquante : %s.plu_sessions.user_id — voir "
+        "api/agents/plu_agent/migrations/001_plu_sessions_user_id.sql",
+        schema,
+    )
+    raise HTTPException(
+        status_code=503,
+        detail=(
+            f'Migration SQL requise sur "{schema}.plu_sessions" : '
+            f'ALTER TABLE "{schema}".plu_sessions '
+            "ADD COLUMN IF NOT EXISTS user_id UUID;"
+        ),
+    )
 
 
 def verify_supabase_access_token(token: str) -> str:
