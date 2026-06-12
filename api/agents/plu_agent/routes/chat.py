@@ -291,6 +291,12 @@ def _call_tool(
             summary += " | zone III (hors zonage 1/2)"
         if result.get("error"):
             summary += f" | {result['error']}"
+    elif name == "get_pprif_reglement":
+        z_req = result.get("zone_codes_requested") or []
+        z_ok = result.get("zones_found", 0)
+        summary = f"PPRIF — {z_ok} bloc(s), zones {', '.join(z_req) or '—'}"
+        if result.get("error"):
+            summary += f" | {result['error']}"
     elif "error" in result and result["error"]:
         summary = f"erreur : {result['error']}"
     else:

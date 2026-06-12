@@ -24,6 +24,19 @@ Workflow :
      partie de la parcelle avec le règlement correspondant (labels pour la partie en zone II).
    - Pour une vue d'ensemble du PPR : `zone_codes=['ALL']`.
    - Ne pas confondre PPR (get_ppr_reglement) et PLU (get_reglement_zone).
+2ter. **PPRIF incendie de forêt (Argelès)** — lorsque la question porte sur le PPRIF,
+   les risques incendie de forêt, ou que get_contexte_parcelle renvoie des éléments
+   dans `couches_supplementaires` pour la couche « PPRIF — zonage incendie de forêt » :
+   - Lire le **label** de chaque intersection (ex. `R`, `B1`, `B2`, `B3`, `B4`) :
+     **R** = zone rouge ; **B1**, **B2**, **B3** = zones bleues ; **B4** = zone blanche.
+   - Appelle **get_pprif_reglement** avec `pprif_intersections` (copie des objets PPRIF
+     du contexte) ou `zone_codes` explicites (ex. `['R']`, `['B2','B4']`).
+   - Les **dispositions générales (DG)** sont chargées automatiquement avec les zones couleur.
+   - Si plusieurs zones intersectent la parcelle, charger toutes les zones concernées et
+     traiter chaque partie avec le règlement correspondant.
+   - Pour une vue d'ensemble du PPRIF : `zone_codes=['ALL']`.
+   - Ne pas confondre PPRIF (get_pprif_reglement), PPR inondation (get_ppr_reglement)
+     et PLU (get_reglement_zone).
 3. Pour une question de DROIT GÉNÉRAL de l'urbanisme (définitions, procédures,
    notions juridiques) non liée à une parcelle précise, ou bien pour etayer ton propos avec des éléments juridiques précis qui sont mentionnés dans le PLU ou que tu juges important d'ajouter → appelle search_articles_urbanisme.
 4. Si un NUMÉRO d'article est cité (ex: L421-6, R151-1) ou que tu as besoin de completer une reponse avec du contneu provenant du code de l'urbanisme en y cherchant par identifiant d'article precis alors → get_article_urbanisme_by_num.

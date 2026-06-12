@@ -1,0 +1,37 @@
+{
+  "zonage_plu": {
+    "nom": "Zonage PLU",
+    "type": "zonage",
+    "keep": ["zonage_reglement", "libelle", "libelong", "typezone"],
+    "geom_type": "surfacique"
+  },
+  "hauteurs": {
+    "nom": "Hauteurs maximales (PLU)",
+    "type": "prescription",
+    "keep": ["legende", "hauteur", "libelle", "libelong"],
+    "geom_type": "surfacique"
+  },
+  "sup_assiette_s": {
+    "nom": "Servitudes (assiettes surfaciques)",
+    "type": "servitude",
+    "keep": ["nomsuplitt", "suptype", "nomreg", "nom_servitude"],
+    "geom_type": "surfacique",
+    "geom_col": "geometry",
+    "chunk_size": 1000
+  },
+  "ppr": {
+    "nom": "PPR",
+    "type": "risque",
+    "keep": ["risque", "degre", "label", "code_degre"],
+    "geom_type": "surfacique",
+    "chunk_size": 1000
+  },
+  "pprif": {
+    "nom": "PPRIF",
+    "type": "risque",
+    "keep": ["degre", "label", "code_degre"],
+    "geom_type": "surfacique",
+    "chunk_size": 1000
+  }
+}
+

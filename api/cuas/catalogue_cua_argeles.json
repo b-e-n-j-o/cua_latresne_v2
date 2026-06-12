@@ -1,0 +1,233 @@
+{
+  "zonage_plu": {
+    "nom": "Zonage PLU",
+    "type": "prescription",
+    "keep": ["zonage_reglement", "libelle", "libelong"],
+    "origine": "plu",
+    "article": "3",
+    "group_by": ["zonage_reglement"],
+    "geom_type": "surfacique"
+  },
+  "hauteurs": {
+    "nom": "Hauteurs maximales (PLU)",
+    "type": "prescription",
+    "keep": ["legende", "hauteur", "libelong"],
+    "origine": "plu",
+    "article": "3",
+    "geom_type": "surfacique"
+  },
+  "sup_assiette_s": {
+    "nom": "Servitudes d'utilite publique (assiettes)",
+    "type": "servitude",
+    "keep": ["nomsuplitt", "suptype", "nomreg"],
+    "origine": "geoportail",
+    "article": "4",
+    "geom_type": "surfacique",
+    "geom_col": "geometry"
+  },
+  "ppr": {
+    "nom": "PPR (Plan de Prevention des Risques)",
+    "type": "prescription",
+    "keep": ["risque", "degre", "label", "document"],
+    "origine": "georisques",
+    "article": "5",
+    "geom_type": "surfacique"
+  },
+  "pprif": {
+    "nom": "PPRIF (Risque Incendie de Foret)",
+    "type": "prescription",
+    "keep": ["risque", "degre", "label", "document"],
+    "origine": "georisques",
+    "article": "5",
+    "geom_type": "surfacique"
+  },
+  "aoc": {
+    "nom": "AOC viticoles",
+    "type": "information",
+    "keep": ["denom", "crinao"],
+    "origine": "inao",
+    "article": "5",
+    "geom_type": "surfacique"
+  },
+  "prescriptions_surf": {
+    "nom": "Prescriptions surfaciques (PLU)",
+    "type": "prescription",
+    "keep": ["libelle", "typepsc", "txt"],
+    "origine": "plu",
+    "article": "5",
+    "geom_type": "surfacique"
+  },
+  "prescriptions_lineaires": {
+    "nom": "Prescriptions lineaires (PLU)",
+    "type": "prescription",
+    "keep": ["libelle", "typepsc", "txt"],
+    "origine": "plu",
+    "article": "5",
+    "geom_type": "lineaire"
+  },
+  "prescriptions_ponctuelles": {
+    "nom": "Prescriptions ponctuelles (PLU)",
+    "type": "prescription",
+    "keep": ["libelle", "typepsc", "txt"],
+    "origine": "plu",
+    "article": "5",
+    "geom_type": "ponctuel"
+  },
+  "infos_surf": {
+    "nom": "Informations surfaciques",
+    "type": "information",
+    "keep": ["libelle", "typeinf", "txt"],
+    "origine": "plu",
+    "article": "7",
+    "geom_type": "surfacique"
+  },
+  "infos_lin": {
+    "nom": "Informations lineaires",
+    "type": "information",
+    "keep": ["libelle", "typeinf", "txt"],
+    "origine": "plu",
+    "article": "7",
+    "geom_type": "lineaire"
+  },
+  "infos_pct": {
+    "nom": "Informations ponctuelles",
+    "type": "information",
+    "keep": ["libelle", "typeinf", "txt"],
+    "origine": "plu",
+    "article": "7",
+    "geom_type": "ponctuel"
+  },
+  "retrait_gonflement_argiles_2026": {
+    "nom": "Retrait-gonflement des argiles (2026)",
+    "type": "prescription",
+    "keep": ["niveau", "alea"],
+    "origine": "shp",
+    "article": "5",
+    "geom_type": "surfacique"
+  },
+  "old": {
+    "nom": "Zones de debroussaillement (OLD)",
+    "type": "prescription",
+    "keep": ["zonage", "dat_ap_old"],
+    "origine": "shp",
+    "article": "5",
+    "geom_type": "surfacique"
+  },
+  "haies_bocages": {
+    "nom": "Haies et bocages",
+    "type": "information",
+    "keep": ["id"],
+    "origine": "wfs",
+    "article": "5",
+    "geom_type": "lineaire"
+  },
+  "znieffs": {
+    "nom": "ZNIEFF",
+    "type": "information",
+    "keep": ["nom_site", "znieff_type"],
+    "origine": "wfs",
+    "article": "5",
+    "geom_type": "surfacique"
+  },
+  "generateurs_sup_lineaires": {
+    "nom": "Servitudes - generateurs lineaires",
+    "type": "servitude",
+    "keep": ["nomgen", "suptype", "nomreg", "typegen"],
+    "origine": "geoportail",
+    "article": "4",
+    "geom_type": "lineaire"
+  },
+  "prairies_sensibles": {
+    "nom": "Prairies sensibles (BCAE)",
+    "type": "information",
+    "keep": ["id"],
+    "origine": "wfs",
+    "article": "5",
+    "geom_type": "surfacique"
+  },
+  "natura_2000": {
+    "nom": "NATURA 2000",
+    "type": "information",
+    "keep": ["c_site", "n_site", "t_site", "type"],
+    "origine": "wfs",
+    "article": "5",
+    "geom_type": "surfacique"
+  },
+  "reseaux_enedis_lineaires": {
+    "nom": "Réseaux ENEDIS linéaires",
+    "type": "reseaux",
+    "keep": ["id", "type"],
+    "origine": "enedis",
+    "article": "5",
+    "geom_type": "lineaire"
+  },
+  "reseau_enedis_ponctuels": {
+    "nom": "Réseaux ENEDIS ponctuels",
+    "type": "reseaux",
+    "keep": ["id", "type"],
+    "origine": "enedis",
+    "article": "5",
+    "geom_type": "ponctuel"
+  },
+  "zaer": {
+    "nom": "ZAER (Zones a equiper pour les energies renouvelables)",
+    "type": "information",
+    "keep": ["nom", "filiere", "detail_filiere"],
+    "origine": "wfs",
+    "article": "5",
+    "geom_type": "surfacique"
+  },
+  "sup_assiette_l": {
+    "nom": "Servitudes (assiettes lineaires)",
+    "type": "servitude",
+    "keep": ["nomsuplitt", "suptype", "nomreg"],
+    "origine": "geoportail",
+    "article": "4",
+    "geom_type": "lineaire",
+    "geom_col": "geometry"
+  },
+  "sup_assiette_p": {
+    "nom": "Servitudes (assiettes ponctuelles)",
+    "type": "servitude",
+    "keep": ["nomsuplitt", "suptype", "nomreg"],
+    "origine": "geoportail",
+    "article": "4",
+    "geom_type": "ponctuel",
+    "geom_col": "geometry"
+  },
+  "sup_generateur_s": {
+    "nom": "Servitudes (generateurs surfaciques)",
+    "type": "servitude",
+    "keep": ["nomsuplitt", "suptype", "nomreg"],
+    "origine": "geoportail",
+    "article": "4",
+    "geom_type": "surfacique",
+    "geom_col": "geometry"
+  },
+  "sup_generateur_l": {
+    "nom": "Servitudes (generateurs lineaires)",
+    "type": "servitude",
+    "keep": ["nomsuplitt", "suptype", "nomreg"],
+    "origine": "geoportail",
+    "article": "4",
+    "geom_type": "lineaire",
+    "geom_col": "geometry"
+  },
+  "sup_generateur_p": {
+    "nom": "Servitudes (generateurs ponctuels)",
+    "type": "servitude",
+    "keep": ["nomsuplitt", "suptype", "nomreg"],
+    "origine": "geoportail",
+    "article": "4",
+    "geom_type": "ponctuel",
+    "geom_col": "geometry"
+  },
+  "batiments": {
+    "nom": "Batiments",
+    "type": "information",
+    "keep": ["type"],
+    "origine": "cadastre",
+    "article": "5",
+    "geom_type": "surfacique"
+  }
+}

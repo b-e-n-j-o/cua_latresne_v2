@@ -57,6 +57,8 @@ from services.ingestion_mnt_lidar.router_ingestion_mnt_lidar import router as in
 from app.deps import supabase
 from app.routers.cerfa import router as cerfa_router
 from app.routers.cua_pipeline import router as cua_pipeline_router
+from api.cuas.catalogue_routes import router as cua_catalogue_router
+from api.cuas.parcelles_intersections_routes import router as parcelles_intersections_router
 from app.routers.pipelines_supabase import router as pipelines_supabase_router
 from app.routers.site_account import router as site_account_router
 from api.communes.latresne.cuas.CUA.docx import cua_docx_viewer_routes
@@ -171,7 +173,12 @@ async def block_scanners(request: Request, call_next):
     token = (request.headers.get("x-internal-token") or "").strip()
     is_scanner = any(fragment in ua.lower() for fragment in _SCANNER_UA_FRAGMENTS)
     if is_scanner and token != _INTERNAL_AGENT_TOKEN:
-        msg = f"Scanner bloqué | IP: {_client_ip(request)} | UA: {ua} | Path: {request.url.path}"
+        headers = dict(request.headers)
+        msg = (
+            f"Scanner bloqué | IP: {_client_ip(request)} | UA: {ua}"
+            f" | Method: {request.method} | Path: {request.url.path}"
+            f" | Headers: {headers}"
+        )
         _logger.warning(msg)
         await _notify_slack_render_alert(msg)
         return JSONResponse(status_code=403, content={"detail": "Forbidden"})
@@ -313,6 +320,8 @@ app.include_router(project_directory_router)
 
 # --- Cœur métier CUA / parcelles (jobs + polling) ---
 app.include_router(cua_pipeline_router)
+app.include_router(cua_catalogue_router)
+app.include_router(parcelles_intersections_router)
 
 # --- Pipelines Supabase + debug ---
 app.include_router(pipelines_supabase_router)

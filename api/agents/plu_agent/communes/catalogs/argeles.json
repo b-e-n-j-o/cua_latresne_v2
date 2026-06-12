@@ -64,6 +64,28 @@
         "Libellé degré",
         "Risque"
       ]
+    },
+    "pprif": {
+      "enabled": true,
+      "table": "pprif",
+      "title": "PPRIF — zonage incendie de forêt",
+      "group": "pprif",
+      "kind": "surfacique",
+      "color": "#E76F51",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "label",
+        "degre",
+        "code_degre"
+      ],
+      "clean_attributes": [
+        "Zone PPRIF",
+        "Libellé",
+        "Degré"
+      ]
     }
   }
 }

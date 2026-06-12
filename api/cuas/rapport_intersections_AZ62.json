@@ -1,0 +1,132 @@
+{
+  "parcelle": "UF",
+  "surface_m2": 1151.68,
+  "surface_indicative": 1160.0,
+  "intersections": {
+    "zonage_plu": {
+      "nom": "Zonage PLU",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 99.9996,
+      "objets": [
+        {
+          "zonage_reglement": "N",
+          "libelle": "Nrl",
+          "libelong": "Espaces naturels remarquables du littoral",
+          "surface_inter_m2": 1151.68,
+          "pct_sig": 99.9996
+        }
+      ]
+    },
+    "hauteurs": {
+      "nom": "Hauteurs maximales (PLU)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 99.9996,
+      "objets": [
+        {
+          "legende": "Non règlementé",
+          "hauteur": null,
+          "libelong": "Espaces naturels remarquables du littoral",
+          "surface_inter_m2": 1151.68,
+          "pct_sig": 99.9996
+        }
+      ]
+    },
+    "sup_assiette_s": {
+      "nom": "Servitudes d'utilite publique (assiettes)",
+      "type": "servitude",
+      "geom_type": "surfacique",
+      "pct_sig": 99.9996,
+      "objets": [
+        {
+          "nomsuplitt": "Modification du Plan de Prévention des Risques naturels d'Argelès-sur-Mer",
+          "suptype": "pm1",
+          "nomreg": null,
+          "surface_inter_m2": 1151.68,
+          "pct_sig": 99.9996
+        }
+      ]
+    },
+    "ppr": {
+      "nom": "PPR (Plan de Prevention des Risques)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 99.9996,
+      "objets": [
+        {
+          "risque": "inondation",
+          "degre": "zone d'expansion et de stockage des crues du Tech et de la Massane",
+          "label": "I0",
+          "document": "PPR inondation Argelès-sur-mer",
+          "surface_inter_m2": 1151.68,
+          "pct_sig": 99.9996
+        }
+      ]
+    },
+    "pprif": {
+      "nom": "PPRIF (Risque Incendie de Foret)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": []
+    },
+    "aoc": {
+      "nom": "AOC viticoles",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": []
+    },
+    "prescriptions_surf": {
+      "nom": "Prescriptions surfaciques (PLU)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": []
+    },
+    "prescriptions_lineaires": {
+      "nom": "Prescriptions lineaires (PLU)",
+      "type": "prescription",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": []
+    },
+    "prescriptions_ponctuelles": {
+      "nom": "Prescriptions ponctuelles (PLU)",
+      "type": "prescription",
+      "geom_type": "ponctuel",
+      "pct_sig": 0.0,
+      "objets": []
+    },
+    "infos_surf": {
+      "nom": "Informations surfaciques",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 99.9996,
+      "objets": [
+        {
+          "libelle": "Plan de Prévention des Risques Naturels",
+          "typeinf": "99",
+          "txt": "\\N",
+          "surface_inter_m2": 1151.68,
+          "pct_sig": 99.9996
+        }
+      ]
+    },
+    "infos_lin": {
+      "nom": "Informations lineaires",
+      "type": "information",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": []
+    },
+    "infos_pct": {
+      "nom": "Informations ponctuelles",
+      "type": "information",
+      "geom_type": "ponctuel",
+      "pct_sig": 0.0,
+      "objets": []
+    }
+  }
+}

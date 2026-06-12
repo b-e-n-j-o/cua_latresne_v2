@@ -23,6 +23,7 @@ from .geoportail_contexte_live import (
 from .parcelle import DECL_PARCELLE, get_parcelle
 from .resolve_commune_insee import DECL_RESOLVE_COMMUNE_INSEE, resolve_commune_insee
 from .reglement_ppr import DECL_REGLEMENT_PPR, get_ppr_reglement
+from .reglement_pprif import DECL_REGLEMENT_PPRIF, get_pprif_reglement
 from .reglement_ppri import DECL_REGLEMENT_PPRI, get_reglement_ppri
 from .reglement_pprmvt import DECL_REGLEMENT_PPRMVT, get_reglement_pprmvt
 from .reglement_zone import DECL_REGLEMENT_ZONE, get_reglement_zone
@@ -44,6 +45,7 @@ TOOL_DECLARATIONS_BY_NAME: dict[str, types.FunctionDeclaration] = {
     "get_reglement_pprmvt": DECL_REGLEMENT_PPRMVT,
     "get_reglement_ppri": DECL_REGLEMENT_PPRI,
     "get_ppr_reglement": DECL_REGLEMENT_PPR,
+    "get_pprif_reglement": DECL_REGLEMENT_PPRIF,
 }
 
 DEFAULT_LLM_TOOL_NAMES = tuple(TOOL_DECLARATIONS_BY_NAME.keys())
@@ -65,6 +67,7 @@ TOOL_FUNCTIONS = {
     "get_reglement_pprmvt": get_reglement_pprmvt,
     "get_reglement_ppri": get_reglement_ppri,
     "get_ppr_reglement": get_ppr_reglement,
+    "get_pprif_reglement": get_pprif_reglement,
 }
 
 TOOL_RESPONSE_SHAPES = {
@@ -164,6 +167,16 @@ TOOL_RESPONSE_SHAPES = {
         "zones_found": "integer",
         "hors_zonage_ppr": "boolean — true si zone III seule (hors degré 1/2)",
         "guidance": "string | null — consigne pour le modèle",
+        "error": "string | null",
+    },
+    "get_pprif_reglement": {
+        "zone_codes_requested": "array — DG + R, B1, B2, B3, B4 chargées",
+        "zone_codes_fetched": "array — zones trouvées en base",
+        "dispositions_generales": "object | null — bloc DG",
+        "zones": "array — blocs R/B1/B2/B3/B4 avec reglementation markdown et couleur",
+        "zones_found": "integer",
+        "zones_pprif_reference": "object — correspondance zone_code → couleur (R rouge, B1–B3 bleues, B4 blanche)",
+        "guidance": "string | null — consigne pour le modèle (ex. parcelle multi-zones)",
         "error": "string | null",
     },
     "get_reglement_ppri": {
@@ -286,6 +299,7 @@ __all__ = [
     "get_reglement_pprmvt",
     "get_reglement_ppri",
     "get_ppr_reglement",
+    "get_pprif_reglement",
     "search_articles_urbanisme",
     "get_article_urbanisme_by_num",
     "print_tools_mapping",
