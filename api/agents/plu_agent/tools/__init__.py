@@ -83,16 +83,20 @@ TOOL_RESPONSE_SHAPES = {
             "pct_parcelle_couverte, reglementation, …"
         ),
         "zones_count": "integer",
-        "surfaciques": "array — gml_id, libelle, txt, typepsc, stypepsc",
-        "lineaires": "array — idem",
-        "ponctuelles": "array — idem",
+        "surfaciques": (
+            "array — gml_id, libelle, txt, typepsc, stypepsc, "
+            "superficie_intersection_m2, pct_parcelle_couverte"
+        ),
+        "lineaires": "array — gml_id, libelle, txt, typepsc, stypepsc",
+        "ponctuelles": "array — gml_id, libelle, txt, typepsc, stypepsc",
         "prescriptions_count": "integer — total",
         "servitudes": (
-            "array — gid, nom_servitude (libellé principal), suptype, typeass, nomsuplitt, idass, nomass"
+            "array — gid, nom_servitude, suptype, typeass, nomsuplitt, idass, nomass, "
+            "superficie_intersection_m2, pct_parcelle_couverte"
         ),
         "servitudes_count": "integer",
         "informations": (
-            "object — surfaciques, lineaires, ponctuelles (libelle, typeinf, stypeinf), counts"
+            "object — surfaciques (avec pct_parcelle_couverte), lineaires, ponctuelles, counts"
         ),
         "informations_count": "integer — total informations",
         "parcelles": "array — feuilles cadastrales de l'unité foncière",

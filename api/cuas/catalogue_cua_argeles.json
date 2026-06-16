@@ -138,7 +138,7 @@
     "geom_type": "lineaire"
   },
   "prairies_sensibles": {
-    "nom": "Prairies sensibles (BCAE)",
+    "nom": "Prairies permanentes",
     "type": "information",
     "keep": ["id"],
     "origine": "wfs",
@@ -148,7 +148,7 @@
   "natura_2000": {
     "nom": "NATURA 2000",
     "type": "information",
-    "keep": ["c_site", "n_site", "t_site", "type"],
+    "keep": ["id", "c_site", "n_site", "t_site"],
     "origine": "wfs",
     "article": "5",
     "geom_type": "surfacique"
@@ -160,14 +160,6 @@
     "origine": "enedis",
     "article": "5",
     "geom_type": "lineaire"
-  },
-  "reseau_enedis_ponctuels": {
-    "nom": "Réseaux ENEDIS ponctuels",
-    "type": "reseaux",
-    "keep": ["id", "type"],
-    "origine": "enedis",
-    "article": "5",
-    "geom_type": "ponctuel"
   },
   "zaer": {
     "nom": "ZAER (Zones a equiper pour les energies renouvelables)",

@@ -11,16 +11,31 @@ from ...commune_context import q
 from .catalog_bridge import prescription_config
 from .db import db_query
 from .parcel_geom import resolve_unite_fonciere
+from .intersection_metrics import (
+    apply_surfacic_metrics_to_item,
+    is_surfacic_layer,
+    surfacic_metrics_select_sql,
+)
 from .zonage import strict_parcel_intersection_filter_sql
 
 logger = logging.getLogger("plu_tools")
 
 
-def _sql_prescriptions(table: str, with_geojson: bool, strict_parcel: bool = True) -> str:
+def _sql_prescriptions(
+    table: str,
+    with_geojson: bool,
+    strict_parcel: bool = True,
+    with_area_metrics: bool = False,
+) -> str:
     entity_geom = "ST_MakeValid(p.geom_2154)"
     geom_sel = (
         f", ST_AsGeoJSON(ST_Transform(ST_Force2D({entity_geom}), 4326)) AS geojson_geom"
         if with_geojson
+        else ""
+    )
+    metrics_sel = (
+        f",{surfacic_metrics_select_sql(entity_geom)}"
+        if with_area_metrics
         else ""
     )
     if strict_parcel:
@@ -52,7 +67,7 @@ def _sql_prescriptions(table: str, with_geojson: bool, strict_parcel: bool = Tru
             p.txt,
             p.typepsc,
             p.stypepsc
-            {geom_sel}
+            {geom_sel}{metrics_sel}
         FROM {q(table)} p
         CROSS JOIN cible_scope c
         WHERE p.geom_2154 IS NOT NULL
@@ -76,7 +91,15 @@ def fetch_prescriptions_rows(
             continue
         if not cfg.get("context_llm") and not with_geojson:
             continue
-        sql = _sql_prescriptions(cfg["table"], with_geojson, strict_parcel=strict_parcel)
+        sql = _sql_prescriptions(
+            cfg["table"],
+            with_geojson,
+            strict_parcel=strict_parcel,
+            with_area_metrics=is_surfacic_layer(
+                kind=cfg.get("kind"),
+                subgroup=key,
+            ),
+        )
         try:
             if strict_parcel:
                 out[key] = db_query(db_config, sql, (geom_wkb,))
@@ -108,19 +131,23 @@ def _parse_geojson(val) -> dict | None:
 
 
 def _rows_to_llm_list(rows: list[dict], kind: str, txt_max: int = 800) -> list[dict]:
+    include_metrics = is_surfacic_layer(kind=kind)
     items = []
     for r in rows:
         txt = (r.get("txt") or "").strip()
         if len(txt) > txt_max:
             txt = txt[:txt_max] + "…"
-        items.append({
+        item = {
             "gml_id": r.get("gml_id"),
             "libelle": r.get("libelle"),
             "txt": txt or None,
             "typepsc": r.get("typepsc"),
             "stypepsc": r.get("stypepsc"),
             "kind": kind,
-        })
+        }
+        if include_metrics:
+            apply_surfacic_metrics_to_item(item, r)
+        items.append(item)
     return items
 
 

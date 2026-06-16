@@ -428,7 +428,7 @@
     "geom_type": "surfacique"
   },
   "risque_mouvement_de_terrain": {
-    "nom": "Risques mouvements de terrain",
+    "nom": "Risques mouvements de terrain (prescriptif, datant d'avant le PPRMVT)",
     "type": "prescription",
     "keep": [
       "reglementation"
@@ -438,7 +438,7 @@
     "geom_type": "surfacique"
   },
   "pprmvt_latresne": {
-    "nom": "PPRMVT",
+    "nom": "PPRMVT - Mouvements de terrain",
     "type": "prescription",
     "origine": "shp",
     "keep": [

@@ -1,0 +1,332 @@
+{
+  "parcelle": "UF",
+  "surface_m2": 2507.03,
+  "surface_indicative": 2485.0,
+  "intersections": {
+    "zonage_plu": {
+      "nom": "Zonage PLU",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 99.9998,
+      "objets": [
+        {
+          "zonage_reglement": "A",
+          "libelle": "A",
+          "libelong": "Secteur agricole",
+          "surface_inter_m2": 2507.03,
+          "pct_sig": 99.9998
+        }
+      ],
+      "status": "concernee"
+    },
+    "hauteurs": {
+      "nom": "Hauteurs maximales (PLU)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 99.9998,
+      "objets": [
+        {
+          "legende": "Non règlementé",
+          "hauteur": null,
+          "libelong": "Secteur agricole",
+          "surface_inter_m2": 2507.03,
+          "pct_sig": 99.9998
+        }
+      ],
+      "status": "concernee"
+    },
+    "sup_assiette_s": {
+      "nom": "Servitudes d'utilite publique (assiettes)",
+      "type": "servitude",
+      "geom_type": "surfacique",
+      "pct_sig": 99.9998,
+      "objets": [
+        {
+          "nomsuplitt": "Plan de Prévention des Risques d'Incendies de Forêt d'Argelès-sur-Mer",
+          "suptype": "pm1",
+          "nomreg": null,
+          "surface_inter_m2": 2507.03,
+          "pct_sig": 99.9998
+        }
+      ],
+      "status": "concernee"
+    },
+    "ppr": {
+      "nom": "PPR (Plan de Prevention des Risques)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "pprif": {
+      "nom": "PPRIF (Risque Incendie de Foret)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 99.9998,
+      "objets": [
+        {
+          "risque": "feu de forêt",
+          "degre": "zone bleue - risque modéré - mesures de protection nécessaires",
+          "label": "B2",
+          "document": "PPRIF de Argelès-sur-mer",
+          "surface_inter_m2": 2507.03,
+          "pct_sig": 99.9998
+        }
+      ],
+      "status": "concernee"
+    },
+    "aoc": {
+      "nom": "AOC viticoles",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 99.5382,
+      "objets": [
+        {
+          "denom": "Côtes du Roussillon,Grand Roussillon,Languedoc,Muscat de Rivesaltes,Rivesaltes",
+          "crinao": null,
+          "surface_inter_m2": 2495.45,
+          "pct_sig": 99.5382
+        }
+      ],
+      "status": "concernee"
+    },
+    "prescriptions_surf": {
+      "nom": "Prescriptions surfaciques (PLU)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "erreur",
+      "error": "(psycopg2.errors.UndefinedColumn) column t.txt does not exist\nLINE 6:                 SELECT t.libelle, t.typepsc, t.txt, \n                                                     ^\n\n[SQL: \n            WITH uf AS (\n                SELECT ST_GeomFromText(%(wkt)s, 2154) AS geom\n            ),\n            inter AS (\n                SELECT t.libelle, t.typepsc, t.txt, \n                       ST_Intersection(ST_MakeValid(t.geom_2154), uf.geom) AS inter_geom\n                FROM argeles.prescriptions_surf t, uf\n                WHERE ST_Intersects(t.geom_2154, uf.geom)\n                  AND ST_Area(ST_Intersection(ST_MakeValid(t.geom_2154), uf.geom))\n                      > 0.01\n            ),\n            union_area AS (\n                SELECT COALESCE(ST_Area(ST_Union(inter_geom)), 0.0) AS uarea\n                FROM inter\n            )\n            SELECT libelle, typepsc, txt, \n                   ST_Area(inter_geom)  AS metric,\n                   union_area.uarea     AS total_area\n            FROM inter, union_area\n        ]\n[parameters: {'wkt': 'POLYGON((702113.3004929505 6159729.97474126,702112.571644229 6159745.080859059,702111.2027294282 6159755.26997181,702109.8178139267 6159764.079706453 ... (282 characters truncated) ... 7041,702068.4071871076 6159733.275235304,702071.5685800221 6159725.745312705,702074.1705422931 6159718.315328253,702113.3004929505 6159729.97474126))'}]\n(Background on this error at: https://sqlalche.me/e/20/f405)"
+    },
+    "prescriptions_lineaires": {
+      "nom": "Prescriptions lineaires (PLU)",
+      "type": "prescription",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "erreur",
+      "error": "(psycopg2.errors.UndefinedColumn) column t.txt does not exist\nLINE 3:             SELECT t.libelle, t.typepsc, t.txt, \n                                                 ^\n\n[SQL: \n            WITH uf AS (SELECT ST_GeomFromText(%(wkt)s, 2154) AS geom)\n            SELECT t.libelle, t.typepsc, t.txt, \n                   ST_Length(ST_Intersection(ST_MakeValid(t.geom_2154), uf.geom)) AS metric\n            FROM argeles.prescriptions_lineaires t, uf\n            WHERE ST_Intersects(t.geom_2154, uf.geom)\n              AND ST_Length(ST_Intersection(ST_MakeValid(t.geom_2154), uf.geom))\n                  > 0.01\n        ]\n[parameters: {'wkt': 'POLYGON((702113.3004929505 6159729.97474126,702112.571644229 6159745.080859059,702111.2027294282 6159755.26997181,702109.8178139267 6159764.079706453 ... (282 characters truncated) ... 7041,702068.4071871076 6159733.275235304,702071.5685800221 6159725.745312705,702074.1705422931 6159718.315328253,702113.3004929505 6159729.97474126))'}]\n(Background on this error at: https://sqlalche.me/e/20/f405)"
+    },
+    "prescriptions_ponctuelles": {
+      "nom": "Prescriptions ponctuelles (PLU)",
+      "type": "prescription",
+      "geom_type": "ponctuel",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "erreur",
+      "error": "(psycopg2.errors.UndefinedColumn) column t.txt does not exist\nLINE 3:             SELECT t.libelle, t.typepsc, t.txt,  NULL::float...\n                                                 ^\n\n[SQL: \n            WITH uf AS (SELECT ST_GeomFromText(%(wkt)s, 2154) AS geom)\n            SELECT t.libelle, t.typepsc, t.txt,  NULL::float AS metric\n            FROM argeles.prescriptions_ponctuelles t, uf\n            WHERE ST_Within(t.geom_2154, uf.geom)\n        ]\n[parameters: {'wkt': 'POLYGON((702113.3004929505 6159729.97474126,702112.571644229 6159745.080859059,702111.2027294282 6159755.26997181,702109.8178139267 6159764.079706453 ... (282 characters truncated) ... 7041,702068.4071871076 6159733.275235304,702071.5685800221 6159725.745312705,702074.1705422931 6159718.315328253,702113.3004929505 6159729.97474126))'}]\n(Background on this error at: https://sqlalche.me/e/20/f405)"
+    },
+    "infos_surf": {
+      "nom": "Informations surfaciques",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "erreur",
+      "error": "(psycopg2.errors.UndefinedColumn) column t.txt does not exist\nLINE 6:                 SELECT t.libelle, t.typeinf, t.txt, \n                                                     ^\n\n[SQL: \n            WITH uf AS (\n                SELECT ST_GeomFromText(%(wkt)s, 2154) AS geom\n            ),\n            inter AS (\n                SELECT t.libelle, t.typeinf, t.txt, \n                       ST_Intersection(ST_MakeValid(t.geom_2154), uf.geom) AS inter_geom\n                FROM argeles.infos_surf t, uf\n                WHERE ST_Intersects(t.geom_2154, uf.geom)\n                  AND ST_Area(ST_Intersection(ST_MakeValid(t.geom_2154), uf.geom))\n                      > 0.01\n            ),\n            union_area AS (\n                SELECT COALESCE(ST_Area(ST_Union(inter_geom)), 0.0) AS uarea\n                FROM inter\n            )\n            SELECT libelle, typeinf, txt, \n                   ST_Area(inter_geom)  AS metric,\n                   union_area.uarea     AS total_area\n            FROM inter, union_area\n        ]\n[parameters: {'wkt': 'POLYGON((702113.3004929505 6159729.97474126,702112.571644229 6159745.080859059,702111.2027294282 6159755.26997181,702109.8178139267 6159764.079706453 ... (282 characters truncated) ... 7041,702068.4071871076 6159733.275235304,702071.5685800221 6159725.745312705,702074.1705422931 6159718.315328253,702113.3004929505 6159729.97474126))'}]\n(Background on this error at: https://sqlalche.me/e/20/f405)"
+    },
+    "infos_lin": {
+      "nom": "Informations lineaires",
+      "type": "information",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "infos_pct": {
+      "nom": "Informations ponctuelles",
+      "type": "information",
+      "geom_type": "ponctuel",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "retrait_gonflement_argiles_2026": {
+      "nom": "Retrait-gonflement des argiles (2026)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 99.9998,
+      "objets": [
+        {
+          "niveau": 1,
+          "alea": "1",
+          "surface_inter_m2": 2507.03,
+          "pct_sig": 99.9998
+        },
+        {
+          "niveau": 1,
+          "alea": "1",
+          "surface_inter_m2": 2507.03,
+          "pct_sig": 99.9998
+        }
+      ],
+      "status": "concernee"
+    },
+    "old": {
+      "nom": "Zones de debroussaillement (OLD)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 99.9998,
+      "objets": [
+        {
+          "zonage": 2,
+          "dat_ap_old": "2025-06-23",
+          "surface_inter_m2": 2507.03,
+          "pct_sig": 99.9998
+        }
+      ],
+      "status": "concernee"
+    },
+    "haies_bocages": {
+      "nom": "Haies et bocages",
+      "type": "information",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "znieffs": {
+      "nom": "ZNIEFF",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "generateurs_sup_lineaires": {
+      "nom": "Servitudes - generateurs lineaires",
+      "type": "servitude",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "prairies_sensibles": {
+      "nom": "Prairies permanentes",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "natura_2000": {
+      "nom": "NATURA 2000",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "reseaux_enedis_lineaires": {
+      "nom": "Réseaux ENEDIS linéaires",
+      "type": "reseaux",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "concernee",
+      "diagnostic_metier": "Analyse raccordement ENEDIS calculée",
+      "analyses": [
+        {
+          "type_code": "reseau-bt",
+          "type_reseau": "Aérien Basse Tension (BT)",
+          "id_cable_plus_proche": "LAIkEsG0IYX3wkc8MWbPB",
+          "distance_directe_metres": 17.76,
+          "nb_lignes_dans_uf": 0,
+          "lineaire_interieur_metres": 0.0,
+          "parcelles_voisines_fait_obstacle": "BR n°304",
+          "diagnostic_expert_raccordement": "Raccordement indirect contraint - Servitude de passage ou convention de survol obligatoire sur propriété privée (BR n°304)."
+        },
+        {
+          "type_code": "reseau-souterrain-bt",
+          "type_reseau": "Souterrain Basse Tension (BT)",
+          "id_cable_plus_proche": "yAlr38Tg78_brBBYY3UWf",
+          "distance_directe_metres": 401.71,
+          "nb_lignes_dans_uf": 0,
+          "lineaire_interieur_metres": 0.0,
+          "parcelles_voisines_fait_obstacle": "BR n°330, BR n°331, BR n°332, BR n°337, BR n°461, BR n°5, BR n°8, BR n°9, BR n°905",
+          "diagnostic_expert_raccordement": "Réseau éloigné (402m) - Extension publique obligatoire (art. L.332-15 Code de l'urbanisme)."
+        }
+      ]
+    },
+    "zaer": {
+      "nom": "ZAER (Zones a equiper pour les energies renouvelables)",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "sup_assiette_l": {
+      "nom": "Servitudes (assiettes lineaires)",
+      "type": "servitude",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "table_absente"
+    },
+    "sup_assiette_p": {
+      "nom": "Servitudes (assiettes ponctuelles)",
+      "type": "servitude",
+      "geom_type": "ponctuel",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "table_absente"
+    },
+    "sup_generateur_s": {
+      "nom": "Servitudes (generateurs surfaciques)",
+      "type": "servitude",
+      "geom_type": "surfacique",
+      "pct_sig": 99.9998,
+      "objets": [
+        {
+          "nomsuplitt": "Plan de Prévention des Risques d'Incendies de Forêt d'Argelès-sur-Mer",
+          "suptype": "pm1",
+          "nomreg": null,
+          "surface_inter_m2": 2507.03,
+          "pct_sig": 99.9998
+        }
+      ],
+      "status": "concernee"
+    },
+    "sup_generateur_l": {
+      "nom": "Servitudes (generateurs lineaires)",
+      "type": "servitude",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "sup_generateur_p": {
+      "nom": "Servitudes (generateurs ponctuels)",
+      "type": "servitude",
+      "geom_type": "ponctuel",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "batiments": {
+      "nom": "Batiments",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "table_absente"
+    },
+    "prairies_et_natura_2000": {
+      "nom": "Réglementation croisée Natura 2000 / Prairies sensibles",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee",
+      "regime_code": "hors_natura_et_prairie",
+      "diagnostic_metier": "RAS : UF hors contraintes Natura 2000 / Prairies",
+      "natura": null,
+      "prairie": null,
+      "has_natura": false,
+      "has_prairie": false
+    }
+  }
+}

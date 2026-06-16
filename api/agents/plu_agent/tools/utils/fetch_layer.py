@@ -11,6 +11,11 @@ from ...commune_context import current_schema, q
 from ...layer_catalog import LayerSpec
 from .db import db_query
 from .servitudes import _geom_2154_sql
+from .intersection_metrics import (
+    apply_surfacic_metrics_to_item,
+    is_surfacic_layer,
+    surfacic_metrics_select_sql,
+)
 from .zonage import strict_parcel_intersection_filter_sql
 
 logger = logging.getLogger("plu_tools")
@@ -65,6 +70,19 @@ def _sql_layer(
 
     clip_carto = with_geojson and display_buffer_m is not None
     buf = float(display_buffer_m or 0)
+    llm_surfacic_metrics = (
+        not with_geojson
+        and is_surfacic_layer(
+            kind=spec.kind,
+            subgroup=spec.subgroup,
+            group=spec.group,
+        )
+    )
+    metrics_sel = (
+        f",{surfacic_metrics_select_sql(entity)}"
+        if llm_surfacic_metrics
+        else ""
+    )
 
     if clip_carto:
         geom_sel = _clipped_geojson_sql(entity)
@@ -127,7 +145,7 @@ def _sql_layer(
             SELECT ST_MakeValid(ST_GeomFromEWKB(%s)) AS geom
         ),
         {scope_cte}
-        SELECT {attrs}{geom_sel}
+        SELECT {attrs}{metrics_sel}{geom_sel}
         FROM {q(spec.table)} {alias}
         CROSS JOIN {join_scope}
         WHERE {null_geom}
@@ -192,6 +210,12 @@ def rows_to_llm_items(rows: list[dict], spec: LayerSpec) -> list[dict]:
         for i, key in enumerate(spec.attributes):
             label = _llm_attr_label(spec, i, key)
             item[label] = _llm_attr_value(key, r.get(key))
+        if is_surfacic_layer(
+            kind=spec.kind,
+            subgroup=spec.subgroup,
+            group=spec.group,
+        ):
+            apply_surfacic_metrics_to_item(item, r)
         items.append(item)
     return items
 

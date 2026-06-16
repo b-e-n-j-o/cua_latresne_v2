@@ -11,6 +11,10 @@ from ...commune_context import q
 from .catalog_bridge import servitudes_spec
 from .db import db_query
 from .parcel_geom import resolve_unite_fonciere
+from .intersection_metrics import (
+    apply_surfacic_metrics_to_item,
+    surfacic_metrics_select_sql,
+)
 from .zonage import strict_parcel_intersection_filter_sql
 
 logger = logging.getLogger("plu_tools")
@@ -54,6 +58,7 @@ def _sql_servitudes(
         if with_geojson
         else ""
     )
+    metrics_sel = "" if with_geojson else f",{surfacic_metrics_select_sql(geom_2154)}"
     if strict_parcel:
         scope_cte = """
         cible_scope AS (
@@ -86,7 +91,7 @@ def _sql_servitudes(
             s.typeass,
             s.nomsuplitt,
             s.nomreg
-            {geom_sel}
+            {geom_sel}{metrics_sel}
         FROM {q(table)} s
         CROSS JOIN cible_scope c
         WHERE s.geometry IS NOT NULL
@@ -134,8 +139,9 @@ def _parse_geojson(val) -> dict | None:
 
 
 def build_llm_payload(rows: list[dict]) -> dict:
-    items = [
-        {
+    items = []
+    for r in rows:
+        item = {
             "gid": r.get("gid"),
             "idass": r.get("idass"),
             "nomass": r.get("nomass"),
@@ -145,8 +151,8 @@ def build_llm_payload(rows: list[dict]) -> dict:
             "nomsuplitt": r.get("nomsuplitt"),
             "nomreg": r.get("nomreg"),
         }
-        for r in rows
-    ]
+        apply_surfacic_metrics_to_item(item, r)
+        items.append(item)
     return {"servitudes": items, "count": len(items)}
 
 

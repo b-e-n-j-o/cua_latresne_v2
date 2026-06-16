@@ -42,6 +42,20 @@ try:
 except ImportError:
     from uf import build_uf
 
+try:
+    from api.cuas.intersection_modules.prairies_et_natura_2000 import (
+        compute_prairies_natura_reglementation,
+    )
+except ImportError:
+    from intersection_modules.prairies_et_natura_2000 import (
+        compute_prairies_natura_reglementation,
+    )
+
+try:
+    from api.cuas.intersection_modules.reseaux_enedis import compute_enedis_raccordement
+except ImportError:
+    from intersection_modules.reseaux_enedis import compute_enedis_raccordement
+
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 # Seuil minimal d'intersection : exclut les contacts en bordure (aire/longueur nulle)
@@ -182,6 +196,34 @@ def run_intersections(uf, catalogue, engine=None, schema=SCHEMA) -> dict:
     for table, cfg in catalogue.items():
         geom_type_cfg = cfg.get("geom_type", "surfacique")
 
+        if table == "reseaux_enedis_lineaires":
+            try:
+                special = compute_enedis_raccordement(
+                    uf.wkt,
+                    engine=engine,
+                    schema=schema,
+                )
+                rapport["intersections"][table] = {
+                    "nom": cfg.get("nom", table),
+                    "type": cfg.get("type"),
+                    "geom_type": geom_type_cfg,
+                    "pct_sig": 0.0,
+                    "objets": [],
+                    **special,
+                }
+            except Exception as exc:
+                logger.warning(f"  ⚠  {table:<35} {exc}")
+                rapport["intersections"][table] = {
+                    "nom": cfg.get("nom", table),
+                    "type": cfg.get("type"),
+                    "geom_type": geom_type_cfg,
+                    "pct_sig": 0.0,
+                    "objets": [],
+                    "status": "erreur",
+                    "error": str(exc),
+                }
+            continue
+
         if not _table_exists(engine, schema, table):
             logger.warning(f"  ⏭  {table:<35} table absente en base")
             rapport["intersections"][table] = {
@@ -230,6 +272,33 @@ def run_intersections(uf, catalogue, engine=None, schema=SCHEMA) -> dict:
         else:
             logger.info(f"  ·  {table:<35}   —")
 
+    # Bloc métier dédié Natura 2000 / Prairies (sans encombrer la boucle catalogue)
+    try:
+        special = compute_prairies_natura_reglementation(
+            uf.wkt,
+            engine=engine,
+            schema=schema,
+        )
+        rapport["intersections"]["prairies_et_natura_2000"] = {
+            "nom": "Réglementation croisée Natura 2000 / Prairies sensibles",
+            "type": "information",
+            "geom_type": "surfacique",
+            "pct_sig": 0.0,
+            "objets": [],
+            **special,
+        }
+    except Exception as exc:
+        logger.warning(f"  ⚠  prairies_et_natura_2000          {exc}")
+        rapport["intersections"]["prairies_et_natura_2000"] = {
+            "nom": "Réglementation croisée Natura 2000 / Prairies sensibles",
+            "type": "information",
+            "geom_type": "surfacique",
+            "pct_sig": 0.0,
+            "objets": [],
+            "status": "erreur",
+            "error": str(exc),
+        }
+
     return rapport
 
 
@@ -256,7 +325,7 @@ def _parse_refs(raw: str):
 
 def main():
     ap = argparse.ArgumentParser(description="Test intersections UF → couches SIG (Argelès)")
-    ap.add_argument("--catalogue", required=True, help="Chemin du catalogue JSON")
+    ap.add_argument("--catalogue", default="catalogue_cua_argeles.json", help="Chemin du catalogue JSON")
     ap.add_argument("--refs",      required=True, help='Refs parcellaires, ex: "AB:0123,AB:0124"')
     ap.add_argument("--schema",    default=SCHEMA)
     ap.add_argument("--out",       default=None,  help="Chemin de sortie JSON (optionnel)")
