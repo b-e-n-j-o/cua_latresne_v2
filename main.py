@@ -57,9 +57,9 @@ from services.ingestion_mnt_lidar.router_ingestion_mnt_lidar import router as in
 from app.deps import supabase
 from app.routers.cerfa import router as cerfa_router
 from app.routers.cua_pipeline import router as cua_pipeline_router
-from api.cuas.catalogue_routes import router as cua_catalogue_router
-from api.cuas.cua_router import router as cua_generate_router
-from api.cuas.parcelles_intersections_routes import router as parcelles_intersections_router
+from api.cuas.argeles.catalogue_routes import router as cua_catalogue_router
+from api.cuas.argeles.cua_router import router as cua_generate_router
+from api.cuas.argeles.parcelles_intersections_routes import router as parcelles_intersections_router
 from app.routers.pipelines_supabase import router as pipelines_supabase_router
 from app.routers.site_account import router as site_account_router
 from api.communes.latresne.cuas.CUA.docx import cua_docx_viewer_routes

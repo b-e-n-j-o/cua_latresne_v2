@@ -9,11 +9,12 @@ le texte vit en base, le builder ne fait que router et mettre en forme.
 
 Architecture : une fonction par section, le builder itère sur SECTIONS.
 - Changer de commune  → nouveau CommuneConfig.
-- L'en-tête (logo / n° dossier / pagination) sera branchée séparément.
+- Logo commune en haut à droite de la 1ʳᵉ page (n° dossier / pagination : à brancher).
 """
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 from docx import Document
@@ -22,6 +23,18 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
+
+try:
+    from api.cuas.argeles.docx_utils import (
+        add_markdown_block,
+        add_para_with_link,
+        parse_markdown_inline,
+    )
+except ImportError:
+    from docx_utils import add_markdown_block, add_para_with_link, parse_markdown_inline
+
+_ARGELES_DIR = Path(__file__).resolve().parent
+LOGO_COMMUNE_PATH = _ARGELES_DIR / "logos" / "argeles.png"
 
 
 # ============================================================
@@ -39,8 +52,8 @@ class CommuneConfig:
                          "modifié par arrêté préfectoral du 29/05/2017")
     pgri_mention: str = ("porter à connaissance relatif aux règles de gestion du risque "
                          "d'inondation (PGRI) en date du 11/07/2019")
-    geoportail_url: str = "https://www.geoportail-urbanisme.gouv.fr"
-
+    geoportail_url: str = "https://data.geopf.fr/annexes/gpu/documents/DU_66008/dd4c8deab39aa04c8938e88dd2337dba/66008_reglement_20251030.pdf"
+    hauteurs_url: str = "https://data.geopf.fr/annexes/gpu/documents/DU_66008/dd4c8deab39aa04c8938e88dd2337dba/66008_reglement_graphique_4_20251030.pdf"
     taxe_communale: str = "5 %"
     taxe_departementale: str = "2 %"
     rap: str = "0,40 %"
@@ -60,20 +73,15 @@ class CommuneConfig:
 # Routage couche → section. Tout ce qui n'est pas listé tombe en "prescriptions".
 # Couverture catalogue Argelès (catalogue_cua_argeles.json) :
 #   dispositions → zonage_plu, hauteurs (art. 3)
-#   sup          → sup_* , generateurs_sup_lineaires (art. 4)
+#   sup          → sup_assiette_* (art. 4, via module servitudes_reglementees)
 #   risques      → ppr, pprif, retrait_gonflement_argiles_2026, old (art. 5)
 #   prescriptions→ aoc, prescriptions_*, infos_surf (hors DPU), haies_bocages,
-#                  znieffs, prairies_sensibles, natura_2000, zaer, batiments (art. 5/7)
-#   métier       → reseaux_enedis_lineaires, prairies_et_natura_2000 (dédié)
+#                  znieffs, zaer, batiments (art. 5/7)
+#   métier       → reseaux_enedis_lineaires, prairies_et_natura_2000 (+ natura_2000,
+#                  prairies_sensibles via module dédié), servitudes_reglementees
 LAYER_TO_SECTION = {
     # DPU : c'est une info de infos_surf filtrée, géré séparément (voir section_dpu)
-    "sup_assiette_s":        "sup",
-    "sup_assiette_l":        "sup",
-    "sup_assiette_p":        "sup",
-    "sup_generateur_s":      "sup",
-    "sup_generateur_l":      "sup",
-    "sup_generateur_p":      "sup",
-    "generateurs_sup_lineaires": "sup",
+    # SUP : réglementation via module servitudes_reglementees (voir section_sup)
     "ppr":                   "risques",
     "pprif":                 "risques",
     "retrait_gonflement_argiles_2026": "risques",
@@ -82,9 +90,19 @@ LAYER_TO_SECTION = {
     "hauteurs":              "dispositions",
 }
 # Couches gérées par un rendu spécifique (pas dans le flux générique "objets")
-LAYERS_METIER = {"reseaux_enedis_lineaires", "prairies_et_natura_2000"}
+LAYERS_METIER = {
+    "reseaux_enedis_lineaires",
+    "prairies_et_natura_2000",
+    "natura_2000",
+    "prairies_sensibles",
+    "servitudes_reglementees",
+    "sup_assiette_s",
+    "sup_assiette_l",
+    "sup_assiette_p",
+}
 # Statuts à ignorer silencieusement (ne rien montrer au pétitionnaire)
 STATUTS_IGNORES = {"erreur", "table_absente"}
+MIN_ZONAGE_PCT = 1.0
 
 FONT = "Arial"
 TITLE_BAR_FILL = "D9D9D9"
@@ -136,6 +154,18 @@ def add_para(doc, text="", bold=False, italic=False, size=10, align=None, space_
     return p
 
 
+def _add_logo_first_page(doc, logo_path: Path = LOGO_COMMUNE_PATH) -> None:
+    """Logo commune en haut à droite de la première page."""
+    if not logo_path.is_file():
+        return
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    try:
+        p.add_run().add_picture(str(logo_path), width=Cm(4.0))
+    except Exception:
+        pass
+
+
 def add_kv_table(doc, rows):
     table = doc.add_table(rows=0, cols=2)
     for label, value in rows:
@@ -169,24 +199,29 @@ def _format_cadastre(dossier: dict, rapport: dict) -> Optional[str]:
     return ", ".join(parts) if parts else None
 
 
-def texte_objet(obj: dict) -> Optional[str]:
-    """Réglementation taguée en priorité ; fallback selon les attributs métier de la couche."""
+def _reglementation_text(obj: dict) -> Optional[str]:
     regl = obj.get("reglementation")
     if regl and str(regl).strip() and str(regl).strip() != "\\N":
         return str(regl).strip()
+    return None
 
-    # Hauteurs PLU (legende / libellé long / valeur)
-    if any(k in obj for k in ("legende", "hauteur", "libelong")):
+
+def texte_objet(obj: dict, *, skip_reglementation: bool = False) -> Optional[str]:
+    """Réglementation taguée en priorité ; fallback selon les attributs métier de la couche."""
+    if not skip_reglementation:
+        regl = _reglementation_text(obj)
+        if regl:
+            return regl
+
+    # Hauteurs PLU (libellé long / valeur numérique)
+    if any(k in obj for k in ("hauteur", "libelong")):
         parts = []
-        legende = (obj.get("legende") or "").strip()
         libelong = (obj.get("libelong") or "").strip()
         hauteur = obj.get("hauteur")
-        if legende:
-            parts.append(legende)
+        if libelong:
+            parts.append(libelong)
         if hauteur not in (None, ""):
             parts.append(f"hauteur maximale : {hauteur} m")
-        if libelong and libelong not in parts and libelong not in legende:
-            parts.append(libelong)
         if parts:
             return " — ".join(parts)
 
@@ -238,10 +273,140 @@ def _bloc_couche(doc, layer, prefix_nom=True, objets=None):
     if prefix_nom:
         add_para(doc, layer.get("nom") or "", bold=True, space_after=2)
     for obj in rows:
-        txt = texte_objet(obj)
+        regl = _reglementation_text(obj)
+        if regl:
+            add_markdown_block(doc, regl, size=9)
+            continue
+        txt = texte_objet(obj, skip_reglementation=True)
         if not txt:
             continue
         add_para(doc, "• " + txt, size=9, space_after=3)
+
+
+def _pct_sig(obj: dict) -> float:
+    try:
+        return float(obj.get("pct_sig") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _zones_plu_avec_pct(objets: list) -> list[tuple[str, float]]:
+    """Zones PLU avec part de surface UF (> MIN_ZONAGE_PCT), dédoublonnées."""
+    seen: dict[str, float] = {}
+    for obj in objets:
+        pct = _pct_sig(obj)
+        if pct <= MIN_ZONAGE_PCT:
+            continue
+        zone = (obj.get("libelle") or obj.get("zonage_reglement") or "").strip()
+        if not zone:
+            continue
+        seen[zone] = max(seen.get(zone, 0.0), pct)
+    return sorted(seen.items(), key=lambda item: -item[1])
+
+
+def _format_zonage_plu_intro(objets: list) -> tuple[list[str], Optional[str]]:
+    """Résumé zonage + parts de surface significatives."""
+    items = _zones_plu_avec_pct(objets)
+    if items:
+        zones = [zone for zone, _ in items]
+        if len(items) == 1:
+            zone, pct = items[0]
+            texte = (
+                f"La parcelle est située dans la zone {zone} du PLU "
+                f"({pct:.2f} % de la surface)."
+            )
+        else:
+            parts = [f"{zone} ({pct:.2f} %)" for zone, pct in items]
+            texte = f"La parcelle est située dans les zones {', '.join(parts)} du PLU."
+        return zones, texte
+
+    zones, seen = [], set()
+    for obj in objets:
+        zone = (obj.get("libelle") or obj.get("zonage_reglement") or "").strip()
+        if zone and zone not in seen:
+            seen.add(zone)
+            zones.append(zone)
+    if not zones:
+        return [], None
+    return zones, f"La parcelle est située dans la zone {', '.join(zones)} du PLU."
+
+
+def _objets_zonage_significatifs(objets: list) -> list:
+    significatifs = [obj for obj in objets if _pct_sig(obj) > MIN_ZONAGE_PCT]
+    return significatifs or list(objets)
+
+
+def _titre_hauteur_obj(obj: dict) -> Optional[str]:
+    libelong = (obj.get("libelong") or "").strip()
+    return libelong or None
+
+
+def _write_zonage_plu_details(doc, objets: list, zones: list):
+    """Réglementation PLU par zone (markdown) + libellés complémentaires."""
+    seen_regl: set[str] = set()
+    multi_zones = len(zones) > 1
+
+    for obj in _objets_zonage_significatifs(objets):
+        zone_code = (obj.get("libelle") or obj.get("zonage_reglement") or "").strip()
+        libelong = (obj.get("libelong") or "").strip()
+        regl = _reglementation_text(obj)
+        pct = _pct_sig(obj)
+
+        if regl:
+            if regl in seen_regl:
+                continue
+            seen_regl.add(regl)
+            if multi_zones and zone_code:
+                suffix = f" ({pct:.2f} %)" if pct > MIN_ZONAGE_PCT else ""
+                add_para(doc, f"Zone {zone_code}{suffix}", bold=True, space_after=2)
+            add_markdown_block(doc, regl, size=9)
+            continue
+
+        if libelong and libelong not in zones:
+            add_para(doc, f"• {libelong}", size=9, space_after=3)
+            continue
+
+        txt = texte_objet(obj, skip_reglementation=True)
+        if txt and txt not in zones and txt != libelong and txt != zone_code:
+            add_para(doc, f"• {txt}", size=9, space_after=3)
+
+
+def _write_hauteurs_details(doc, layer: dict, *, show_layer_title: bool = True):
+    """Hauteurs PLU : libelong en titre + réglementation markdown."""
+    objets = layer.get("objets") or []
+    if not objets:
+        return False
+
+    if show_layer_title:
+        add_para(doc, layer.get("nom") or "Hauteurs maximales (PLU)", bold=True, space_after=2)
+    seen_regl: set[str] = set()
+    wrote = False
+
+    for obj in objets:
+        regl = _reglementation_text(obj)
+        titre = _titre_hauteur_obj(obj)
+
+        if regl:
+            if regl in seen_regl:
+                continue
+            seen_regl.add(regl)
+            if titre:
+                add_para(doc, titre, bold=True, size=9, space_after=2)
+            add_markdown_block(doc, regl, size=9)
+            wrote = True
+            continue
+
+        if titre:
+            add_para(doc, f"• {titre}", size=9, space_after=3)
+            wrote = True
+            continue
+
+        txt = texte_objet(obj, skip_reglementation=True)
+        if txt:
+            add_para(doc, f"• {txt}", size=9, space_after=3)
+            wrote = True
+
+    return wrote
 
 
 # ============================================================
@@ -294,13 +459,35 @@ def section_dpu(doc, ctx):
 
 
 def section_sup(doc, ctx):
-    groupes = couches_par_section(ctx.rapport)
-    layers = groupes.get("sup", [])
-    if not layers:
+    serv = ctx.rapport.get("intersections", {}).get("servitudes_reglementees", {})
+    servitudes = serv.get("servitudes") or []
+    if not servitudes:
         return
     add_title_bar(doc, "Servitudes d'utilité publique")
-    for key, layer in layers:
-        _bloc_couche(doc, layer)
+    for i, s in enumerate(servitudes):
+        if i > 0:
+            doc.add_paragraph()
+        titre = s.get("libelle") or s.get("nomsuplitt") or s.get("suptype") or "Servitude"
+        add_para(doc, titre, bold=True, space_after=4)
+        regl = (s.get("reglementation") or "").strip()
+        if regl:
+            add_markdown_block(doc, regl, size=9)
+        url_gpu = (s.get("url_fiche_gpu") or "").strip()
+        if url_gpu:
+            add_para_with_link(
+                doc,
+                "Fiche GPU : ",
+                "consulter la fiche réglementaire",
+                url_gpu,
+                size=9,
+                space_after=4,
+            )
+        base = (s.get("base_legale") or "").strip()
+        if base:
+            p = doc.add_paragraph()
+            p.paragraph_format.space_before = Pt(4)
+            p.paragraph_format.space_after = Pt(8)
+            parse_markdown_inline(p, f"Base légale : {base}", size=9, italic_base=True)
     doc.add_paragraph()
 
 
@@ -326,6 +513,44 @@ def section_prescriptions(doc, ctx):
     doc.add_paragraph()
 
 
+def _write_prairies_natura_details(doc, pn: dict):
+    """Natura 2000 / Prairies : blocs réglementaires depuis la table dédiée."""
+    if not (pn.get("has_natura") or pn.get("has_prairie")):
+        return
+
+    add_title_bar(doc, "Natura 2000 / Prairies sensibles")
+    diag = (pn.get("diagnostic_metier") or "").strip()
+    if diag:
+        add_para(doc, diag, bold=True, space_after=4)
+
+    blocs = pn.get("blocs") or []
+    if not blocs:
+        for legacy in (pn.get("natura"), pn.get("prairie")):
+            if not legacy:
+                continue
+            regl = (legacy.get("reglementation") or legacy.get("laius") or "").strip()
+            if regl:
+                blocs.append(legacy)
+
+    for bloc in blocs:
+        titre = (bloc.get("nom_regime") or bloc.get("code_regime") or "").strip()
+        if titre:
+            add_para(doc, titre, bold=True, space_after=2)
+        statut = (bloc.get("statut_juridique") or bloc.get("statut") or "").strip()
+        if statut:
+            add_para(doc, f"Statut juridique : {statut}", size=9, italic=True, space_after=2)
+        regl = (bloc.get("reglementation") or bloc.get("laius") or "").strip()
+        if regl:
+            add_markdown_block(doc, regl, size=9)
+        base = (bloc.get("base_legale") or "").strip()
+        if base:
+            p = doc.add_paragraph()
+            p.paragraph_format.space_after = Pt(3)
+            parse_markdown_inline(p, f"Base légale : {base}", size=9, italic_base=True)
+
+    doc.add_paragraph()
+
+
 def section_metier(doc, ctx):
     """Modules métier (ENEDIS, Natura/Prairies) : rendu via leurs champs dédiés."""
     inter = ctx.rapport.get("intersections", {})
@@ -341,12 +566,7 @@ def section_metier(doc, ctx):
         doc.add_paragraph()
 
     pn = inter.get("prairies_et_natura_2000", {})
-    if pn.get("has_natura") or pn.get("has_prairie"):
-        add_title_bar(doc, "Natura 2000 / Prairies sensibles")
-        diag = pn.get("diagnostic_metier")
-        if diag:
-            add_para(doc, diag, size=9)
-        doc.add_paragraph()
+    _write_prairies_natura_details(doc, pn)
 
 
 def section_dispositions(doc, ctx):
@@ -362,34 +582,51 @@ def section_dispositions(doc, ctx):
     ]:
         add_para(doc, ligne)
 
-    # Zone PLU depuis le rapport
-    zonage = ctx.rapport.get("intersections", {}).get("zonage_plu", {})
-    zones, seen = [], set()
-    for obj in zonage.get("objets", []):
-        z = obj.get("libelle") or obj.get("zonage_reglement")
-        if z and z not in seen:
-            seen.add(z); zones.append(z)
-    if zones:
-        add_para(doc, f"La parcelle est située dans la zone {', '.join(zones)} du PLU.", bold=True)
-    else:
-        add_para(doc, "Zonage PLU non déterminé pour ce terrain.", italic=True)
+    doc.add_paragraph()
 
-    # Couches art. 3 : hauteurs, compléments zonage (libellé long / réglementation)
+    # ── Zonage PLU ──
+    zonage = ctx.rapport.get("intersections", {}).get("zonage_plu", {})
+    objets_zonage = zonage.get("objets") or []
+    zones, intro_zonage = _format_zonage_plu_intro(objets_zonage)
+
+    add_title_bar(doc, "Zonage du PLU")
+    add_para_with_link(
+        doc,
+        "Règlement PLU consultable sur : ",
+        "règlement PLU (PDF)",
+        c.geoportail_url,
+        space_after=6,
+    )
+    if intro_zonage:
+        add_para(doc, intro_zonage, bold=True, space_after=6)
+    else:
+        add_para(doc, "Zonage PLU non déterminé pour ce terrain.", italic=True, space_after=6)
+    _write_zonage_plu_details(doc, objets_zonage, zones)
+
+    # ── Hauteurs PLU ──
     groupes = couches_par_section(ctx.rapport)
+    layer_hauteurs = next(
+        (layer for key, layer in groupes.get("dispositions", []) if key == "hauteurs"),
+        None,
+    )
+    if layer_hauteurs and (layer_hauteurs.get("objets") or []):
+        doc.add_paragraph()
+        add_title_bar(doc, "Réglementation liée aux hauteurs")
+        add_para_with_link(
+            doc,
+            "Carte des hauteurs consultable sur : ",
+            "plan des hauteurs (PDF)",
+            c.hauteurs_url,
+            space_after=6,
+        )
+        _write_hauteurs_details(doc, layer_hauteurs, show_layer_title=False)
+
+    # Autres couches art. 3 éventuelles
     for key, layer in groupes.get("dispositions", []):
-        if key == "zonage_plu":
-            for obj in layer.get("objets", []):
-                libelong = (obj.get("libelong") or "").strip()
-                if libelong and libelong not in zones:
-                    add_para(doc, f"• {libelong}", size=9, space_after=3)
-                txt = texte_objet(obj)
-                zone_code = (obj.get("libelle") or obj.get("zonage_reglement") or "").strip()
-                if txt and txt not in zones and txt != libelong and txt != zone_code:
-                    add_para(doc, f"• {txt}", size=9, space_after=3)
+        if key in ("zonage_plu", "hauteurs"):
             continue
         _bloc_couche(doc, layer, objets=_objets_affichables(key, layer))
 
-    add_para(doc, f"Règlement consultable sur : {c.geoportail_url}")
     doc.add_paragraph()
 
 
@@ -463,11 +700,11 @@ SECTIONS = [
     section_identite,
     section_vu,
     section_dpu,
+    section_dispositions,
     section_sup,
     section_risques,
     section_prescriptions,
     section_metier,
-    section_dispositions,
     section_sursis,
     section_taxes,
     section_formalites,
@@ -495,6 +732,7 @@ def build_cua(dossier: dict, rapport: dict, output_path: str,
     config = config or CommuneConfig()
     ctx = Context(dossier=dossier, rapport=rapport, config=config)
     doc = _setup_document()
+    _add_logo_first_page(doc)
     add_para(doc, "CERTIFICAT D'URBANISME", bold=True, size=14, align=WD_ALIGN_PARAGRAPH.CENTER)
     add_para(doc, "délivré par le Maire au nom de la commune", italic=True, align=WD_ALIGN_PARAGRAPH.CENTER)
     doc.add_paragraph()

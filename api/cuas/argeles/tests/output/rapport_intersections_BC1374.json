@@ -1,0 +1,354 @@
+{
+  "parcelles": [
+    {
+      "section": "BC",
+      "numero": "1374"
+    }
+  ],
+  "n_parcelles": 1,
+  "parcelle": "UF",
+  "surface_m2": 25813.07,
+  "surface_indicative": 25705.0,
+  "intersections": {
+    "zonage_plu": {
+      "nom": "Zonage PLU",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 100.0,
+      "objets": [
+        {
+          "zonage_reglement": "UB",
+          "libelle": "UBf",
+          "libelong": "Secteurs récents à vocation majoritairement résidentielle (Extensions urbaines denses)",
+          "reglementation": "Secteur relativement dense entre la rue des Cyprès et l'avenue de Mongat. Mêmes règles d'implantation que l'UBe, **emprise au sol 50 %**, hauteur au plan des hauteurs. Deux particularités : l'**hébergement des travailleurs saisonniers y est expressément autorisé** ; et, sur l'**emplacement réservé pour mixité sociale repéré au plan de zonage** (art. L151-41 al. 4), **100 % du programme doit être consacré à du logement social**. Cette servitude ne grève que cet emplacement réservé, et non l'ensemble du secteur UBf.",
+          "surface_inter_m2": 25812.29,
+          "pct_sig": 99.997
+        },
+        {
+          "zonage_reglement": "UB",
+          "libelle": "UBa1",
+          "libelong": "Secteurs récents à vocation majoritairement résidentielle (Extensions urbaines du centre-ville - faubourgs)",
+          "reglementation": "Extension récente du centre-ville à vocation de logements, commerces et équipements. Les bâtiments s'implantent **dans une bande de 0 à 5 m** depuis la voie ; en limites séparatives, soit sur la limite, soit en retrait au moins égal à la moitié de la hauteur (à l'égout) sans descendre sous 3 m. **Emprise au sol : 70 %.** Le long des routes départementales, retrait de 15 m de la RD914 et de 10 m des autres RD. Activités artisanales et commerciales admises de façon encadrée (extensions compatibles avec le caractère résidentiel). Hauteur au plan des hauteurs, avec règle d'épannelage (+2,5 m maximum par rapport au voisin le plus bas).",
+          "surface_inter_m2": 0.37,
+          "pct_sig": 0.0014
+        },
+        {
+          "zonage_reglement": "UC",
+          "libelle": "UCb",
+          "libelong": "Secteur à vocation majoritairement résidentielle (Quartiers résidentiels peu denses)",
+          "reglementation": "Quartiers résidentiels peu denses. **Mêmes règles de gabarit que l'UCa** (retraits RD ou bande de 0 à 10 m, limites sur ou ≥ moitié de la hauteur et ≥ 3 m, **emprise 40 %**, hauteur au plan des hauteurs), mais **sans la servitude de mixité sociale**. Vocation résidentielle, stationnement hors voirie publique.",
+          "surface_inter_m2": 0.41,
+          "pct_sig": 0.0016
+        }
+      ],
+      "status": "concernee"
+    },
+    "hauteurs": {
+      "nom": "Hauteurs maximales (PLU)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 100.0,
+      "objets": [
+        {
+          "hauteur": "16m(F) 15m(A)",
+          "libelong": "Secteurs récents à vocation majoritairement résidentielle (Extensions urbaines denses)",
+          "reglementation": "Le terrain est situé dans le secteur suivant : Secteurs récents à vocation majoritairement résidentielle (Extensions urbaines denses). Les règles de hauteur applicables sont les suivantes : 16m au faîtage et 15m à l'acrotère. La hauteur maximale relative mesurée à l'égout du toit (pour les toitures à pentes) ou à l'acrotère, ne pourra pas dépasser de plus de 2.5m la construction principale voisine (construction principale mitoyenne ou de 2ème rangée) la plus basse afin de conserver un épannelage général de qualité.",
+          "surface_inter_m2": 25812.27,
+          "pct_sig": 99.9969
+        },
+        {
+          "hauteur": "11-8m(F) 10-7m(A)",
+          "libelong": "Secteur à vocation majoritairement résidentielle (Quartiers résidentiels peu denses)",
+          "reglementation": "Le terrain est situé dans le secteur suivant : Secteur à vocation majoritairement résidentielle (Quartiers résidentiels peu denses). Les règles de hauteur applicables sont les suivantes : 11m au faîtage ou 10 à l'acrotère du toit pour les bâtiments d'habitation collectif. 8m au faîtage ou 7m à l'accrotère du toit pour les autres constructions. La hauteur maximale relative mesurée à l'égout du toit (pour les toitures à pentes) ou à l'acrotère, ne pourra pas dépasser de plus de 2.5m la construction principale voisine (construction principale mitoyenne ou de 2ème rangée) la plus basse afin de conserver un épannelage général de qualité.",
+          "surface_inter_m2": 0.42,
+          "pct_sig": 0.0016
+        },
+        {
+          "hauteur": "13m (F) 12(A)",
+          "libelong": "Secteurs récents à vocation majoritairement résidentielle (Extensions urbaines du centre-ville - faubourgs)",
+          "reglementation": "Le terrain est situé dans le secteur suivant : Secteurs récents à vocation majoritairement résidentielle (Extensions urbaines du centre-ville - faubourgs). Les règles de hauteur applicables sont les suivantes : 13m au faîtage et 12m à l'acrotère. La hauteur maximale relative mesurée à l'égout du toit (pour les toitures à pentes) ou à l'acrotère, ne pourra pas dépasser de plus de 2.5m la construction principale voisine (construction principale mitoyenne ou de 2ème rangée) la plus basse afin de conserver un épannelage général de qualité.",
+          "surface_inter_m2": 0.38,
+          "pct_sig": 0.0015
+        }
+      ],
+      "status": "concernee"
+    },
+    "sup_assiette_s": {
+      "nom": "Servitudes d'utilite publique (assiettes)",
+      "type": "servitude",
+      "geom_type": "surfacique",
+      "pct_sig": 56.6388,
+      "objets": [
+        {
+          "nomsuplitt": "SUP T1 des Pyrénées-Orientales",
+          "suptype": "t1",
+          "nomreg": null,
+          "surface_inter_m2": 14620.21,
+          "pct_sig": 56.6388
+        },
+        {
+          "nomsuplitt": null,
+          "suptype": "i4",
+          "nomreg": null,
+          "surface_inter_m2": 1985.73,
+          "pct_sig": 7.6927
+        }
+      ],
+      "status": "concernee"
+    },
+    "ppr": {
+      "nom": "PPR (Plan de Prevention des Risques)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "pprif": {
+      "nom": "PPRIF (Risque Incendie de Foret)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "aoc": {
+      "nom": "AOC viticoles",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 99.8511,
+      "objets": [
+        {
+          "denom": "Grand Roussillon,Muscat de Rivesaltes,Rivesaltes",
+          "crinao": null,
+          "reglementation": "Le terrain est compris dans l'aire de production de l'Appellation d'Origine Contrôlée / Protégée « Grand Roussillon, Muscat de Rivesaltes, Rivesaltes ». Cette appellation est protégée au titre du Code rural et de la pêche maritime ; à ce titre, l'organisme de défense et de gestion (ODG) de l'appellation dispose, en application de l'article L.643-4 du Code rural et de la pêche maritime, de la faculté de saisir l'administration de tout projet ou document d'urbanisme portant atteinte à l'aire ou aux conditions de production de l'appellation. La constructibilité du terrain reste déterminée par le zonage du document d'urbanisme en vigueur (cf. article relatif aux dispositions d'urbanisme).",
+          "surface_inter_m2": 25774.64,
+          "pct_sig": 99.8511
+        }
+      ],
+      "status": "concernee"
+    },
+    "prescriptions_surf": {
+      "nom": "Prescriptions surfaciques (PLU)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "prescriptions_lineaires": {
+      "nom": "Prescriptions lineaires (PLU)",
+      "type": "prescription",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "prescriptions_ponctuelles": {
+      "nom": "Prescriptions ponctuelles (PLU)",
+      "type": "prescription",
+      "geom_type": "ponctuel",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "infos_surf": {
+      "nom": "Informations surfaciques",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 100.0,
+      "objets": [
+        {
+          "libelle": "Périmètre de voisinage d'infrastructures de transport terrestre",
+          "typeinf": "14",
+          "reglementation": "Le terrain est inclus dans un périmètre de voisinage d'infrastructures de transport terrestre, soumettant les constructions futures à des règles spécifiques d'implantation ou d'isolation acoustique.",
+          "surface_inter_m2": 25813.07,
+          "pct_sig": 100.0
+        }
+      ],
+      "status": "concernee"
+    },
+    "retrait_gonflement_argiles_2026": {
+      "nom": "Retrait-gonflement des argiles (2026)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 100.0,
+      "objets": [
+        {
+          "niveau": 1,
+          "alea": "1",
+          "reglementation": "Le terrain est situé en zone d'exposition faible au phénomène de retrait-gonflement des argiles, selon le zonage applicable à compter du 1er juillet 2026 (arrêté du 9 janvier 2026). Aucune obligation réglementaire spécifique ne s'applique à ce titre au titre de la loi ELAN (article 68, articles L.132-4 et suivants du Code de la construction et de l'habitation). La vigilance reste néanmoins recommandée, notamment pour les terrains situés en limite de zone. Cartographie et informations : https://www.georisques.gouv.fr/risques/argiles",
+          "surface_inter_m2": 25813.07,
+          "pct_sig": 100.0
+        }
+      ],
+      "status": "concernee"
+    },
+    "old": {
+      "nom": "Zones de debroussaillement (OLD)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "haies_bocages": {
+      "nom": "Haies et bocages",
+      "type": "information",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "znieffs": {
+      "nom": "ZNIEFF",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "prairies_sensibles": {
+      "nom": "Prairies permanentes",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "natura_2000": {
+      "nom": "NATURA 2000",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "reseaux_enedis_lineaires": {
+      "nom": "Réseaux ENEDIS linéaires",
+      "type": "reseaux",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "concernee",
+      "diagnostic_metier": "Analyse raccordement ENEDIS calculée",
+      "analyses": [
+        {
+          "type_code": "reseau-souterrain-bt",
+          "type_reseau": "Souterrain Basse Tension (BT)",
+          "id_cable_plus_proche": "c3gnP_EQEPxNcYnLWPtZz",
+          "distance_directe_metres": 0.0,
+          "nb_lignes_dans_uf": 30,
+          "lineaire_interieur_metres": 1010.56,
+          "parcelles_voisines_fait_obstacle": "Aucun (Accès direct via domaine public)",
+          "diagnostic_expert_raccordement": "Au droit de la parcelle - Le réseau longe le terrain sur le domaine public (raccordement simple)."
+        },
+        {
+          "type_code": "reseau-bt",
+          "type_reseau": "Aérien Basse Tension (BT)",
+          "id_cable_plus_proche": "WKjPi9dkKdDt1iQhxBTdP",
+          "distance_directe_metres": 54.15,
+          "nb_lignes_dans_uf": 0,
+          "lineaire_interieur_metres": 0.0,
+          "parcelles_voisines_fait_obstacle": "BC n°1553, BC n°819, BC n°893",
+          "diagnostic_expert_raccordement": "Réseau éloigné (54m) - Extension publique obligatoire (art. L.332-15 Code de l'urbanisme)."
+        }
+      ]
+    },
+    "zaer": {
+      "nom": "ZAER (Zones a equiper pour les energies renouvelables)",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "sup_assiette_l": {
+      "nom": "Servitudes (assiettes lineaires)",
+      "type": "servitude",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "table_absente"
+    },
+    "sup_assiette_p": {
+      "nom": "Servitudes (assiettes ponctuelles)",
+      "type": "servitude",
+      "geom_type": "ponctuel",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "table_absente"
+    },
+    "batiments": {
+      "nom": "Batiments",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "table_absente"
+    },
+    "prairies_et_natura_2000": {
+      "nom": "Réglementation croisée Natura 2000 / Prairies sensibles",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee",
+      "regime_code": "hors_natura_et_prairie",
+      "diagnostic_metier": "RAS : UF hors contraintes Natura 2000 / Prairies",
+      "blocs": [],
+      "natura": null,
+      "prairie": null,
+      "has_natura": false,
+      "has_prairie": false
+    },
+    "servitudes_reglementees": {
+      "nom": "Servitudes d'utilité publique (réglementation)",
+      "type": "servitude",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "concernee",
+      "diagnostic_metier": "2 servitude(s) d'utilité publique identifiée(s)",
+      "servitudes": [
+        {
+          "source_table": "sup_assiette_s",
+          "source_nom": "Servitudes d'utilité publique (assiettes surfaciques)",
+          "entity_id": 237225,
+          "suptype": "t1",
+          "nomsuplitt": "SUP T1 des Pyrénées-Orientales",
+          "nomreg": null,
+          "nom_servitude": null,
+          "libelle": "T1 - Protection du domaine public ferroviaire (riverains de voies ferrees) et visibilite aux abords des passages a niveau",
+          "reglementation": "IMPLICATIONS\n\n• Le long de l'emprise ferroviaire (voies, ouvrages d'art, sous-stations, postes, installations radio, etc.), l'emprise étant définie à l'article R.2231-2 du code des transports :\n  – Constructions interdites à moins de 2 m de l'emprise, 3 m de l'extrados d'un ouvrage d'art souterrain, 6 m du bord d'un ouvrage d'art aérien (sauf mur de clôture). Cette interdiction ne s'applique pas aux dispositifs de production d'énergies renouvelables intégrés à la voie ou installés à ses abords, dès lors qu'ils ne compromettent pas la sécurité des circulations.\n  – Terrassements, excavations, fondations : à moins de 50 m de l'emprise, interdiction de creuser sans blindage au-delà d'une profondeur égale aux deux tiers de la distance horizontale à l'emprise (plan incliné 3H/2V) ; protection renforcée pour les voies en remblai de plus de 3 m.\n  – Dépôts (de toute matière) et systèmes de rétention d'eau : distance minimale de 5 m de l'emprise.\n  – Écoulement des eaux : application des articles 640 et 641 du code civil ; tout déversement ou rejet sur le domaine public ferroviaire est interdit.\n  – Végétation : interdiction d'arbres, haies ou racines empiétant sur l'emprise ou gênant la sécurité ou la visibilité de la signalisation ; élagage/abattage à la charge du propriétaire, exécution d'office possible par le gestionnaire pour raisons de sécurité.\n  – Information préalable du gestionnaire d'infrastructure (et, le cas échéant, du gestionnaire de voirie) : les projets de construction, d'aménagement ou d'installation, pérenne ou temporaire, relevant des catégories fixées par l'arrêté du 30 juillet 2025 et situés à moins de 50 m de l'emprise, ou dans la bande de 300 à 3 000 m autour d'un passage à niveau, doivent en faire l'objet avant réalisation. Le gestionnaire dispose de deux mois pour proposer au préfet des prescriptions, que celui-ci peut imposer.\n  – Les distances de 2/3/6 m, 50 m et 5 m peuvent être réduites par autorisation motivée du préfet, après avis du gestionnaire (art. L.2231-9).\n\n• Aux passages à niveau : un plan de dégagement fixe, par parcelle, les terrains grevés des servitudes de visibilité :\n  – obligation de supprimer les clôtures pleines (ou de les remplacer par des grilles), de supprimer les plantations gênantes et de tenir le terrain et toute superstructure au niveau fixé par le plan ;\n  – interdiction absolue de bâtir, clôturer, remblayer, planter ou faire toute installation au-dessus du niveau fixé ;\n  – droit pour le gestionnaire de réséquer talus, remblais et obstacles naturels.\n\nÀ RESPECTER SUR LA PARCELLE\n\n• Implanter tout projet hors des distances de 2 m / 3 m / 6 m, et à au moins 5 m pour tout dépôt ou système de rétention d'eau ; tenir compte des règles de terrassement à moins de 50 m.\n• Avant dépôt d'un PC/DP ou tous travaux à proximité : si le projet relève d'une catégorie listée par l'arrêté du 30/07/2025, adresser l'information préalable au gestionnaire d'infrastructure (SNCF Réseau pour le réseau ferré national) et, le cas échéant, au gestionnaire de voirie. Des prescriptions préfectorales peuvent être imposées.\n• Au droit d'un passage à niveau : vérifier l'existence d'un plan de dégagement (annexé au PLU/CC) et le respecter ; tout projet contraire est irrecevable.",
+          "base_legale": "Code des transports : art. L.2231-1 à L.2231-9 et R.2231-1 à R.2231-8. Code de la voirie routière : art. L.114-1 à L.114-3 et L.114-6, R.114-1, R.131-1 et s., R.141-1 et s. Arrêté du 30 juillet 2025. Fiche nationale GPU (20/10/2025).",
+          "url_fiche_gpu": "https://www.geoportail-urbanisme.gouv.fr/image/fiche_SUP_T1.pdf",
+          "variable": false,
+          "metric": 14620.21
+        },
+        {
+          "source_table": "sup_assiette_s",
+          "source_nom": "Servitudes d'utilité publique (assiettes surfaciques)",
+          "entity_id": 3959162,
+          "suptype": "i4",
+          "nomsuplitt": null,
+          "nomreg": null,
+          "nom_servitude": null,
+          "libelle": "I4 - Ouvrages de transport et de distribution d'electricite — Aerien 45-130 kV",
+          "reglementation": "NATURE DE LA SERVITUDE\n\nLa servitude I4 permet d'etablir, sans depossession, au profit du concessionnaire :\n• une servitude d'ancrage : supports et ancrages pour conducteurs aeriens ;\n• une servitude de surplomb : passage des conducteurs au-dessus des proprietes privees ;\n• une servitude d'appui et de passage : canalisations souterraines, ou supports sur terrains prives non batis et non clos de murs ;\n• une servitude d'ebranchage ou d'abattage d'arbres : coupe des arbres et branches qui genent les conducteurs aeriens ou pourraient, par leur chute ou leur mouvement, occasionner des avaries.\n\nElle resulte soit d'une convention entre le concessionnaire et le proprietaire (valant servitude d'utilite publique), soit d'un arrete prefectoral pris apres declaration d'utilite publique.\n\nA RESPECTER SUR LA PARCELLE\n\n• Avant tous travaux de demolition, reparation, surelevation, cloture ou construction a proximite de l'ouvrage, le proprietaire doit en informer le gestionnaire du reseau par lettre recommandee avec accuse de reception, au moins un mois avant le debut des travaux (art. D.323-16 du code de l'energie).\n• Laisser au gestionnaire l'acces necessaire a l'etablissement et a l'entretien de l'ouvrage, ainsi que l'exercice de l'ebranchage ou de l'abattage.\n\nBASE LEGALE\n\n• Code de l'energie : art. L.323-3 a L.323-9 et R.323-1 a D.323-16 (servitudes d'ancrage, de surplomb, d'appui et de passage, d'ebranchage ou d'abattage).\n• Decret n0 67-886 du 6 octobre 1967 ; arrete du 17 mai 2001 (conditions techniques des distributions d'energie electrique).\n• Le cas echeant, servitude au voisinage d'une ligne de tension >= 130 kV : art. L.323-10 et R.323-19 a R.323-22.\n• Fiche nationale GPU : https://www.geoportail-urbanisme.gouv.fr/image/fiche_SUP_I4.pdf\n\nGESTIONNAIRE\n\n• Reseau de transport (HTB) : RTE. Reseau de distribution : Enedis (environ 95 %) ou une entreprise locale de distribution (ELD).\n\nASSIETTE (LIGNE AERIENNE DE TRANSPORT, 45 A 130 kV)\n\nProjection au sol de l'ouvrage de part et d'autre de l'axe, tenant compte du balancement des cables (conditions d'exploitation et meteorologiques) et d'une marge de securite ; cercle dependant de l'encombrement autour des supports. Le regime d'interdiction de construire propre aux lignes de tension >= 130 kV ne s'applique pas a cette ligne.",
+          "base_legale": "Code de l'energie, art. L.323-3 a L.323-10 et R.323-1 a D.323-22 ; decret 67-886 du 06/10/1967 ; arrete du 17/05/2001 ; C. urb. R.151-51 / R.161-8.",
+          "url_fiche_gpu": "https://www.geoportail-urbanisme.gouv.fr/image/fiche_SUP_I4.pdf",
+          "variable": true,
+          "metric": 1985.73,
+          "i4": {
+            "id": 2,
+            "gen_type": "Aérien",
+            "libelle_var": "Aerien 45-130 kV",
+            "tension_min": 45,
+            "tension_max": 130
+          }
+        }
+      ]
+    }
+  }
+}

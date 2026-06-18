@@ -38,8 +38,8 @@ from pathlib import Path
 
 from sqlalchemy import text
 
-from db import GEOM_COL, SCHEMA, get_engine, logger
-from sig_resume_layers import layer_column
+from api.cuas.argeles.db import GEOM_COL, SCHEMA, get_engine, logger
+from api.cuas.argeles.sig_resume_layers import layer_column
 
 DEFAULT_CATALOGUE = Path(__file__).with_name("catalogue_parcelle_resume_argeles.json")
 MIN_INTERSECTION_AREA_M2 = 0.01  # bruit numérique géométrique

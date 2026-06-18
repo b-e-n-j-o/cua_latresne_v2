@@ -21,7 +21,7 @@ import functools
 import logging
 from pathlib import Path
 
-from api.cuas.geo_utils import compute_centroid_from_wkt_l93
+from api.cuas.argeles.geo_utils import compute_centroid_from_wkt_l93
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from supabase import create_client

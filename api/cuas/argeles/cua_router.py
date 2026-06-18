@@ -9,7 +9,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from api.cuas.generate_cua import COMMUNE_CUA_CATALOGUE, generate_cua_for_parcelles
+from api.cuas.argeles.generate_cua import COMMUNE_CUA_CATALOGUE, generate_cua_for_parcelles
 from services.auth.commune_access import assert_authorized_for_commune_slug
 
 router = APIRouter(prefix="/communes", tags=["cua-generation"])

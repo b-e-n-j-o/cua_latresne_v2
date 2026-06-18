@@ -1,0 +1,428 @@
+{
+  "parcelles": [
+    {
+      "section": "CH",
+      "numero": "137"
+    }
+  ],
+  "n_parcelles": 1,
+  "parcelle": "UF",
+  "surface_m2": 4425.67,
+  "surface_indicative": 4425.0,
+  "intersections": {
+    "zonage_plu": {
+      "nom": "Zonage PLU",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 100.0,
+      "objets": [
+        {
+          "zonage_reglement": "A",
+          "libelle": "A",
+          "libelong": "Secteur agricole",
+          "reglementation": "Espace agricole protégé pour la valeur agronomique, biologique et économique des terres. La constructibilité est strictement encadrée : sont admis les **constructions et installations nécessaires à l'exploitation agricole et forestière**, les équipements d'intérêt collectif compatibles avec l'activité, et, pour les habitations existantes, une **extension limitée**. Cette extension est doublement plafonnée : en **surface de plancher** (au plus 50 m² d'extension, dans la limite de 250 m² au total après travaux) **et en emprise au sol, à hauteur de 30 %** de l'emprise existante, règle générale concordante entre l'article « usages » et l'article « emprise au sol ». Un plafond plus strict de **15 %** s'applique aux seules constructions légalement autorisées ou repérées patrimoniales au titre du L151‑19 (Mas des Albères). Une seule extension et une seule annexe sont admises ; les annexes (emprise ≤ 15 m²) s'implantent dans un rayon de 15 m de l'habitation, les piscines liées sont limitées à 50 m². L'installation de **panneaux photovoltaïques** est encadrée (sur bâtiment agricole hors serres, ≤ 500 m², jusqu'à 1 000 m² à titre dérogatoire pour une exploitation en activité ; **serres photovoltaïques et éoliennes interdites**). **Hauteur : 8 m hors-tout.** Implantation en recul des voies et des limites.",
+          "surface_inter_m2": 1.7,
+          "pct_sig": 0.0385
+        },
+        {
+          "zonage_reglement": "N",
+          "libelle": "Nb",
+          "libelong": "Secteur de la déchetterie",
+          "reglementation": "Secteur naturel boisé des Albères, propice aux **activités agro-pastorales**. **Mêmes règles que le régime général N** : extensions limitées des habitations existantes, implantation sur limite ou à ≥ 3 m, hauteur 8 m hors-tout. Vigilance forte au titre du PPRIF et de la protection des boisements.\nLa zone N protège les espaces naturels. La constructibilité y est très limitée et calibrée par sous-secteur. Règles générales (secteurs N et Nb) : extensions des habitations existantes plafonnées à la fois en **surface de plancher** (≤ 50 m² d'extension, ≤ 250 m² au total) et en **emprise au sol**. Sur ce dernier point le règlement **se contredit** : l'article « usages » indique **30 %**, l'article « emprise au sol » indique **15 %**, pour une même extension d'habitation existante. Retenir 15 % par prudence (valeur cohérente avec celle applicable au bâti patrimonial L151‑19) et faire trancher la commune. Une seule extension et une seule annexe (emprise ≤ 15 m²), piscines liées ≤ 50 m², implantation sur limite séparative ou à au moins 3 m, **hauteur 8 m hors-tout**.",
+          "surface_inter_m2": 4423.97,
+          "pct_sig": 99.9616
+        }
+      ],
+      "status": "concernee"
+    },
+    "hauteurs": {
+      "nom": "Hauteurs maximales (PLU)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 100.0,
+      "objets": [
+        {
+          "legende": "Non règlementé",
+          "hauteur": null,
+          "libelong": "Secteur agricole",
+          "reglementation": "Le terrain est situé dans le secteur suivant : Secteur agricole. Dans ce secteur, la hauteur des constructions n'est pas réglementée.",
+          "surface_inter_m2": 1.7,
+          "pct_sig": 0.0384
+        },
+        {
+          "legende": "Non règlementé",
+          "hauteur": null,
+          "libelong": "Secteur de la déchetterie",
+          "reglementation": "Le terrain est situé dans le secteur suivant : Secteur de la déchetterie. Dans ce secteur, la hauteur des constructions n'est pas réglementée.",
+          "surface_inter_m2": 4423.97,
+          "pct_sig": 99.9616
+        }
+      ],
+      "status": "concernee"
+    },
+    "sup_assiette_s": {
+      "nom": "Servitudes d'utilite publique (assiettes)",
+      "type": "servitude",
+      "geom_type": "surfacique",
+      "pct_sig": 100.0,
+      "objets": [
+        {
+          "nomsuplitt": "Plan de Prévention des Risques d'Incendies de Forêt d'Argelès-sur-Mer",
+          "suptype": "pm1",
+          "nomreg": null,
+          "surface_inter_m2": 4425.67,
+          "pct_sig": 100.0
+        },
+        {
+          "nomsuplitt": "Modification du Plan de Prévention des Risques naturels d'Argelès-sur-Mer",
+          "suptype": "pm1",
+          "nomreg": null,
+          "surface_inter_m2": 1763.66,
+          "pct_sig": 39.8507
+        }
+      ],
+      "status": "concernee"
+    },
+    "ppr": {
+      "nom": "PPR (Plan de Prevention des Risques)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 39.8501,
+      "objets": [
+        {
+          "risque": "inondation",
+          "degre": "Lit mineur Rec de Couma Fosca - recul 6 m par rapport aux berges",
+          "label": "I-b1",
+          "document": "PPR inondation Argelès-sur-mer",
+          "surface_inter_m2": 368.57,
+          "pct_sig": 8.3281
+        },
+        {
+          "risque": "inondation",
+          "degre": null,
+          "label": "Recul minimum réglementaire des constructions par rapport au sommet des berges des cours d'eau",
+          "document": "PPR inondation Argelès-sur-mer",
+          "surface_inter_m2": 1611.34,
+          "pct_sig": 36.4089
+        },
+        {
+          "risque": "inondation",
+          "degre": "zone d'expansion et de stockage des crues du Tech et de la Massane",
+          "label": "I0",
+          "document": "PPR inondation Argelès-sur-mer",
+          "surface_inter_m2": 1095.11,
+          "pct_sig": 24.7446
+        }
+      ],
+      "status": "concernee"
+    },
+    "pprif": {
+      "nom": "PPRIF (Risque Incendie de Foret)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 100.0,
+      "objets": [
+        {
+          "risque": "feu de forêt",
+          "degre": "zone bleue - risque moyen à assez fort - constructibilité limitée",
+          "label": "B1",
+          "document": "PPRIF de Argelès-sur-mer",
+          "surface_inter_m2": 4425.67,
+          "pct_sig": 100.0
+        }
+      ],
+      "status": "concernee"
+    },
+    "aoc": {
+      "nom": "AOC viticoles",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 99.997,
+      "objets": [
+        {
+          "denom": "Côtes du Roussillon,Grand Roussillon,Languedoc,Muscat de Rivesaltes,Rivesaltes",
+          "crinao": null,
+          "reglementation": "Le terrain est compris dans l'aire de production de l'Appellation d'Origine Contrôlée / Protégée « Côtes du Roussillon, Grand Roussillon, Languedoc, Muscat de Rivesaltes, Rivesaltes ». Cette appellation est protégée au titre du Code rural et de la pêche maritime ; à ce titre, l'organisme de défense et de gestion (ODG) de l'appellation dispose, en application de l'article L.643-4 du Code rural et de la pêche maritime, de la faculté de saisir l'administration de tout projet ou document d'urbanisme portant atteinte à l'aire ou aux conditions de production de l'appellation. La constructibilité du terrain reste déterminée par le zonage du document d'urbanisme en vigueur (cf. article relatif aux dispositions d'urbanisme).",
+          "surface_inter_m2": 4425.54,
+          "pct_sig": 99.997
+        }
+      ],
+      "status": "concernee"
+    },
+    "prescriptions_surf": {
+      "nom": "Prescriptions surfaciques (PLU)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 99.9517,
+      "objets": [
+        {
+          "libelle": "Espace boisé classé",
+          "typepsc": "01",
+          "reglementation": "Le terrain est classé en Espace Boisé Classé (EBC), ce qui interdit tout changement d'affectation du sol et soumet les coupes ou abattages d'arbres à une autorisation préalable.",
+          "surface_inter_m2": 4423.53,
+          "pct_sig": 99.9517
+        }
+      ],
+      "status": "concernee"
+    },
+    "prescriptions_lineaires": {
+      "nom": "Prescriptions lineaires (PLU)",
+      "type": "prescription",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "prescriptions_ponctuelles": {
+      "nom": "Prescriptions ponctuelles (PLU)",
+      "type": "prescription",
+      "geom_type": "ponctuel",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "infos_surf": {
+      "nom": "Informations surfaciques",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 100.0,
+      "objets": [
+        {
+          "libelle": "Périmètre de voisinage d'infrastructures de transport terrestre",
+          "typeinf": "14",
+          "reglementation": "Le terrain est inclus dans un périmètre de voisinage d'infrastructures de transport terrestre, soumettant les constructions futures à des règles spécifiques d'implantation ou d'isolation acoustique.",
+          "surface_inter_m2": 4425.67,
+          "pct_sig": 100.0
+        },
+        {
+          "libelle": "Plan de Prévention des Risques Naturels",
+          "typeinf": "99",
+          "reglementation": "Le terrain est situé dans le périmètre d'application d'un Plan de Prévention des Risques Naturels (PPRN), réglementant les conditions de constructibilité et d'occupation du sol en fonction des aléas identifiés.",
+          "surface_inter_m2": 739.3,
+          "pct_sig": 16.7049
+        },
+        {
+          "libelle": "Plan de Prévention des Risques Naturels",
+          "typeinf": "99",
+          "reglementation": "Le terrain est situé dans le périmètre d'application d'un Plan de Prévention des Risques Naturels (PPRN), réglementant les conditions de constructibilité et d'occupation du sol en fonction des aléas identifiés.",
+          "surface_inter_m2": 355.79,
+          "pct_sig": 8.0392
+        },
+        {
+          "libelle": "Plan de Prévention des Risques Naturels",
+          "typeinf": "99",
+          "reglementation": "Le terrain est situé dans le périmètre d'application d'un Plan de Prévention des Risques Naturels (PPRN), réglementant les conditions de constructibilité et d'occupation du sol en fonction des aléas identifiés.",
+          "surface_inter_m2": 368.58,
+          "pct_sig": 8.3282
+        }
+      ],
+      "status": "concernee"
+    },
+    "retrait_gonflement_argiles_2026": {
+      "nom": "Retrait-gonflement des argiles (2026)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "old": {
+      "nom": "Zones de debroussaillement (OLD)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 100.0,
+      "objets": [
+        {
+          "zonage": 2,
+          "dat_ap_old": "2025-06-23",
+          "reglementation": "Le terrain est situé dans un secteur soumis aux Obligations Légales de Débroussaillement (OLD), en application des articles L.131-1 et suivants du Code forestier et de l'arrêté préfectoral du 2025-06-23. Les modalités précises (rayon, périmètre, périodicité) applicables à cette parcelle sont définies par le Plan de Prévention des Risques d'Incendie de Forêt (PPRIF) d'Argelès-sur-Mer — voir la section Risques naturels du présent certificat. Référence : https://www.pyrenees-orientales.gouv.fr/Actions-de-l-Etat/Agriculture-foret-et-developpement-rural/Foret/Prevention-des-forets-contre-les-incendies/4.-Debroussaillement/Le-debroussaillement",
+          "surface_inter_m2": 4425.67,
+          "pct_sig": 100.0
+        }
+      ],
+      "status": "concernee"
+    },
+    "haies_bocages": {
+      "nom": "Haies et bocages",
+      "type": "information",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "znieffs": {
+      "nom": "ZNIEFF",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 91.5498,
+      "objets": [
+        {
+          "nom_site": "Massif des Albères",
+          "znieff_type": 2,
+          "reglementation": "Le terrain est situé dans une Zone Naturelle d'Intérêt Écologique, Faunistique et Floristique (ZNIEFF) de type 2 « Massif des Albères ». Il s'agit d'un inventaire scientifique qui identifie de grands ensembles naturels (forêts, vallées, etc.) qui offrent des potentialités biologiques importantes. Une ZNIEFF n'est pas un régime de protection réglementaire et n'entraîne pas d'interdiction de construire. Elle a une portée informative et doit être prise en compte dans les documents d'urbanisme. La portée est moins contraignante que pour une ZNIEFF de type 1, mais la présence d'enjeux écologiques reste à considérer dans tout projet d'aménagement.",
+          "surface_inter_m2": 4051.69,
+          "pct_sig": 91.5498
+        }
+      ],
+      "status": "concernee"
+    },
+    "prairies_sensibles": {
+      "nom": "Prairies permanentes",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 13.7033,
+      "objets": [
+        {
+          "id": "126510",
+          "surface_inter_m2": 606.46,
+          "pct_sig": 13.7033
+        }
+      ],
+      "status": "concernee"
+    },
+    "natura_2000": {
+      "nom": "NATURA 2000",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 82.9359,
+      "objets": [
+        {
+          "id": "oiseaux_FR9112023",
+          "c_site": "FR9112023",
+          "n_site": "Massif des Albères",
+          "t_site": "ZPS",
+          "surface_inter_m2": 3670.47,
+          "pct_sig": 82.9359
+        },
+        {
+          "id": "habitat_FR9101483",
+          "c_site": "FR9101483",
+          "n_site": "Massif des Albères",
+          "t_site": "ZSC",
+          "surface_inter_m2": 3670.47,
+          "pct_sig": 82.9359
+        }
+      ],
+      "status": "concernee"
+    },
+    "reseaux_enedis_lineaires": {
+      "nom": "Réseaux ENEDIS linéaires",
+      "type": "reseaux",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "concernee",
+      "diagnostic_metier": "Analyse raccordement ENEDIS calculée",
+      "analyses": [
+        {
+          "type_code": "reseau-bt",
+          "type_reseau": "Aérien Basse Tension (BT)",
+          "id_cable_plus_proche": "TuB0QeClkzM8WrxsK99ou",
+          "distance_directe_metres": 43.99,
+          "nb_lignes_dans_uf": 0,
+          "lineaire_interieur_metres": 0.0,
+          "parcelles_voisines_fait_obstacle": "Aucun (Accès direct via domaine public)",
+          "diagnostic_expert_raccordement": "Réseau éloigné (44m) - Extension publique obligatoire (art. L.332-15 Code de l'urbanisme)."
+        },
+        {
+          "type_code": "reseau-souterrain-bt",
+          "type_reseau": "Souterrain Basse Tension (BT)",
+          "id_cable_plus_proche": "HXi7x5moGznbn15FBNiyC",
+          "distance_directe_metres": 284.08,
+          "nb_lignes_dans_uf": 0,
+          "lineaire_interieur_metres": 0.0,
+          "parcelles_voisines_fait_obstacle": "BO n°188, BO n°189, BO n°287, BO n°75, BO n°81, BO n°82, BO n°86, BO n°88, BR n°608",
+          "diagnostic_expert_raccordement": "Réseau éloigné (284m) - Extension publique obligatoire (art. L.332-15 Code de l'urbanisme)."
+        }
+      ]
+    },
+    "zaer": {
+      "nom": "ZAER (Zones a equiper pour les energies renouvelables)",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "sup_assiette_l": {
+      "nom": "Servitudes (assiettes lineaires)",
+      "type": "servitude",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "table_absente"
+    },
+    "sup_assiette_p": {
+      "nom": "Servitudes (assiettes ponctuelles)",
+      "type": "servitude",
+      "geom_type": "ponctuel",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "table_absente"
+    },
+    "batiments": {
+      "nom": "Batiments",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "table_absente"
+    },
+    "prairies_et_natura_2000": {
+      "nom": "Réglementation croisée Natura 2000 / Prairies sensibles",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "concernee",
+      "regime_code": "double_intersection_natura_et_prairie",
+      "diagnostic_metier": "Natura 2000 et Prairie Sensible)",
+      "blocs": [
+        {
+          "code_regime": "NATURA_2000",
+          "nom_regime": "Zone Natura 2000 (ZSC / ZPS)",
+          "statut_juridique": "Opposable ADS",
+          "reglementation": "Le terrain intersecte le site Natura 2000 inspecté (Code : FR9101483 - Nom : Massif des Albères). Ce zonage est soumis au régime de l'évaluation des incidences Natura 2000 (EIN), codifié aux articles L.414-4 et suivants et R.414-19 et suivants du code de l'environnement. Tout projet d'aménagement, d'urbanisme ou de travaux figurant sur les listes nationales ou départementales (ou susceptible d'affecter significativement le site via la \"clause filet\") doit faire l'objet d'une évaluation de ses incidences. Si elle est requise, cette étude d'incidence (ou l'étude d'impact en tenant lieu) doit obligatoirement être jointe au dossier de demande d'autorisation d'urbanisme (article R.431-16 c pour le permis de construire et R.441-16 a pour le permis d'aménager du code de l'urbanisme). L'autorité compétente s'opposera au projet si l'évaluation conclut à une atteinte aux ont objectifs de conservation du site.",
+          "base_legale": "Code de l'environnement : art. L.414-4 et suivants, R.414-19 et suivants. Code de l'urbanisme : art. R.431-16 c et R.441-16 a. Directives européennes \"Habitats\" 92/43/CEE et \"Oiseaux\" 2009/147/CE."
+        },
+        {
+          "code_regime": "BCAE9_NATURA",
+          "nom_regime": "Prairie permanente sensible (Natura 2000)",
+          "statut_juridique": "Conditionnalité PAC (Contrainte d'usage)",
+          "reglementation": "La parcelle comporte une prairie permanente désignée comme \"sensible\" au titre de la conditionnalité de la Politique Agricole Commune (norme PAC BCAE 9). En raison de sa localisation croisée dans un site Natura 2000, le labour et le retournement de cette prairie permanente sont strictement interdits afin de préserver la biodiversité du sol. Seul l'entretien nécessaire au maintien de la prairie (travail superficiel du sol sans retournement) est autorisé. Ce régime relève de la conditionnalité des aides aux exploitations agricoles. Bien qu'il ne soit pas directement opposable à la délivrance d'un permis de construire au sens du code de l'urbanisme, il constitue une contrainte de mutation, de gestion et d'usage du sol majeure pour le foncier concerné, exposant l'exploitant à des réductions de dotations financières et à des obligations de remise en état en cas d'infraction.",
+          "base_legale": "Réglementation européenne et nationale relative à la Politique Agricole Commune (PAC) - Norme BCAE 9. Code de l'environnement."
+        }
+      ],
+      "natura": {
+        "id": "habitat_FR9101483",
+        "code_site": "FR9101483",
+        "nom_site": "Massif des Albères",
+        "code_regime": "NATURA_2000",
+        "nom_regime": "Zone Natura 2000 (ZSC / ZPS)",
+        "statut_juridique": "Opposable ADS",
+        "reglementation": "Le terrain intersecte le site Natura 2000 inspecté (Code : FR9101483 - Nom : Massif des Albères). Ce zonage est soumis au régime de l'évaluation des incidences Natura 2000 (EIN), codifié aux articles L.414-4 et suivants et R.414-19 et suivants du code de l'environnement. Tout projet d'aménagement, d'urbanisme ou de travaux figurant sur les listes nationales ou départementales (ou susceptible d'affecter significativement le site via la \"clause filet\") doit faire l'objet d'une évaluation de ses incidences. Si elle est requise, cette étude d'incidence (ou l'étude d'impact en tenant lieu) doit obligatoirement être jointe au dossier de demande d'autorisation d'urbanisme (article R.431-16 c pour le permis de construire et R.441-16 a pour le permis d'aménager du code de l'urbanisme). L'autorité compétente s'opposera au projet si l'évaluation conclut à une atteinte aux ont objectifs de conservation du site.",
+        "base_legale": "Code de l'environnement : art. L.414-4 et suivants, R.414-19 et suivants. Code de l'urbanisme : art. R.431-16 c et R.441-16 a. Directives européennes \"Habitats\" 92/43/CEE et \"Oiseaux\" 2009/147/CE."
+      },
+      "prairie": {
+        "id": "126510",
+        "code_regime": "BCAE9_NATURA",
+        "nom_regime": "Prairie permanente sensible (Natura 2000)",
+        "statut_juridique": "Conditionnalité PAC (Contrainte d'usage)",
+        "reglementation": "La parcelle comporte une prairie permanente désignée comme \"sensible\" au titre de la conditionnalité de la Politique Agricole Commune (norme PAC BCAE 9). En raison de sa localisation croisée dans un site Natura 2000, le labour et le retournement de cette prairie permanente sont strictement interdits afin de préserver la biodiversité du sol. Seul l'entretien nécessaire au maintien de la prairie (travail superficiel du sol sans retournement) est autorisé. Ce régime relève de la conditionnalité des aides aux exploitations agricoles. Bien qu'il ne soit pas directement opposable à la délivrance d'un permis de construire au sens du code de l'urbanisme, il constitue une contrainte de mutation, de gestion et d'usage du sol majeure pour le foncier concerné, exposant l'exploitant à des réductions de dotations financières et à des obligations de remise en état en cas d'infraction.",
+        "base_legale": "Réglementation européenne et nationale relative à la Politique Agricole Commune (PAC) - Norme BCAE 9. Code de l'environnement."
+      },
+      "has_natura": true,
+      "has_prairie": true
+    },
+    "servitudes_reglementees": {
+      "nom": "Servitudes d'utilité publique (réglementation)",
+      "type": "servitude",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee",
+      "diagnostic_metier": "RAS : aucune servitude d'utilité publique réglementée sur l'UF",
+      "servitudes": []
+    }
+  }
+}

@@ -20,6 +20,7 @@
           "zonage_reglement": "N",
           "libelle": "N",
           "libelong": "Secteur à vocation naturelle",
+          "reglementation": "La zone N protège les espaces naturels. La constructibilité y est très limitée et calibrée par sous-secteur. Règles générales (secteurs N et Nb) : extensions des habitations existantes plafonnées à la fois en **surface de plancher** (≤ 50 m² d'extension, ≤ 250 m² au total) et en **emprise au sol**. Sur ce dernier point le règlement **se contredit** : l'article « usages » indique **30 %**, l'article « emprise au sol » indique **15 %**, pour une même extension d'habitation existante. Retenir 15 % par prudence (valeur cohérente avec celle applicable au bâti patrimonial L151‑19) et faire trancher la commune. Une seule extension et une seule annexe (emprise ≤ 15 m²), piscines liées ≤ 50 m², implantation sur limite séparative ou à au moins 3 m, **hauteur 8 m hors-tout**.",
           "surface_inter_m2": 4968.03,
           "pct_sig": 100.0001
         }
@@ -36,6 +37,7 @@
           "legende": "Non règlementé",
           "hauteur": null,
           "libelong": "Secteur à vocation naturelle",
+          "reglementation": "Le terrain est situé dans le secteur suivant : Secteur à vocation naturelle. Dans ce secteur, la hauteur des constructions n'est pas réglementée.",
           "surface_inter_m2": 4968.03,
           "pct_sig": 100.0001
         }
@@ -298,10 +300,37 @@
       "status": "non_concernee",
       "regime_code": "hors_natura_et_prairie",
       "diagnostic_metier": "RAS : UF hors contraintes Natura 2000 / Prairies",
+      "blocs": [],
       "natura": null,
       "prairie": null,
       "has_natura": false,
       "has_prairie": false
+    },
+    "servitudes_reglementees": {
+      "nom": "Servitudes d'utilité publique (réglementation)",
+      "type": "servitude",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "concernee",
+      "diagnostic_metier": "1 servitude(s) d'utilité publique identifiée(s)",
+      "servitudes": [
+        {
+          "source_table": "sup_assiette_s",
+          "source_nom": "Servitudes d'utilité publique (assiettes surfaciques)",
+          "entity_id": 237225,
+          "suptype": "t1",
+          "nomsuplitt": "SUP T1 des Pyrénées-Orientales",
+          "nomreg": null,
+          "nom_servitude": null,
+          "libelle": "T1 - Protection du domaine public ferroviaire (riverains de voies ferrees) et visibilite aux abords des passages a niveau",
+          "reglementation": "IMPLICATIONS\n\n• Le long de l'emprise ferroviaire (voies, ouvrages d'art, sous-stations, postes, installations radio, etc.), l'emprise étant définie à l'article R.2231-2 du code des transports :\n  – Constructions interdites à moins de 2 m de l'emprise, 3 m de l'extrados d'un ouvrage d'art souterrain, 6 m du bord d'un ouvrage d'art aérien (sauf mur de clôture). Cette interdiction ne s'applique pas aux dispositifs de production d'énergies renouvelables intégrés à la voie ou installés à ses abords, dès lors qu'ils ne compromettent pas la sécurité des circulations.\n  – Terrassements, excavations, fondations : à moins de 50 m de l'emprise, interdiction de creuser sans blindage au-delà d'une profondeur égale aux deux tiers de la distance horizontale à l'emprise (plan incliné 3H/2V) ; protection renforcée pour les voies en remblai de plus de 3 m.\n  – Dépôts (de toute matière) et systèmes de rétention d'eau : distance minimale de 5 m de l'emprise.\n  – Écoulement des eaux : application des articles 640 et 641 du code civil ; tout déversement ou rejet sur le domaine public ferroviaire est interdit.\n  – Végétation : interdiction d'arbres, haies ou racines empiétant sur l'emprise ou gênant la sécurité ou la visibilité de la signalisation ; élagage/abattage à la charge du propriétaire, exécution d'office possible par le gestionnaire pour raisons de sécurité.\n  – Information préalable du gestionnaire d'infrastructure (et, le cas échéant, du gestionnaire de voirie) : les projets de construction, d'aménagement ou d'installation, pérenne ou temporaire, relevant des catégories fixées par l'arrêté du 30 juillet 2025 et situés à moins de 50 m de l'emprise, ou dans la bande de 300 à 3 000 m autour d'un passage à niveau, doivent en faire l'objet avant réalisation. Le gestionnaire dispose de deux mois pour proposer au préfet des prescriptions, que celui-ci peut imposer.\n  – Les distances de 2/3/6 m, 50 m et 5 m peuvent être réduites par autorisation motivée du préfet, après avis du gestionnaire (art. L.2231-9).\n\n• Aux passages à niveau : un plan de dégagement fixe, par parcelle, les terrains grevés des servitudes de visibilité :\n  – obligation de supprimer les clôtures pleines (ou de les remplacer par des grilles), de supprimer les plantations gênantes et de tenir le terrain et toute superstructure au niveau fixé par le plan ;\n  – interdiction absolue de bâtir, clôturer, remblayer, planter ou faire toute installation au-dessus du niveau fixé ;\n  – droit pour le gestionnaire de réséquer talus, remblais et obstacles naturels.\n\nÀ RESPECTER SUR LA PARCELLE\n\n• Implanter tout projet hors des distances de 2 m / 3 m / 6 m, et à au moins 5 m pour tout dépôt ou système de rétention d'eau ; tenir compte des règles de terrassement à moins de 50 m.\n• Avant dépôt d'un PC/DP ou tous travaux à proximité : si le projet relève d'une catégorie listée par l'arrêté du 30/07/2025, adresser l'information préalable au gestionnaire d'infrastructure (SNCF Réseau pour le réseau ferré national) et, le cas échéant, au gestionnaire de voirie. Des prescriptions préfectorales peuvent être imposées.\n• Au droit d'un passage à niveau : vérifier l'existence d'un plan de dégagement (annexé au PLU/CC) et le respecter ; tout projet contraire est irrecevable.",
+          "base_legale": "Code des transports : art. L.2231-1 à L.2231-9 et R.2231-1 à R.2231-8. Code de la voirie routière : art. L.114-1 à L.114-3 et L.114-6, R.114-1, R.131-1 et s., R.141-1 et s. Arrêté du 30 juillet 2025. Fiche nationale GPU (20/10/2025).",
+          "url_fiche_gpu": "https://www.geoportail-urbanisme.gouv.fr/image/fiche_SUP_T1.pdf",
+          "variable": false,
+          "metric": 69.41
+        }
+      ]
     }
   }
 }

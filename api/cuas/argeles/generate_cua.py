@@ -19,10 +19,10 @@ from pathlib import Path
 from typing import Any, Optional
 
 from api.communes.latresne.parcelles_geojson import _resolve_table_for_commune
-from api.cuas.builder import CommuneConfig, build_cua
-from api.cuas.db import SUPABASE_BUCKET, get_supabase, logger, persist_cua
-from api.cuas.intersections import load_catalogue, run_intersections
-from api.cuas.uf import build_uf
+from api.cuas.argeles.builder import CommuneConfig, build_cua
+from api.cuas.argeles.db import SUPABASE_BUCKET, get_supabase, logger, persist_cua
+from api.cuas.argeles.intersections import load_catalogue, run_intersections
+from api.cuas.argeles.uf import build_uf
 from services.history.project_directory import ensure_project_directory, register_project_file
 
 _CUAS_DIR = Path(__file__).resolve().parent

@@ -7,7 +7,7 @@ import json
 import logging
 from typing import Any
 
-from api.cuas.geo_utils import compute_centroid_from_wkt_l93
+from api.cuas.argeles.geo_utils import compute_centroid_from_wkt_l93
 
 logger = logging.getLogger("pipeline_enrichment")
 
@@ -98,7 +98,7 @@ def enrich_pipeline_centroid(pipeline: dict[str, Any]) -> dict[str, Any]:
         return enriched
 
     try:
-        from api.cuas.uf import build_uf
+        from api.cuas.argeles.uf import build_uf
 
         uf = build_uf(refs, schema=schema)
         centroid = compute_centroid_from_wkt_l93(uf.wkt)

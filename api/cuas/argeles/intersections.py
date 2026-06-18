@@ -30,33 +30,47 @@ CLI :
 import re
 import json
 import argparse
+import sys
 from pathlib import Path
 
 from sqlalchemy import text
 
+_ARGELES_DIR = Path(__file__).resolve().parent
+
 try:
-    from api.cuas.db import GEOM_COL, SCHEMA, SRID, get_engine, logger
+    from api.cuas.argeles.db import GEOM_COL, SCHEMA, SRID, get_engine, logger
 except ImportError:
     from db import GEOM_COL, SCHEMA, SRID, get_engine, logger
 
 try:
-    from api.cuas.uf import build_uf
+    from api.cuas.argeles.uf import build_uf
 except ImportError:
     from uf import build_uf
 
 try:
-    from api.cuas.intersection_modules.prairies_et_natura_2000 import (
+    from api.cuas.argeles.intersection_modules.prairies_et_natura_2000 import (
         compute_prairies_natura_reglementation,
     )
 except ImportError:
+    if str(_ARGELES_DIR) not in sys.path:
+        sys.path.insert(0, str(_ARGELES_DIR))
     from intersection_modules.prairies_et_natura_2000 import (
         compute_prairies_natura_reglementation,
     )
 
 try:
-    from api.cuas.intersection_modules.reseaux_enedis import compute_enedis_raccordement
+    from api.cuas.argeles.intersection_modules.reseaux_enedis import compute_enedis_raccordement
 except ImportError:
+    if str(_ARGELES_DIR) not in sys.path:
+        sys.path.insert(0, str(_ARGELES_DIR))
     from intersection_modules.reseaux_enedis import compute_enedis_raccordement
+
+try:
+    from api.cuas.argeles.intersection_modules.servitudes import compute_servitudes_reglementation
+except ImportError:
+    if str(_ARGELES_DIR) not in sys.path:
+        sys.path.insert(0, str(_ARGELES_DIR))
+    from intersection_modules.servitudes import compute_servitudes_reglementation
 
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -315,6 +329,38 @@ def run_intersections(uf, catalogue, engine=None, schema=SCHEMA) -> dict:
         rapport["intersections"]["prairies_et_natura_2000"] = {
             "nom": "Réglementation croisée Natura 2000 / Prairies sensibles",
             "type": "information",
+            "geom_type": "surfacique",
+            "pct_sig": 0.0,
+            "objets": [],
+            "status": "erreur",
+            "error": str(exc),
+        }
+
+    # Bloc métier dédié SUP (réglementations depuis servitudes_reglements)
+    try:
+        special = compute_servitudes_reglementation(
+            uf.wkt,
+            engine=engine,
+            schema=schema,
+        )
+        rapport["intersections"]["servitudes_reglementees"] = {
+            "nom": "Servitudes d'utilité publique (réglementation)",
+            "type": "servitude",
+            "geom_type": "surfacique",
+            "pct_sig": 0.0,
+            "objets": [],
+            **special,
+        }
+        n = len(special.get("servitudes") or [])
+        if n:
+            logger.info(f"  ✅ servitudes_reglementees              {n:>3} servitude(s)")
+        else:
+            logger.info("  ·  servitudes_reglementees                —")
+    except Exception as exc:
+        logger.warning(f"  ⚠  servitudes_reglementees          {exc}")
+        rapport["intersections"]["servitudes_reglementees"] = {
+            "nom": "Servitudes d'utilité publique (réglementation)",
+            "type": "servitude",
             "geom_type": "surfacique",
             "pct_sig": 0.0,
             "objets": [],

@@ -8,7 +8,7 @@
   "hauteurs": {
     "nom": "Hauteurs maximales (PLU)",
     "type": "prescription",
-    "keep": ["legende", "hauteur", "libelle", "libelong"],
+    "keep": ["hauteur", "libelle", "libelong"],
     "geom_type": "surfacique"
   },
   "sup_assiette_s": {

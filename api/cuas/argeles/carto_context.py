@@ -16,15 +16,15 @@ from typing import Any
 
 from sqlalchemy import text
 
-from api.cuas.db import GEOM_COL, SRID, get_engine, logger
-from api.cuas.intersections import (
+from api.cuas.argeles.db import GEOM_COL, SRID, get_engine, logger
+from api.cuas.argeles.intersections import (
     MIN_INTERSECTION_AREA_M2,
     MIN_INTERSECTION_LENGTH_M,
     _safe_ident,
     _table_exists,
     load_catalogue,
 )
-from api.cuas.uf import UniteFonciere, build_uf
+from api.cuas.argeles.uf import UniteFonciere, build_uf
 
 DEFAULT_CONTEXT_BUFFER_M = 200.0
 MAX_CONTEXT_BUFFER_M = 500.0

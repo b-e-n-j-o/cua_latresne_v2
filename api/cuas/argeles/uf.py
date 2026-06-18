@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import text
 
 try:
-    from api.cuas.db import GEOM_COL, SCHEMA, SRID, get_engine, logger
+    from api.cuas.argeles.db import GEOM_COL, SCHEMA, SRID, get_engine, logger
 except ImportError:
     from db import GEOM_COL, SCHEMA, SRID, get_engine, logger
 

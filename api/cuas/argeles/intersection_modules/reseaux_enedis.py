@@ -13,8 +13,12 @@ import re
 from sqlalchemy import text
 
 try:
-    from api.cuas.db import GEOM_COL, SCHEMA, SRID, get_engine
+    from api.cuas.argeles.db import GEOM_COL, SCHEMA, SRID, get_engine
 except ImportError:
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from db import GEOM_COL, SCHEMA, SRID, get_engine
 
 

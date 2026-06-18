@@ -5,7 +5,7 @@ import psycopg2
 from fastapi import APIRouter, HTTPException
 from psycopg2 import sql
 
-from api.cuas.sig_resume_layers import (
+from api.cuas.argeles.sig_resume_layers import (
     LEGACY_RESUME_COLUMN,
     LAYER_COL_PREFIX,
     assemble_sig_resume,

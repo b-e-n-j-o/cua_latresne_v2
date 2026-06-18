@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 
 # ── À modifier ────────────────────────────────────────────────
 PARCELLES: list[tuple[str, str]] = [
-    ("BR", "273"),
+    ("BC", "1374"),
     # ("BR", "274"),  # plusieurs parcelles → UF si contiguës
 ]
 
@@ -34,9 +34,9 @@ DOSSIER: dict = {}               # encart identité (vide → cadastre/superfici
 BUILD_DOCX: bool = True          # False = JSON seulement
 # ──────────────────────────────────────────────────────────────
 
-TESTS_DIR = Path(__file__).resolve().parent   # …/api/cuas/tests
-CUAS_DIR = TESTS_DIR.parent                   # …/api/cuas
-PROJECT_ROOT = TESTS_DIR.parents[2]           # …/cua_latresne_v4
+TESTS_DIR = Path(__file__).resolve().parent   # …/api/cuas/argeles/tests
+CUAS_DIR = TESTS_DIR.parent                   # …/api/cuas/argeles
+PROJECT_ROOT = TESTS_DIR.parents[3]           # …/cua_latresne_v4
 INTERSECTIONS_SCRIPT = CUAS_DIR / "intersections.py"
 
 if str(PROJECT_ROOT) not in sys.path:
@@ -47,10 +47,10 @@ if not INTERSECTIONS_SCRIPT.is_file():
 
 load_dotenv(PROJECT_ROOT / ".env")
 
-from api.cuas.builder import build_cua
-from api.cuas.db import logger
-from api.cuas.intersections import load_catalogue, run_intersections
-from api.cuas.uf import build_uf
+from api.cuas.argeles.builder import build_cua
+from api.cuas.argeles.db import logger
+from api.cuas.argeles.intersections import load_catalogue, run_intersections
+from api.cuas.argeles.uf import build_uf
 
 CATALOGUE_PATH = CUAS_DIR / "catalogue_cua_argeles.json"
 OUTPUT_DIR = TESTS_DIR / "output"

@@ -2,7 +2,7 @@
   "zonage_plu": {
     "nom": "Zonage PLU",
     "type": "prescription",
-    "keep": ["zonage_reglement", "libelle", "libelong"],
+    "keep": ["zonage_reglement", "libelle", "libelong", "reglementation"],
     "origine": "plu",
     "article": "3",
     "group_by": ["zonage_reglement"],
@@ -11,7 +11,7 @@
   "hauteurs": {
     "nom": "Hauteurs maximales (PLU)",
     "type": "prescription",
-    "keep": ["legende", "hauteur", "libelong"],
+    "keep": ["hauteur", "libelong", "reglementation"],
     "origine": "plu",
     "article": "3",
     "geom_type": "surfacique"
@@ -113,14 +113,6 @@
     "article": "5",
     "geom_type": "surfacique"
   },
-  "generateurs_sup_lineaires": {
-    "nom": "Servitudes - generateurs lineaires",
-    "type": "servitude",
-    "keep": ["nomgen", "suptype", "nomreg", "typegen"],
-    "origine": "geoportail",
-    "article": "4",
-    "geom_type": "lineaire"
-  },
   "prairies_sensibles": {
     "nom": "Prairies permanentes",
     "type": "information",
@@ -164,33 +156,6 @@
   },
   "sup_assiette_p": {
     "nom": "Servitudes (assiettes ponctuelles)",
-    "type": "servitude",
-    "keep": ["nomsuplitt", "suptype", "nomreg"],
-    "origine": "geoportail",
-    "article": "4",
-    "geom_type": "ponctuel",
-    "geom_col": "geometry"
-  },
-  "sup_generateur_s": {
-    "nom": "Servitudes (generateurs surfaciques)",
-    "type": "servitude",
-    "keep": ["nomsuplitt", "suptype", "nomreg"],
-    "origine": "geoportail",
-    "article": "4",
-    "geom_type": "surfacique",
-    "geom_col": "geometry"
-  },
-  "sup_generateur_l": {
-    "nom": "Servitudes (generateurs lineaires)",
-    "type": "servitude",
-    "keep": ["nomsuplitt", "suptype", "nomreg"],
-    "origine": "geoportail",
-    "article": "4",
-    "geom_type": "lineaire",
-    "geom_col": "geometry"
-  },
-  "sup_generateur_p": {
-    "nom": "Servitudes (generateurs ponctuels)",
     "type": "servitude",
     "keep": ["nomsuplitt", "suptype", "nomreg"],
     "origine": "geoportail",

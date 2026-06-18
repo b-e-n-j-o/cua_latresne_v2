@@ -10,14 +10,14 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from api.communes.latresne.parcelles_geojson import _resolve_table_for_commune
-from api.cuas.carto_context import (
+from api.cuas.argeles.carto_context import (
     DEFAULT_CONTEXT_BUFFER_M,
     DEFAULT_DISPLAY_CLIP_M,
     load_carto_catalogue,
     run_carto_context,
 )
-from api.cuas.intersections import load_catalogue, run_intersections
-from api.cuas.uf import build_uf
+from api.cuas.argeles.intersections import load_catalogue, run_intersections
+from api.cuas.argeles.uf import build_uf
 
 router = APIRouter(prefix="/communes", tags=["parcelles-intersections"])
 
