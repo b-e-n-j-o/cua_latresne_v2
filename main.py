@@ -73,6 +73,7 @@ from services.history.project_directory import router as project_directory_route
 import services.history.project_directory as project_directory_module
 from services.plu_txt_markdown.router import router as plu_txt_markdown_router
 from api.reglements.router_reglements import router as reglements_admin_router
+from api.reglements.router_documents import router as documents_router
 
 
 logging.basicConfig(
@@ -282,6 +283,7 @@ app.add_middleware(
 # --- Back-office / admin ---
 app.include_router(admin_router)
 app.include_router(reglements_admin_router)
+app.include_router(documents_router)
 app.include_router(cua_docx_viewer_routes.router)
 app.include_router(parcelles_ingest_router, prefix="/admin")
 app.include_router(parcelles_sync_router, prefix="/admin")

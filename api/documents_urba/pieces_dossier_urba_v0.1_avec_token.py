@@ -263,6 +263,7 @@ def list_pieces_dossier(
             })
 
         out["documents_count"] = len(out["documents"])
+        out["pieces_total"] = sum(d["pieces_count"] for d in out["documents"])
         return out
 
     except Exception as e:
@@ -607,7 +608,7 @@ def _cli():
                 f"tokens_est={dstat.get('tokens_estimes_total', 0)} | "
                 f"tokens_tiktoken={tk_str}"
             )
-    print(f"\n{result['documents_count']} document(s) au total.")
+    print(f"\n{result.get('pieces_total', sum(d.get('pieces_count', 0) for d in result.get('documents', [])))} pièce(s) au total.")
 
     qa = result.get("analyse_qualite_pdf")
     if qa:
