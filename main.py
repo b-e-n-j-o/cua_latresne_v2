@@ -58,6 +58,7 @@ from app.deps import supabase
 from app.routers.cerfa import router as cerfa_router
 from app.routers.cua_pipeline import router as cua_pipeline_router
 from api.cuas.catalogue_routes import router as cua_catalogue_router
+from api.cuas.cua_router import router as cua_generate_router
 from api.cuas.parcelles_intersections_routes import router as parcelles_intersections_router
 from app.routers.pipelines_supabase import router as pipelines_supabase_router
 from app.routers.site_account import router as site_account_router
@@ -71,6 +72,7 @@ import services.history.project_management as project_management_module
 from services.history.project_directory import router as project_directory_router
 import services.history.project_directory as project_directory_module
 from services.plu_txt_markdown.router import router as plu_txt_markdown_router
+from api.reglements.router_reglements import router as reglements_admin_router
 
 
 logging.basicConfig(
@@ -279,6 +281,7 @@ app.add_middleware(
 
 # --- Back-office / admin ---
 app.include_router(admin_router)
+app.include_router(reglements_admin_router)
 app.include_router(cua_docx_viewer_routes.router)
 app.include_router(parcelles_ingest_router, prefix="/admin")
 app.include_router(parcelles_sync_router, prefix="/admin")
@@ -321,6 +324,7 @@ app.include_router(project_directory_router)
 # --- Cœur métier CUA / parcelles (jobs + polling) ---
 app.include_router(cua_pipeline_router)
 app.include_router(cua_catalogue_router)
+app.include_router(cua_generate_router)
 app.include_router(parcelles_intersections_router)
 
 # --- Pipelines Supabase + debug ---

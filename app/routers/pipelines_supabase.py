@@ -1,27 +1,33 @@
 """
-Pipelines persistés (Supabase latresne.pipelines) et debug connexion.
+Pipelines persistés (Supabase public.pipelines) et debug connexion.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from app.deps import supabase
+from services.auth.commune_access import assert_authorized_for_insee
+from services.auth.pipelines_query import pipelines_schema
 
 router = APIRouter(tags=["pipelines-supabase"])
 
 
-@router.get("/pipelines/latest")
-def get_latest_pipelines(limit: int = 10):
-    """Derniers pipelines enregistrés pour Latresne depuis Supabase."""
-    try:
-        response = (
-            supabase.schema("latresne")
-            .table("pipelines")
-            .select("*")
-            .order("created_at", desc=True)
-            .limit(limit)
-            .execute()
-        )
+def _pipelines_table():
+    return supabase.schema(pipelines_schema()).table("pipelines")
 
+
+@router.get("/pipelines/latest")
+def get_latest_pipelines(limit: int = 10, user_id: str | None = None):
+    """Derniers pipelines enregistrés (filtrés par droits si user_id fourni)."""
+    try:
+        query = _pipelines_table().select("*").order("created_at", desc=True).limit(limit)
+        if user_id:
+            from services.auth.commune_access import get_authorized_insee_codes
+
+            allowed = get_authorized_insee_codes(user_id)
+            if allowed:
+                query = query.in_("code_insee", allowed)
+
+        response = query.execute()
         pipelines = response.data or []
         return {
             "success": True,
@@ -37,12 +43,11 @@ def get_latest_pipelines(limit: int = 10):
 
 
 @router.get("/pipelines/by_slug")
-def get_pipeline_by_slug(slug: str):
+def get_pipeline_by_slug(slug: str, user_id: str | None = None):
     """Retrouve un pipeline par slug (lien court CUA)."""
     try:
         response = (
-            supabase.schema("latresne")
-            .table("pipelines")
+            _pipelines_table()
             .select("*")
             .eq("slug", slug)
             .limit(1)
@@ -56,11 +61,25 @@ def get_pipeline_by_slug(slug: str):
                 "error": "Slug introuvable",
             }
 
+        pipeline = rows[0]
+        if user_id:
+            code_insee = pipeline.get("code_insee") or ""
+            if code_insee:
+                assert_authorized_for_insee(user_id, code_insee)
+            owner_id = pipeline.get("user_id")
+            if owner_id and owner_id != user_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Accès refusé : ce projet appartient à un autre utilisateur.",
+                )
+
         return {
             "success": True,
-            "pipeline": rows[0],
+            "pipeline": pipeline,
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         return {
             "success": False,
@@ -70,19 +89,20 @@ def get_pipeline_by_slug(slug: str):
 
 @router.get("/debug/supabase")
 def debug_supabase():
-    """Vérifie la connectivité Supabase (schémas latresne + public)."""
+    """Vérifie la connectivité Supabase (pipelines + public)."""
+    schema = pipelines_schema()
     try:
         print("🧩 [DEBUG] Vérification connexion Supabase...")
 
-        res_latresne = (
-            supabase.schema("latresne")
+        res_pipelines = (
+            supabase.schema(schema)
             .table("pipelines")
-            .select("id, slug, created_at")
+            .select("slug, commune_slug, code_insee, created_at")
             .limit(3)
             .execute()
         )
-        nb_latresne = len(res_latresne.data or [])
-        print(f"✅ [DEBUG] latresne.pipelines OK — {nb_latresne} ligne(s) visibles")
+        nb_pipelines = len(res_pipelines.data or [])
+        print(f"✅ [DEBUG] {schema}.pipelines OK — {nb_pipelines} ligne(s) visibles")
 
         res_public = (
             supabase.schema("public")
@@ -94,11 +114,31 @@ def debug_supabase():
         nb_public = len(res_public.data or [])
         print(f"✅ [DEBUG] public.shortlinks OK — {nb_public} ligne(s) visibles")
 
+        res_access = None
+        nb_access = 0
+        try:
+            res_access = (
+                supabase.schema("public")
+                .table("user_commune_access")
+                .select("user_id, commune_slug, role")
+                .limit(3)
+                .execute()
+            )
+            nb_access = len(res_access.data or [])
+            print(f"✅ [DEBUG] public.user_commune_access OK — {nb_access} ligne(s)")
+        except Exception as access_err:
+            print(f"⚠️ [DEBUG] user_commune_access : {access_err}")
+
         return {
             "status": "ok",
-            "latresne": {
-                "rows": nb_latresne,
-                "examples": res_latresne.data,
+            "pipelines_schema": schema,
+            "pipelines": {
+                "rows": nb_pipelines,
+                "examples": res_pipelines.data,
+            },
+            "user_commune_access": {
+                "rows": nb_access,
+                "examples": (res_access.data if res_access else []),
             },
             "public": {
                 "rows": nb_public,

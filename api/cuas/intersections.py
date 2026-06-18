@@ -12,6 +12,8 @@ et on mesure l'intersection selon geom_type :
 
 Format de sortie (compatible builder DOCX) :
 {
+  "parcelles": [{"section": "BR", "numero": "0273"}, ...],
+  "n_parcelles": <int>,
   "parcelle": "UF",
   "surface_m2": <surface SIG>,
   "surface_indicative": <contenance>,
@@ -93,8 +95,13 @@ def calculate_intersection(uf_wkt, table, cfg, surface_sig, engine, schema=SCHEM
     """
     Retourne (objets, total_metric, geom_type).
 
+    Dédoublonnage : un objet n'est retiré que s'il est un clone parfait d'un autre
+    (même géométrie d'intersection ST_AsBinary ET mêmes attributs 'keep').
+    => deux entités superposées identiques = 1 ligne ; deux entités distinctes
+       (géométrie OU attribut différent) = conservées toutes les deux.
+
     Pour surfacique, total_metric = ST_Area(ST_Union(intersections)) — pas de double-comptage.
-    Pour lineaire, total_metric = somme des longueurs (les linéaires se superposent rarement).
+    Pour lineaire, total_metric = somme des longueurs.
     Pour ponctuel, total_metric = 0 (pas de mesure).
     """
     table     = _safe_ident(table)
@@ -102,24 +109,27 @@ def calculate_intersection(uf_wkt, table, cfg, surface_sig, engine, schema=SCHEM
     keep      = [_safe_ident(k) for k in cfg.get("keep", [])]
     geom_type = cfg.get("geom_type", "surfacique")
 
-    # Colonnes avec et sans préfixe table (nécessaire pour séparer CTE interne / externe)
-    t_cols   = "".join(f"t.{k}, "  for k in keep)   # SELECT depuis la table   → t.col
-    raw_cols = "".join(f"{k}, "    for k in keep)    # SELECT depuis le CTE     → col
+    t_cols     = "".join(f"t.{k}, " for k in keep)   # SELECT depuis la table   → t.col,
+    raw_cols   = "".join(f"{k}, "   for k in keep)   # SELECT depuis un CTE      → col,
+    dedup_cols = "".join(f", {k}"   for k in keep)   # clés DISTINCT ON (avec virgule de tête)
 
     if geom_type == "surfacique":
-        # CTE : per-object intersection geometry
-        # union_area : area of union → élimine le double-comptage des superpositions
         sql = text(f"""
             WITH uf AS (
                 SELECT ST_GeomFromText(:wkt, {SRID}) AS geom
             ),
-            inter AS (
+            inter_raw AS (
                 SELECT {t_cols}
                        ST_Intersection(ST_MakeValid(t.{geom_col}), uf.geom) AS inter_geom
                 FROM {schema}.{table} t, uf
                 WHERE ST_Intersects(t.{geom_col}, uf.geom)
                   AND ST_Area(ST_Intersection(ST_MakeValid(t.{geom_col}), uf.geom))
                       > {MIN_INTERSECTION_AREA_M2}
+            ),
+            inter AS (
+                SELECT DISTINCT ON (ST_AsBinary(inter_geom){dedup_cols})
+                       {raw_cols} inter_geom
+                FROM inter_raw
             ),
             union_area AS (
                 SELECT COALESCE(ST_Area(ST_Union(inter_geom)), 0.0) AS uarea
@@ -134,20 +144,28 @@ def calculate_intersection(uf_wkt, table, cfg, surface_sig, engine, schema=SCHEM
 
     elif geom_type == "lineaire":
         sql = text(f"""
-            WITH uf AS (SELECT ST_GeomFromText(:wkt, {SRID}) AS geom)
-            SELECT {t_cols}
-                   ST_Length(ST_Intersection(ST_MakeValid(t.{geom_col}), uf.geom)) AS metric
-            FROM {schema}.{table} t, uf
-            WHERE ST_Intersects(t.{geom_col}, uf.geom)
-              AND ST_Length(ST_Intersection(ST_MakeValid(t.{geom_col}), uf.geom))
-                  > {MIN_INTERSECTION_LENGTH_M}
+            WITH uf AS (
+                SELECT ST_GeomFromText(:wkt, {SRID}) AS geom
+            ),
+            inter_raw AS (
+                SELECT {t_cols}
+                       ST_Intersection(ST_MakeValid(t.{geom_col}), uf.geom) AS inter_geom
+                FROM {schema}.{table} t, uf
+                WHERE ST_Intersects(t.{geom_col}, uf.geom)
+                  AND ST_Length(ST_Intersection(ST_MakeValid(t.{geom_col}), uf.geom))
+                      > {MIN_INTERSECTION_LENGTH_M}
+            )
+            SELECT DISTINCT ON (ST_AsBinary(inter_geom){dedup_cols})
+                   {raw_cols} ST_Length(inter_geom) AS metric
+            FROM inter_raw
         """)
         metric_label = "longueur_inter_m"
 
     else:  # ponctuel
         sql = text(f"""
             WITH uf AS (SELECT ST_GeomFromText(:wkt, {SRID}) AS geom)
-            SELECT {t_cols} NULL::float AS metric
+            SELECT DISTINCT ON (ST_AsBinary(t.{geom_col}){dedup_cols})
+                   {raw_cols} NULL::float AS metric
             FROM {schema}.{table} t, uf
             WHERE ST_Within(t.{geom_col}, uf.geom)
         """)
@@ -167,13 +185,11 @@ def calculate_intersection(uf_wkt, table, cfg, surface_sig, engine, schema=SCHEM
             obj[metric_label] = round(float(m), 2)
 
             if geom_type == "surfacique" and surface_sig > 0:
-                # Pourcentage par objet (peut dépasser 100% individuellement si objets se superposent)
                 obj["pct_sig"] = round(float(m) / surface_sig * 100, 4)
-
             elif geom_type == "lineaire":
                 total += float(m)
 
-        # Pour surfacique : total = union area (même valeur sur toutes les lignes, on lit sur la 1ère)
+        # surfacique : total = union area (identique sur toutes les lignes, lu sur la 1ère)
         if geom_type == "surfacique" and i == 0:
             total = float(r["total_area"])
 
@@ -182,11 +198,18 @@ def calculate_intersection(uf_wkt, table, cfg, surface_sig, engine, schema=SCHEM
     return objets, total, geom_type
 
 
+def _parcelles_payload(uf) -> list[dict]:
+    """Références cadastrales normalisées (valeurs issues de la base)."""
+    return [{"section": s, "numero": n} for s, n in uf.parcelles]
+
+
 def run_intersections(uf, catalogue, engine=None, schema=SCHEMA) -> dict:
     """Boucle sur toutes les couches du catalogue et assemble le rapport."""
     engine = engine or get_engine()
 
     rapport = {
+        "parcelles": _parcelles_payload(uf),
+        "n_parcelles": uf.n_parcelles,
         "parcelle": "UF",
         "surface_m2": round(uf.surface_sig, 2),
         "surface_indicative": round(uf.surface_cadastrale, 2) if uf.surface_cadastrale else round(uf.surface_sig, 2),

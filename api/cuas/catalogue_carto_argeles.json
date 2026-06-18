@@ -55,20 +55,6 @@
       "tip": "libelle",
       "legend": "info"
     },
-    "infos_lin": {
-      "title": "Informations linéaires",
-      "family": "informations",
-      "geom": "lin",
-      "tip": "libelle",
-      "legend": "info"
-    },
-    "infos_pct": {
-      "title": "Informations ponctuelles",
-      "family": "informations",
-      "geom": "pct",
-      "tip": "libelle",
-      "legend": "info"
-    },
     "sup_assiette_s": {
       "title": "Assiettes surfaciques",
       "family": "servitudes",

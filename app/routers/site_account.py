@@ -99,3 +99,28 @@ def send_password_reset(req: PasswordResetRequest):
         raise HTTPException(status_code=500, detail="Erreur durant l'envoi email")
 
     return {"success": True}
+
+
+@router.get("/account/commune-access")
+async def get_account_commune_access(user_id: str):
+    """
+    Communes portail autorisées pour un utilisateur (garde de routes front).
+    Même logique que services.auth.commune_access (table + metadata legacy).
+    """
+    from services.auth.commune_access import (
+        get_authorized_commune_slugs,
+        get_authorized_insee_codes,
+    )
+
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id requis")
+
+    slugs = get_authorized_commune_slugs(user_id)
+    insee_codes = get_authorized_insee_codes(user_id)
+
+    return {
+        "success": True,
+        "unrestricted": slugs is None,
+        "allowed_commune_slugs": slugs,
+        "allowed_insee_codes": insee_codes,
+    }

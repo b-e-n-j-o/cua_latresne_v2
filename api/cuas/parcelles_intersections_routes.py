@@ -70,7 +70,6 @@ def compute_parcelles_intersections(commune_slug: str, body: IntersectionsReques
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     rapport = run_intersections(uf, catalogue, schema=schema_name)
-    rapport["parcelles"] = refs
     rapport["commune_slug"] = slug
     rapport["computed_at"] = datetime.now(timezone.utc).isoformat()
     rapport["n_couches"] = len(catalogue)

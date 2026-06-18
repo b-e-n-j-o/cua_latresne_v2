@@ -1,0 +1,300 @@
+{
+  "parcelle": "UF",
+  "surface_m2": 4968.03,
+  "surface_indicative": 4970.0,
+  "intersections": {
+    "zonage_plu": {
+      "nom": "Zonage PLU",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 100.0001,
+      "objets": [
+        {
+          "zonage_reglement": "N",
+          "libelle": "N",
+          "libelong": "Secteur à vocation naturelle",
+          "surface_inter_m2": 4968.03,
+          "pct_sig": 100.0001
+        }
+      ],
+      "status": "concernee"
+    },
+    "hauteurs": {
+      "nom": "Hauteurs maximales (PLU)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 100.0001,
+      "objets": [
+        {
+          "legende": "Non règlementé",
+          "hauteur": null,
+          "libelong": "Secteur à vocation naturelle",
+          "surface_inter_m2": 4968.03,
+          "pct_sig": 100.0001
+        }
+      ],
+      "status": "concernee"
+    },
+    "sup_assiette_s": {
+      "nom": "Servitudes d'utilite publique (assiettes)",
+      "type": "servitude",
+      "geom_type": "surfacique",
+      "pct_sig": 1.3971,
+      "objets": [
+        {
+          "nomsuplitt": "SUP T1 des Pyrénées-Orientales",
+          "suptype": "t1",
+          "nomreg": null,
+          "surface_inter_m2": 69.41,
+          "pct_sig": 1.3971
+        }
+      ],
+      "status": "concernee"
+    },
+    "ppr": {
+      "nom": "PPR (Plan de Prevention des Risques)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "pprif": {
+      "nom": "PPRIF (Risque Incendie de Foret)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "aoc": {
+      "nom": "AOC viticoles",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 100.0001,
+      "objets": [
+        {
+          "denom": "Côtes du Roussillon,Grand Roussillon,Languedoc,Muscat de Rivesaltes,Rivesaltes",
+          "crinao": null,
+          "reglementation": "Le terrain est compris dans l'aire de production de l'Appellation d'Origine Contrôlée / Protégée « Côtes du Roussillon, Grand Roussillon, Languedoc, Muscat de Rivesaltes, Rivesaltes ». Cette appellation est protégée au titre du Code rural et de la pêche maritime ; à ce titre, l'organisme de défense et de gestion (ODG) de l'appellation dispose, en application de l'article L.643-4 du Code rural et de la pêche maritime, de la faculté de saisir l'administration de tout projet ou document d'urbanisme portant atteinte à l'aire ou aux conditions de production de l'appellation. La constructibilité du terrain reste déterminée par le zonage du document d'urbanisme en vigueur (cf. article relatif aux dispositions d'urbanisme).",
+          "surface_inter_m2": 4968.03,
+          "pct_sig": 100.0001
+        }
+      ],
+      "status": "concernee"
+    },
+    "prescriptions_surf": {
+      "nom": "Prescriptions surfaciques (PLU)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 7.2773,
+      "objets": [
+        {
+          "libelle": "Emplacement réservé",
+          "typepsc": "05",
+          "reglementation": "L'unité foncière est grevée en tout ou partie par un emplacement réservé inscrit au Plan Local d'Urbanisme (PLU) au profit d'une collectivité ou d'un organisme public.",
+          "surface_inter_m2": 361.54,
+          "pct_sig": 7.2773
+        }
+      ],
+      "status": "concernee"
+    },
+    "prescriptions_lineaires": {
+      "nom": "Prescriptions lineaires (PLU)",
+      "type": "prescription",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "prescriptions_ponctuelles": {
+      "nom": "Prescriptions ponctuelles (PLU)",
+      "type": "prescription",
+      "geom_type": "ponctuel",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "infos_surf": {
+      "nom": "Informations surfaciques",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 100.0001,
+      "objets": [
+        {
+          "libelle": "Périmètre de voisinage d'infrastructures de transport terrestre",
+          "typeinf": "14",
+          "reglementation": "Le terrain est inclus dans un périmètre de voisinage d'infrastructures de transport terrestre, soumettant les constructions futures à des règles spécifiques d'implantation ou d'isolation acoustique.",
+          "surface_inter_m2": 4968.03,
+          "pct_sig": 100.0001
+        }
+      ],
+      "status": "concernee"
+    },
+    "retrait_gonflement_argiles_2026": {
+      "nom": "Retrait-gonflement des argiles (2026)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 100.0001,
+      "objets": [
+        {
+          "niveau": 1,
+          "alea": "1",
+          "reglementation": "Le terrain est situé en zone d'exposition faible au phénomène de retrait-gonflement des argiles, selon le zonage applicable à compter du 1er juillet 2026 (arrêté du 9 janvier 2026). Aucune obligation réglementaire spécifique ne s'applique à ce titre au titre de la loi ELAN (article 68, articles L.132-4 et suivants du Code de la construction et de l'habitation). La vigilance reste néanmoins recommandée, notamment pour les terrains situés en limite de zone. Cartographie et informations : https://www.georisques.gouv.fr/risques/argiles",
+          "surface_inter_m2": 4968.03,
+          "pct_sig": 100.0001
+        }
+      ],
+      "status": "concernee"
+    },
+    "old": {
+      "nom": "Zones de debroussaillement (OLD)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "haies_bocages": {
+      "nom": "Haies et bocages",
+      "type": "information",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "znieffs": {
+      "nom": "ZNIEFF",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "generateurs_sup_lineaires": {
+      "nom": "Servitudes - generateurs lineaires",
+      "type": "servitude",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "prairies_sensibles": {
+      "nom": "Prairies permanentes",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "natura_2000": {
+      "nom": "NATURA 2000",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "reseaux_enedis_lineaires": {
+      "nom": "Réseaux ENEDIS linéaires",
+      "type": "reseaux",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "concernee",
+      "diagnostic_metier": "Analyse raccordement ENEDIS calculée",
+      "analyses": [
+        {
+          "type_code": "reseau-bt",
+          "type_reseau": "Aérien Basse Tension (BT)",
+          "id_cable_plus_proche": "rxxRyO9ps3MpUeVp6Q9_l",
+          "distance_directe_metres": 0.9,
+          "nb_lignes_dans_uf": 0,
+          "lineaire_interieur_metres": 0.0,
+          "parcelles_voisines_fait_obstacle": "BR n°271",
+          "diagnostic_expert_raccordement": "Raccordement indirect contraint - Servitude de passage ou convention de survol obligatoire sur propriété privée (BR n°271)."
+        },
+        {
+          "type_code": "reseau-souterrain-bt",
+          "type_reseau": "Souterrain Basse Tension (BT)",
+          "id_cable_plus_proche": "TUrG_JvedrAkvT9QQUJ5R",
+          "distance_directe_metres": 63.44,
+          "nb_lignes_dans_uf": 0,
+          "lineaire_interieur_metres": 0.0,
+          "parcelles_voisines_fait_obstacle": "BR n°274, BR n°275, BR n°409, BR n°447, BR n°986",
+          "diagnostic_expert_raccordement": "Réseau éloigné (63m) - Extension publique obligatoire (art. L.332-15 Code de l'urbanisme)."
+        }
+      ]
+    },
+    "zaer": {
+      "nom": "ZAER (Zones a equiper pour les energies renouvelables)",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "sup_assiette_l": {
+      "nom": "Servitudes (assiettes lineaires)",
+      "type": "servitude",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "table_absente"
+    },
+    "sup_assiette_p": {
+      "nom": "Servitudes (assiettes ponctuelles)",
+      "type": "servitude",
+      "geom_type": "ponctuel",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "table_absente"
+    },
+    "sup_generateur_s": {
+      "nom": "Servitudes (generateurs surfaciques)",
+      "type": "servitude",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "sup_generateur_l": {
+      "nom": "Servitudes (generateurs lineaires)",
+      "type": "servitude",
+      "geom_type": "lineaire",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "sup_generateur_p": {
+      "nom": "Servitudes (generateurs ponctuels)",
+      "type": "servitude",
+      "geom_type": "ponctuel",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "batiments": {
+      "nom": "Batiments",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "table_absente"
+    },
+    "prairies_et_natura_2000": {
+      "nom": "Réglementation croisée Natura 2000 / Prairies sensibles",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee",
+      "regime_code": "hors_natura_et_prairie",
+      "diagnostic_metier": "RAS : UF hors contraintes Natura 2000 / Prairies",
+      "natura": null,
+      "prairie": null,
+      "has_natura": false,
+      "has_prairie": false
+    }
+  }
+}

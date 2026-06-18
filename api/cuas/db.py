@@ -21,6 +21,7 @@ import functools
 import logging
 from pathlib import Path
 
+from api.cuas.geo_utils import compute_centroid_from_wkt_l93
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from supabase import create_client
@@ -38,6 +39,8 @@ logger = logging.getLogger("cua")
 # CONFIG — constantes schéma + connexion PostGIS
 # ============================================================
 SCHEMA = os.getenv("ARGELES_SCHEMA", "argeles")
+# Table pipelines historisée côté Supabase REST (schéma exposé PostgREST).
+PIPELINES_SCHEMA = os.getenv("PIPELINES_SCHEMA", "public")
 SRID = 2154
 GEOM_COL = "geom_2154"  # convention du schéma argeles (override possible par couche)
 SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "visualisation")
@@ -116,34 +119,62 @@ def persist_cua(
     user_id: str | None = None,
     user_email: str | None = None,
     extra: dict | None = None,
+    pipelines_schema: str | None = None,
+    wkt: str | None = None,
 ) -> dict:
-    """Upload le CUA DOCX puis upsert la ligne dans <schema>.pipelines."""
+    """Upload le CUA DOCX puis upsert la ligne dans <pipelines_schema>.pipelines."""
     sb = get_supabase()
+    pipelines_schema = pipelines_schema or PIPELINES_SCHEMA
 
     remote = f"{slug}/CUA_unite_fonciere.docx"
     cua_url = upload_file(docx_path, remote, content_type=_DOCX_MIME)
     logger.info(f"📎 CUA uploadé : {cua_url}")
 
+    metadata = {
+        "source": "cua_generate_v2",
+        "surface_cadastrale": surface_cad,
+    }
+    if extra:
+        metadata.update(extra)
+
+    commune_slug = (commune or "").strip().lower()
+    centroid = compute_centroid_from_wkt_l93(wkt)
+
+    cerfa_data = None
+    dossier = (extra or {}).get("dossier") if extra else None
+    if dossier or refs:
+        cerfa_data = {
+            "demandeur": (dossier or {}).get("demandeur"),
+            "numero_cu": (dossier or {}).get("numero_cu"),
+            "date_depot": (dossier or {}).get("date_depot"),
+            "parcelles": refs,
+            "superficie": surface_cad,
+            "commune_nom": commune,
+            "commune_insee": code_insee,
+        }
+
     record = {
         "slug": slug,
+        "commune_slug": commune_slug,
         "commune": commune,
         "code_insee": code_insee,
         "status": "success",
         "bucket_path": slug,
         "output_cua": cua_url,
         "parcelles": refs,
-        "surface_cadastrale": surface_cad,
         "user_id": user_id,
         "user_email": user_email,
+        "centroid": centroid,
+        "cerfa_data": cerfa_data,
+        "suivi": 2,
+        "metadata": metadata,
     }
-    if extra:
-        record.update(extra)
 
     try:
-        sb.schema(SCHEMA).table("pipelines").upsert(record).execute()
-        logger.info(f"🗄️  Pipeline {slug} enregistré dans {SCHEMA}.pipelines.")
+        sb.schema(pipelines_schema).table("pipelines").upsert(record).execute()
+        logger.info(f"🗄️  Pipeline {slug} enregistré dans {pipelines_schema}.pipelines.")
     except Exception as e:
-        logger.error(f"💥 Échec insert {SCHEMA}.pipelines : {e}")
+        logger.error(f"💥 Échec insert {pipelines_schema}.pipelines : {e}")
         raise
 
     return {"slug": slug, "cua_url": cua_url}

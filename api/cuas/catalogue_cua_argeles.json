@@ -44,7 +44,7 @@
   "aoc": {
     "nom": "AOC viticoles",
     "type": "information",
-    "keep": ["denom", "crinao"],
+    "keep": ["denom", "crinao", "reglementation"],
     "origine": "inao",
     "article": "5",
     "geom_type": "surfacique"
@@ -52,7 +52,7 @@
   "prescriptions_surf": {
     "nom": "Prescriptions surfaciques (PLU)",
     "type": "prescription",
-    "keep": ["libelle", "typepsc", "txt"],
+    "keep": ["libelle", "typepsc", "reglementation"],
     "origine": "plu",
     "article": "5",
     "geom_type": "surfacique"
@@ -60,7 +60,7 @@
   "prescriptions_lineaires": {
     "nom": "Prescriptions lineaires (PLU)",
     "type": "prescription",
-    "keep": ["libelle", "typepsc", "txt"],
+    "keep": ["libelle", "typepsc", "reglementation"],
     "origine": "plu",
     "article": "5",
     "geom_type": "lineaire"
@@ -68,7 +68,7 @@
   "prescriptions_ponctuelles": {
     "nom": "Prescriptions ponctuelles (PLU)",
     "type": "prescription",
-    "keep": ["libelle", "typepsc", "txt"],
+    "keep": ["libelle", "typepsc", "reglementation"],
     "origine": "plu",
     "article": "5",
     "geom_type": "ponctuel"
@@ -76,31 +76,15 @@
   "infos_surf": {
     "nom": "Informations surfaciques",
     "type": "information",
-    "keep": ["libelle", "typeinf", "txt"],
+    "keep": ["libelle", "typeinf", "reglementation"],
     "origine": "plu",
     "article": "7",
     "geom_type": "surfacique"
   },
-  "infos_lin": {
-    "nom": "Informations lineaires",
-    "type": "information",
-    "keep": ["libelle", "typeinf", "txt"],
-    "origine": "plu",
-    "article": "7",
-    "geom_type": "lineaire"
-  },
-  "infos_pct": {
-    "nom": "Informations ponctuelles",
-    "type": "information",
-    "keep": ["libelle", "typeinf", "txt"],
-    "origine": "plu",
-    "article": "7",
-    "geom_type": "ponctuel"
-  },
   "retrait_gonflement_argiles_2026": {
     "nom": "Retrait-gonflement des argiles (2026)",
     "type": "prescription",
-    "keep": ["niveau", "alea"],
+    "keep": ["niveau", "alea", "reglementation"],
     "origine": "shp",
     "article": "5",
     "geom_type": "surfacique"
@@ -108,7 +92,7 @@
   "old": {
     "nom": "Zones de debroussaillement (OLD)",
     "type": "prescription",
-    "keep": ["zonage", "dat_ap_old"],
+    "keep": ["zonage", "dat_ap_old", "reglementation"],
     "origine": "shp",
     "article": "5",
     "geom_type": "surfacique"
@@ -116,7 +100,7 @@
   "haies_bocages": {
     "nom": "Haies et bocages",
     "type": "information",
-    "keep": ["id"],
+    "keep": ["id", "reglementation"],
     "origine": "wfs",
     "article": "5",
     "geom_type": "lineaire"
@@ -124,7 +108,7 @@
   "znieffs": {
     "nom": "ZNIEFF",
     "type": "information",
-    "keep": ["nom_site", "znieff_type"],
+    "keep": ["nom_site", "znieff_type", "reglementation"],
     "origine": "wfs",
     "article": "5",
     "geom_type": "surfacique"
