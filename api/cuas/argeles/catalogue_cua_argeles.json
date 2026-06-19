@@ -138,7 +138,7 @@
     "geom_type": "lineaire"
   },
   "zaer": {
-    "nom": "ZAER (Zones a equiper pour les energies renouvelables)",
+    "nom": "ZAER (Zones d'Accélération des Energies Renouvelables)",
     "type": "information",
     "keep": ["nom", "filiere", "detail_filiere"],
     "origine": "wfs",

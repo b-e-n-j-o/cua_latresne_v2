@@ -121,6 +121,7 @@ def persist_cua(
     extra: dict | None = None,
     pipelines_schema: str | None = None,
     wkt: str | None = None,
+    carte_context_url: str | None = None,
 ) -> dict:
     """Upload le CUA DOCX puis upsert la ligne dans <pipelines_schema>.pipelines."""
     sb = get_supabase()
@@ -161,6 +162,7 @@ def persist_cua(
         "status": "success",
         "bucket_path": slug,
         "output_cua": cua_url,
+        "carte_2d_url": carte_context_url,
         "parcelles": refs,
         "user_id": user_id,
         "user_email": user_email,
@@ -177,4 +179,4 @@ def persist_cua(
         logger.error(f"💥 Échec insert {pipelines_schema}.pipelines : {e}")
         raise
 
-    return {"slug": slug, "cua_url": cua_url}
+    return {"slug": slug, "cua_url": cua_url, "carte_context_url": carte_context_url}

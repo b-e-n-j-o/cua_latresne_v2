@@ -6,16 +6,24 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
+import os
+import re
+
+import requests
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from api.communes.latresne.parcelles_geojson import _resolve_table_for_commune
 from api.cuas.argeles.carto_context import (
+    CARTE_CONTEXT_FILENAME,
     DEFAULT_CONTEXT_BUFFER_M,
     DEFAULT_DISPLAY_CLIP_M,
     load_carto_catalogue,
     run_carto_context,
+    storage_object_path,
 )
+from api.cuas.argeles.db import SUPABASE_BUCKET
 from api.cuas.argeles.intersections import load_catalogue, run_intersections
 from api.cuas.argeles.uf import build_uf
 
@@ -42,8 +50,8 @@ class IntersectionsRequest(BaseModel):
 
 class CartoContextRequest(BaseModel):
     refs: list[ParcelleRefIn] = Field(..., min_length=1, max_length=20)
-    context_buffer_m: float = Field(default=DEFAULT_CONTEXT_BUFFER_M, ge=0, le=500)
-    display_clip_m: float = Field(default=DEFAULT_DISPLAY_CLIP_M, ge=50, le=2000)
+    context_buffer_m: float = Field(default=DEFAULT_CONTEXT_BUFFER_M, ge=0, le=200)
+    display_clip_m: float = Field(default=DEFAULT_DISPLAY_CLIP_M, ge=50, le=200)
 
 
 @router.post("/{commune_slug}/parcelles/intersections")
@@ -115,3 +123,47 @@ def get_parcelles_carto_context(commune_slug: str, body: CartoContextRequest):
     payload["commune_slug"] = slug
     payload["parcelles"] = refs
     return payload
+
+
+_PIPELINE_SLUG_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
+
+
+@router.get("/{commune_slug}/carto/{pipeline_slug}")
+def serve_carto_context_html(commune_slug: str, pipeline_slug: str):
+    """
+    Proxy public : sert la carte HTML gelée depuis Supabase Storage
+    sous une URL propre (sans domaine supabase.co dans le CUA).
+    """
+    slug = (commune_slug or "").strip().lower()
+    if slug not in COMMUNE_CUA_CATALOGUE:
+        raise HTTPException(status_code=404, detail="Commune introuvable")
+
+    pid = (pipeline_slug or "").strip()
+    if not _PIPELINE_SLUG_RE.match(pid):
+        raise HTTPException(status_code=404, detail="Carte introuvable")
+
+    supabase_url = (os.getenv("SUPABASE_URL") or "").strip().rstrip("/")
+    if not supabase_url:
+        raise HTTPException(status_code=502, detail="Stockage indisponible")
+
+    remote = storage_object_path(pid, CARTE_CONTEXT_FILENAME)
+    src = f"{supabase_url}/storage/v1/object/public/{SUPABASE_BUCKET}/{remote}"
+
+    try:
+        r = requests.get(src, timeout=90)
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=502, detail=f"Stockage indisponible : {exc}") from exc
+
+    if r.status_code == 404:
+        raise HTTPException(status_code=404, detail="Carte introuvable")
+    if r.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"Erreur stockage ({r.status_code})")
+
+    return Response(
+        content=r.content,
+        media_type="text/html; charset=utf-8",
+        headers={
+            "Cache-Control": "public, max-age=300",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )

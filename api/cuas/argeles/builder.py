@@ -54,6 +54,14 @@ class CommuneConfig:
                          "d'inondation (PGRI) en date du 11/07/2019")
     geoportail_url: str = "https://data.geopf.fr/annexes/gpu/documents/DU_66008/dd4c8deab39aa04c8938e88dd2337dba/66008_reglement_20251030.pdf"
     hauteurs_url: str = "https://data.geopf.fr/annexes/gpu/documents/DU_66008/dd4c8deab39aa04c8938e88dd2337dba/66008_reglement_graphique_4_20251030.pdf"
+    ppr_url: str = (
+        "https://www.pyrenees-orientales.gouv.fr/contenu/telechargement/46345/357350/file/"
+        "PM1_ArgelesSurMer_PPRn_20170529_reglement.pdf"
+    )
+    pprif_url: str = (
+        "https://piece-jointe-carto.developpement-durable.gouv.fr/DEPT066A/DOC_PPRN/"
+        "PM1_ArgelesSurMer_PPRif_20060627_reglement.pdf"
+    )
     taxe_communale: str = "5 %"
     taxe_departementale: str = "2 %"
     rap: str = "0,40 %"
@@ -304,9 +312,13 @@ def _bloc_couche(doc, layer, prefix_nom=True, objets=None):
         return
     if prefix_nom:
         add_para(doc, layer.get("nom") or "", bold=True, space_after=2)
+    seen_regl: set[str] = set()
     for obj in rows:
         regl = _reglementation_text(obj)
         if regl:
+            if regl in seen_regl:
+                continue
+            seen_regl.add(regl)
             add_markdown_block(doc, regl, size=9)
             continue
         txt = texte_objet(obj, skip_reglementation=True)
@@ -515,6 +527,23 @@ def section_identite(doc, ctx):
     ])
 
 
+def section_carte_identite(doc, ctx):
+    """Encart carte d'identité d'urbanisme (lien vers HTML gelé)."""
+    url = ctx.dossier.get("carte_context_url") or ctx.rapport.get("carte_context_url")
+    if not url:
+        return
+    add_title_bar(doc, "Carte d'identité d'urbanisme de l'unité foncière")
+    add_para(
+        doc,
+        "Les informations géographiques et réglementaires applicables à l'unité foncière "
+        "objet du présent certificat sont consultables sur la carte d'identité d'urbanisme "
+        "associée, accessible à l'adresse suivante :",
+        size=9,
+    )
+    add_para_with_link(doc, "", url, url, size=9)
+    doc.add_paragraph()
+
+
 def section_vu(doc, ctx):
     c = ctx.config
     add_title_bar(doc, "Demande en vue de connaître les dispositions d'urbanisme applicables au terrain")
@@ -577,9 +606,30 @@ def _write_ac1_monuments(doc, servitude: dict) -> None:
     add_para(doc, line, bold=True, size=9, space_after=2)
 
 
+def _dedupe_servitudes(servitudes: list[dict]) -> list[dict]:
+    """Une seule entrée par suptype / variante i4 (plusieurs assiettes, même réglementation)."""
+    seen: set[tuple] = set()
+    out: list[dict] = []
+    for s in servitudes:
+        suptype = (s.get("suptype") or "").strip().lower()
+        if s.get("monuments"):
+            key = (suptype, "ac1")
+        elif s.get("i4"):
+            key = (suptype, "i4", (s.get("i4") or {}).get("id"))
+        elif s.get("i4_non_resolu"):
+            key = (suptype, "generic")
+        else:
+            key = (suptype,)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(s)
+    return out
+
+
 def section_sup(doc, ctx):
     serv = ctx.rapport.get("intersections", {}).get("servitudes_reglementees", {})
-    servitudes = serv.get("servitudes") or []
+    servitudes = _dedupe_servitudes(serv.get("servitudes") or [])
     if not servitudes:
         return
     add_title_bar(doc, "Servitudes d'utilité publique")
@@ -611,7 +661,7 @@ def section_sup(doc, ctx):
     doc.add_paragraph()
 
 
-def _write_ppr_pprif_details(doc, module: dict) -> bool:
+def _write_ppr_pprif_details(doc, module: dict, config: CommuneConfig) -> bool:
     """PPR / PPRIF : attributs métier + laius markdown (notes complémentaires pour le PPR)."""
     ppr_data = module.get("ppr") or {}
     pprif_data = module.get("pprif") or {}
@@ -622,6 +672,13 @@ def _write_ppr_pprif_details(doc, module: dict) -> bool:
 
     if ppr_blocs:
         add_para(doc, ppr_data.get("nom") or "PPR (Plan de Prévention des Risques)", bold=True, space_after=2)
+        add_para_with_link(
+            doc,
+            "Règlement PPRN consultable sur : ",
+            "règlement PPRN (PDF)",
+            config.ppr_url,
+            space_after=6,
+        )
         for bloc in ppr_blocs:
             rows = []
             if bloc.get("type_risque"):
@@ -649,6 +706,13 @@ def _write_ppr_pprif_details(doc, module: dict) -> bool:
 
     if pprif_blocs:
         add_para(doc, pprif_data.get("nom") or "PPRIF (Risque Incendie de Forêt)", bold=True, space_after=2)
+        add_para_with_link(
+            doc,
+            "Règlement PPRIF consultable sur : ",
+            "règlement PPRIF (PDF)",
+            config.pprif_url,
+            space_after=6,
+        )
         for bloc in pprif_blocs:
             rows = []
             if bloc.get("risque"):
@@ -675,7 +739,7 @@ def section_risques(doc, ctx):
         return
     add_title_bar(doc, "Risques naturels et technologiques")
     if has_pp:
-        _write_ppr_pprif_details(doc, pp)
+        _write_ppr_pprif_details(doc, pp, ctx.config)
     for key, layer in layers:
         _bloc_couche(doc, layer)
     doc.add_paragraph()
@@ -895,6 +959,7 @@ def section_informations(doc, ctx):
 # Ordre du document
 SECTIONS = [
     section_identite,
+    section_carte_identite,
     section_vu,
     section_dpu,
     section_dispositions,

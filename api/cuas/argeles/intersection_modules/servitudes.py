@@ -291,18 +291,15 @@ def _build_reglementation_text(base_reg: dict, i4_row: Optional[dict]) -> str:
 
 
 def _servitude_dedup_key(entry: dict) -> tuple:
-    """Clé de dédup : une entrée i4 enrichie par variante ; une générique max par suptype."""
+    """Clé de dédup : une entrée par suptype (réglementation fixe), variante i4, ou monument AC1."""
     suptype = entry["suptype"].lower()
+    if _is_ac1_suptype(suptype):
+        return (suptype, "ac1", entry.get("entity_id"))
     if entry.get("i4"):
         return (suptype, "i4", entry["i4"].get("id"))
     if entry.get("i4_non_resolu"):
         return (suptype, "generic")
-    return (
-        suptype,
-        entry.get("source_table"),
-        entry.get("entity_id"),
-        entry.get("reglementation"),
-    )
+    return (suptype,)
 
 
 def _filter_servitudes_redundant_generic(servitudes: list[dict]) -> list[dict]:

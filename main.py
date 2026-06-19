@@ -170,7 +170,15 @@ async def _notify_slack_render_alert(message: str) -> None:
 
 @app.middleware("http")
 async def block_scanners(request: Request, call_next):
-    """Bloque les UA type scanner sauf si x-internal-token correspond au secret env."""
+    """
+    Bloque les UA type scanner (curl, python-requests, wget, …) lorsque INTERNAL_TOKEN
+    est défini — les navigateurs (Chrome, Safari, Firefox…) ne sont jamais bloqués.
+
+    Tests automatisés / agents : passer le secret en header
+      curl -H "x-internal-token: $INTERNAL_TOKEN" https://api.kerelia.fr/…
+
+    Ne pas désactiver ce garde-fou ni whitelister un UA « Cursor » : le token suffit.
+    """
     if not _INTERNAL_AGENT_TOKEN:
         return await call_next(request)
     ua = request.headers.get("user-agent") or ""

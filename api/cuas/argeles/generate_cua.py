@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-generate_cua.py — Pipeline métier CUA Argelès (intersections + builder DOCX).
+generate_cua.py — Pipeline métier CUA Argelès (intersections + carto HTML + builder DOCX).
 
 Entrée : liste de références parcellaires (+ dossier optionnel).
-Sortie : rapport JSON, DOCX local temporaire, upload Supabase + enregistrement pipeline.
+Sortie : rapport JSON, carte HTML gelée, DOCX, upload Supabase + enregistrement pipeline.
 """
 
 from __future__ import annotations
@@ -20,7 +20,17 @@ from typing import Any, Optional
 
 from api.communes.latresne.parcelles_geojson import _resolve_table_for_commune
 from api.cuas.argeles.builder import CommuneConfig, build_cua
-from api.cuas.argeles.db import SUPABASE_BUCKET, get_supabase, logger, persist_cua
+from api.cuas.argeles.carto_context import (
+    CARTE_CONTEXT_FILENAME,
+    DEFAULT_CONTEXT_BUFFER_M,
+    DEFAULT_DISPLAY_CLIP_M,
+    friendly_carto_url,
+    load_carto_catalogue,
+    render_carto_context_html,
+    run_carto_context,
+    storage_object_path,
+)
+from api.cuas.argeles.db import SUPABASE_BUCKET, get_supabase, logger, persist_cua, upload_file
 from api.cuas.argeles.intersections import load_catalogue, run_intersections
 from api.cuas.argeles.uf import build_uf
 from services.history.project_directory import ensure_project_directory, register_project_file
@@ -38,6 +48,10 @@ DEFAULT_DOSSIER: dict[str, Any] = {
 
 COMMUNE_CUA_CATALOGUE: dict[str, Path] = {
     "argeles": _CUAS_DIR / "catalogue_cua_argeles.json",
+}
+
+COMMUNE_CARTO_CATALOGUE: dict[str, Path] = {
+    "argeles": _CUAS_DIR / "catalogue_carto_argeles.json",
 }
 
 COMMUNE_BUILDER_CONFIG: dict[str, CommuneConfig] = {
@@ -113,12 +127,54 @@ def generate_cua_for_parcelles(
         1 for layer in rapport.get("intersections", {}).values() if layer.get("objets")
     )
 
+    carto_path = COMMUNE_CARTO_CATALOGUE.get(slug)
+    carto_catalogue = (
+        load_carto_catalogue(carto_path) if carto_path and carto_path.exists() else None
+    )
+    carto_payload = run_carto_context(
+        uf,
+        catalogue,
+        carto_catalogue,
+        context_buffer_m=DEFAULT_CONTEXT_BUFFER_M,
+        display_clip_m=DEFAULT_DISPLAY_CLIP_M,
+        schema=schema_name,
+    )
+    carto_payload["commune_slug"] = slug
+    carto_payload["parcelles"] = normalized_refs
+
     dossier_merged = _merge_dossier(dossier)
     builder_config = COMMUNE_BUILDER_CONFIG.get(slug, CommuneConfig())
     pipeline_slug = _generate_slug()
 
+    carte_context_url: str | None = None
+    carte_storage_url: str | None = None
+
     with tempfile.TemporaryDirectory(prefix="cua_") as tmp:
-        docx_path = Path(tmp) / "CUA_unite_fonciere.docx"
+        tmp_path = Path(tmp)
+        numero_cu = dossier_merged.get("numero_cu")
+        html_carto = render_carto_context_html(
+            carto_payload,
+            commune_nom=meta.get("nom", slug),
+            numero_cu=numero_cu,
+        )
+        html_path = tmp_path / CARTE_CONTEXT_FILENAME
+        html_path.write_text(html_carto, encoding="utf-8")
+        logger.info(f"Carte contexte HTML ({html_path.stat().st_size} octets)")
+
+        if persist:
+            remote_html = storage_object_path(pipeline_slug, CARTE_CONTEXT_FILENAME)
+            carte_storage_url = upload_file(
+                str(html_path),
+                remote_html,
+                content_type="text/html; charset=utf-8",
+            )
+            carte_context_url = friendly_carto_url(slug, pipeline_slug)
+            logger.info(f"Carte contexte : {carte_context_url}")
+
+        dossier_merged["carte_context_url"] = carte_context_url
+        rapport["carte_context_url"] = carte_context_url
+
+        docx_path = tmp_path / "CUA_unite_fonciere.docx"
         build_cua(dossier_merged, rapport, str(docx_path), config=builder_config)
         logger.info(f"DOCX CUA généré ({docx_path.stat().st_size} octets)")
 
@@ -136,6 +192,8 @@ def generate_cua_for_parcelles(
             "computed_at": rapport["computed_at"],
             "dossier": dossier_merged,
             "rapport": rapport,
+            "carte_context_url": carte_context_url,
+            "carto_context": carto_payload,
         }
 
         if persist:
@@ -150,9 +208,11 @@ def generate_cua_for_parcelles(
                 user_id=user_id,
                 user_email=user_email,
                 wkt=uf.wkt,
+                carte_context_url=carte_context_url,
                 extra={
                     "n_couches_concernees": rapport["n_couches_concernees"],
                     "dossier": dossier_merged,
+                    "carte_context_storage_url": carte_storage_url,
                 },
             )
             result["output_cua"] = persisted["cua_url"]
@@ -180,6 +240,20 @@ def generate_cua_for_parcelles(
                     uploaded_by=user_id,
                     source="cua_generate_v2",
                 )
+                if carte_context_url and carte_storage_url:
+                    register_project_file(
+                        sb,
+                        slug=pipeline_slug,
+                        file_kind="carte_context_html",
+                        filename=CARTE_CONTEXT_FILENAME,
+                        storage_path=storage_object_path(pipeline_slug, CARTE_CONTEXT_FILENAME),
+                        public_url=carte_context_url,
+                        storage_bucket=SUPABASE_BUCKET,
+                        mime_type="text/html; charset=utf-8",
+                        size_bytes=html_path.stat().st_size,
+                        uploaded_by=user_id,
+                        source="cua_generate_v2",
+                    )
             except Exception as exc:
                 logger.warning(f"ProjectFile non enregistré pour {pipeline_slug} : {exc}")
 

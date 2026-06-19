@@ -3,7 +3,7 @@
 carto_context.py — GeoJSON zone d'étude (UF + buffer) pour affichage carto isolé.
 
 Sélection : entités intersectant le buffer contexte (context_buffer_m, défaut 200 m).
-Affichage  : géométries découpées au display_clip_m (défaut 1000 m) autour de l'UF.
+Affichage  : géométries découpées au display_clip_m (défaut 200 m) autour de l'UF.
 Métriques  : toujours calculées sur l'intersection réelle avec la parcelle / UF.
 """
 
@@ -27,9 +27,9 @@ from api.cuas.argeles.intersections import (
 from api.cuas.argeles.uf import UniteFonciere, build_uf
 
 DEFAULT_CONTEXT_BUFFER_M = 200.0
-MAX_CONTEXT_BUFFER_M = 500.0
-DEFAULT_DISPLAY_CLIP_M = 1000.0
-MAX_DISPLAY_CLIP_M = 2000.0
+MAX_CONTEXT_BUFFER_M = 200.0
+DEFAULT_DISPLAY_CLIP_M = 200.0
+MAX_DISPLAY_CLIP_M = 200.0
 
 
 def _parse_geojson(raw: Any) -> dict | None:

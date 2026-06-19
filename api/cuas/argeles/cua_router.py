@@ -51,6 +51,7 @@ class GenerateCuaResponse(BaseModel):
     n_couches_concernees: int
     output_cua: Optional[str] = None
     cua_viewer_url: Optional[str] = None
+    carte_context_url: Optional[str] = None
     bucket_path: Optional[str] = None
     computed_at: str
 
@@ -60,7 +61,7 @@ async def generate_cua(commune_slug: str, body: GenerateCuaRequest):
     """
     Génère un certificat d'urbanisme pour une parcelle ou une UF contiguë.
 
-    Pipeline : build_uf → intersections catalogue → builder DOCX → upload Supabase.
+    Pipeline : build_uf → intersections → carto contexte HTML → builder DOCX → upload Supabase.
     """
     slug = (commune_slug or "").strip().lower()
     if slug not in COMMUNE_CUA_CATALOGUE:
@@ -104,6 +105,7 @@ async def generate_cua(commune_slug: str, body: GenerateCuaRequest):
         n_couches_concernees=result.get("n_couches_concernees", 0),
         output_cua=result.get("output_cua"),
         cua_viewer_url=result.get("cua_viewer_url"),
+        carte_context_url=result.get("carte_context_url"),
         bucket_path=result.get("bucket_path"),
         computed_at=result["computed_at"],
     )
