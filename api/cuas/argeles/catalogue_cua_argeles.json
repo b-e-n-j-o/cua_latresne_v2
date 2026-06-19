@@ -28,7 +28,7 @@
   "ppr": {
     "nom": "PPR (Plan de Prevention des Risques)",
     "type": "prescription",
-    "keep": ["risque", "degre", "label", "document"],
+    "keep": ["risque", "degre", "label"],
     "origine": "georisques",
     "article": "5",
     "geom_type": "surfacique"
@@ -36,7 +36,7 @@
   "pprif": {
     "nom": "PPRIF (Risque Incendie de Foret)",
     "type": "prescription",
-    "keep": ["risque", "degre", "label", "document"],
+    "keep": ["risque", "degre", "label"],
     "origine": "georisques",
     "article": "5",
     "geom_type": "surfacique"

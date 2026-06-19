@@ -110,6 +110,7 @@ async def get_account_commune_access(user_id: str):
     from services.auth.commune_access import (
         get_authorized_commune_slugs,
         get_authorized_insee_codes,
+        is_superadmin,
     )
 
     if not user_id:
@@ -121,6 +122,7 @@ async def get_account_commune_access(user_id: str):
     return {
         "success": True,
         "unrestricted": slugs is None,
+        "is_superadmin": is_superadmin(user_id),
         "allowed_commune_slugs": slugs,
         "allowed_insee_codes": insee_codes,
     }

@@ -172,6 +172,26 @@ def assert_authorized_for_insee(user_id: Optional[str], commune_insee: str) -> N
         )
 
 
+def is_superadmin(user_id: str) -> bool:
+    """True si l'utilisateur a le rôle superadmin dans user_commune_access."""
+    if not user_id:
+        return False
+    rows = _fetch_user_commune_access_rows(user_id)
+    if rows is None:
+        return False
+    return any((r.get("role") or "").lower() == "superadmin" for r in rows)
+
+
+def assert_superadmin(user_id: Optional[str]) -> None:
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentification requise")
+    if not is_superadmin(user_id):
+        raise HTTPException(
+            status_code=403,
+            detail="Accès réservé aux superadministrateurs Kerelia.",
+        )
+
+
 def assert_authorized_for_commune_slug(user_id: Optional[str], commune_slug: str) -> None:
     if not user_id:
         return

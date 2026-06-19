@@ -2,83 +2,11 @@
   "commune_slug": "argeles",
   "schema": "argeles",
   "label": "Argelès-sur-Mer",
-  "source_order": ["plu", "zonage_plu", "ppr", "pprif", "servitudes"],
+  "source_order": ["zonage_plu", "ppr", "pprif", "servitudes"],
   "sources": [
     {
-      "source": "plu",
-      "label": "PLU",
-      "table": "plu_reglement",
-      "pk": "code_zone",
-      "list_primary": "code_zone",
-      "list_secondary": "nom_zone",
-      "search_cols": ["code_zone", "nom_zone", "resume_zone", "reglementation"],
-      "columns": [
-        { "name": "code_zone", "label": "Code zone", "kind": "text", "editable": false, "creatable": true, "pk": true },
-        { "name": "nom_zone", "label": "Nom de la zone", "kind": "text", "editable": false, "creatable": false },
-        { "name": "resume_zone", "label": "Résumé de la zone", "kind": "longtext" },
-        { "name": "reglementation", "label": "Règlement", "kind": "longtext" }
-      ]
-    },
-    {
-      "source": "ppr",
-      "label": "PPR",
-      "table": "reglements_ppr",
-      "pk": "id",
-      "list_primary": "zone_code",
-      "list_secondary": "titre_zone",
-      "search_cols": ["zone_code", "titre_zone", "type_piece", "chapitre", "reglementation"],
-      "columns": [
-        { "name": "id", "label": "ID", "kind": "int", "editable": false, "creatable": false, "pk": true },
-        { "name": "zone_code", "label": "Code zone", "kind": "text" },
-        { "name": "type_piece", "label": "Type de pièce", "kind": "text" },
-        { "name": "chapitre", "label": "Chapitre", "kind": "text" },
-        { "name": "titre_zone", "label": "Titre de la zone", "kind": "text" },
-        { "name": "reglementation", "label": "Règlement", "kind": "longtext" },
-        { "name": "source_stem", "label": "Source (stem)", "kind": "text" },
-        { "name": "source_bucket", "label": "Bucket", "kind": "text" },
-        { "name": "created_at", "label": "Créé le", "kind": "text", "editable": false, "creatable": false },
-        { "name": "updated_at", "label": "Modifié le", "kind": "text", "editable": false, "creatable": false }
-      ]
-    },
-    {
-      "source": "pprif",
-      "label": "PPRIF",
-      "table": "reglements_pprif",
-      "pk": "id",
-      "list_primary": "zone_code",
-      "list_secondary": "titre_zone",
-      "search_cols": ["zone_code", "titre_zone", "type_piece", "chapitre", "reglementation"],
-      "columns": [
-        { "name": "id", "label": "ID", "kind": "int", "editable": false, "creatable": false, "pk": true },
-        { "name": "zone_code", "label": "Code zone", "kind": "text" },
-        { "name": "type_piece", "label": "Type de pièce", "kind": "text" },
-        { "name": "chapitre", "label": "Chapitre", "kind": "text" },
-        { "name": "titre_zone", "label": "Titre de la zone", "kind": "text" },
-        { "name": "reglementation", "label": "Règlement", "kind": "longtext" },
-        { "name": "source_stem", "label": "Source (stem)", "kind": "text" },
-        { "name": "source_bucket", "label": "Bucket", "kind": "text" },
-        { "name": "created_at", "label": "Créé le", "kind": "text", "editable": false, "creatable": false },
-        { "name": "updated_at", "label": "Modifié le", "kind": "text", "editable": false, "creatable": false }
-      ]
-    },
-    {
-      "source": "servitudes",
-      "label": "Servitudes (SUP)",
-      "table": "servitudes_reglements",
-      "pk": "suptype",
-      "list_primary": "suptype",
-      "list_secondary": "libelle",
-      "search_cols": ["suptype", "libelle", "reglementation", "base_legale"],
-      "columns": [
-        { "name": "suptype", "label": "Type SUP", "kind": "text", "editable": false, "pk": true },
-        { "name": "libelle", "label": "Libellé", "kind": "text" },
-        { "name": "reglementation", "label": "Règlement", "kind": "longtext" },
-        { "name": "url_fiche_gpu", "label": "URL fiche GPU", "kind": "text" }
-      ]
-    },
-    {
       "source": "zonage_plu",
-      "label": "Résumé zonages PLU",
+      "label": "Laius PLU",
       "table": "zonage_plu",
       "pk": "libelle",
       "list_primary": "libelle",
@@ -92,6 +20,47 @@
         { "name": "libelong_agg", "label": "Libellés longs", "kind": "text", "editable": false, "creatable": false },
         { "name": "nb_entites", "label": "Nombre d'entités", "kind": "int", "editable": false, "creatable": false },
         { "name": "reglementation", "label": "Règlement", "kind": "longtext", "creatable": false }
+      ]
+    },
+    {
+      "source": "ppr",
+      "label": "Laius PPR",
+      "table": "laius_ppr",
+      "pk": "code_degre",
+      "list_primary": "code_degre",
+      "list_secondary": null,
+      "search_cols": ["code_degre", "reglementation"],
+      "columns": [
+        { "name": "code_degre", "label": "Code degré", "kind": "text", "editable": false, "creatable": true, "pk": true },
+        { "name": "reglementation", "label": "Règlement", "kind": "longtext" }
+      ]
+    },
+    {
+      "source": "pprif",
+      "label": "Laius PPRIF",
+      "table": "laius_pprif",
+      "pk": "label",
+      "list_primary": "label",
+      "list_secondary": null,
+      "search_cols": ["label", "reglementation"],
+      "columns": [
+        { "name": "label", "label": "Libellé", "kind": "text", "editable": false, "creatable": true, "pk": true },
+        { "name": "reglementation", "label": "Règlement", "kind": "longtext" }
+      ]
+    },
+    {
+      "source": "servitudes",
+      "label": "Laius Servitudes",
+      "table": "servitudes_reglements",
+      "pk": "suptype",
+      "list_primary": "suptype",
+      "list_secondary": "libelle",
+      "search_cols": ["suptype", "libelle", "reglementation", "base_legale"],
+      "columns": [
+        { "name": "suptype", "label": "Type SUP", "kind": "text", "editable": false, "pk": true },
+        { "name": "libelle", "label": "Libellé", "kind": "text" },
+        { "name": "reglementation", "label": "Règlement", "kind": "longtext" },
+        { "name": "url_fiche_gpu", "label": "URL fiche GPU", "kind": "text" }
       ]
     }
   ]

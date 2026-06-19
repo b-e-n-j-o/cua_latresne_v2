@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-Module métier dédié : analyse experte raccordement ENEDIS (linéaires BT).
+Module métier dédié : proximité des réseaux ENEDIS BT (linéaires).
 
 Entrée : géométrie UF (WKT, SRID projet).
-Sortie : diagnostic de raccordement par type de réseau BT.
+Sortie : distance au câble BT le plus proche (souterrain / aérien) et
+indications SIG complémentaires (buffer 20 m, parcelles voisines sur le
+trajet direct). Ne remplace pas une étude ENEDIS ni un recoupement voirie.
 """
 
 from __future__ import annotations
@@ -59,12 +61,12 @@ def compute_enedis_raccordement(
     parcelles_table: str = "parcelles",
     geom_col: str = GEOM_COL,
     zone_rue_buffer_m: float = 20.0,
-    seuil_regle_30m: float = 30.0,
-    seuil_lineaire_rue_m: float = 15.0,
+    seuil_proximite_m: float = 30.0,
+    seuil_lineaire_buffer_m: float = 15.0,
     seuil_voisin_inter_m: float = 0.2,
 ) -> dict:
     """
-    Analyse de raccordement ENEDIS BT sur UF.
+    Indique la distance aux réseaux BT ENEDIS les plus proches de l'UF.
     """
     engine = engine or get_engine()
 
@@ -156,22 +158,43 @@ def compute_enedis_raccordement(
             END AS type_reseau,
             sp.source_id AS id_cable_plus_proche,
             ROUND(sp.dist_brute::numeric, 2) AS distance_directe_metres,
+            ROUND(COALESCE(sp.longueur_dans_zone_rue, 0)::numeric, 2) AS lineaire_buffer_proximite_metres,
             COALESCE(gi.nb_geometries, 0) AS nb_lignes_dans_uf,
             ROUND(COALESCE(gi.total_length, 0)::numeric, 2) AS lineaire_interieur_metres,
             COALESCE(
                 db.liste_voisins,
-                'Aucun (Accès direct via domaine public)'
-            ) AS parcelles_voisines_fait_obstacle,
+                'Aucune parcelle voisine détectée sur le trajet direct.'
+            ) AS parcelles_voisines_sur_trajet,
             CASE
-                WHEN sp.dist_brute > :seuil_regle_30m
-                    THEN 'Réseau éloigné (' || ROUND(sp.dist_brute::numeric, 0) || 'm) - Extension publique obligatoire (art. L.332-15 Code de l''urbanisme).'
+                WHEN sp.dist_brute > :seuil_proximite_m
+                    THEN 'Câble BT le plus proche à environ '
+                        || ROUND(sp.dist_brute::numeric, 0)
+                        || ' m du terrain (au-delà de '
+                        || ROUND(CAST(:seuil_proximite_m AS numeric), 0)
+                        || ' m). Proximité à confirmer sur le terrain et auprès d''ENEDIS.'
                 WHEN COALESCE(db.nb_voisins_traverses, 0) > 0
-                    THEN 'Raccordement indirect contraint - Servitude de passage ou convention de survol obligatoire sur propriété privée (' || db.liste_voisins || ').'
-                WHEN sp.longueur_dans_zone_rue >= :seuil_lineaire_rue_m
-                    THEN 'Au droit de la parcelle - Le réseau longe le terrain sur le domaine public (raccordement simple).'
-                WHEN sp.longueur_dans_zone_rue < :seuil_lineaire_rue_m
-                    THEN 'Au droit partiel - Le réseau frôle le terrain, vérifier l''emplacement de l''accès au domaine public.'
-                ELSE 'À analyser manuellement.'
+                    THEN 'Câble BT le plus proche à environ '
+                        || ROUND(sp.dist_brute::numeric, 0)
+                        || ' m — le trajet direct vers le câble croise une ou plusieurs parcelle(s) voisine(s) ('
+                        || db.liste_voisins
+                        || ') → servitude ou cheminement à étudier.'
+                WHEN sp.longueur_dans_zone_rue >= :seuil_lineaire_buffer_m
+                    THEN 'Câble BT le plus proche à environ '
+                        || ROUND(sp.dist_brute::numeric, 0)
+                        || ' m — environ '
+                        || ROUND(sp.longueur_dans_zone_rue::numeric, 0)
+                        || ' m de linéaire détectés dans un rayon de '
+                        || ROUND(CAST(:zone_rue_buffer_m AS numeric), 0)
+                        || ' m autour du terrain.'
+                WHEN sp.longueur_dans_zone_rue > 0
+                    THEN 'Câble BT le plus proche à environ '
+                        || ROUND(sp.dist_brute::numeric, 0)
+                        || ' m — faible linéaire dans le rayon de proximité ('
+                        || ROUND(sp.longueur_dans_zone_rue::numeric, 0)
+                        || ' m).'
+                ELSE 'Câble BT le plus proche à environ '
+                    || ROUND(sp.dist_brute::numeric, 0)
+                    || ' m du terrain — situation à confirmer sur le terrain et auprès d''ENEDIS.'
             END AS diagnostic_expert_raccordement
         FROM shortest_paths sp
         LEFT JOIN global_intersections gi ON gi.type = sp.type
@@ -186,8 +209,8 @@ def compute_enedis_raccordement(
             {
                 "wkt": uf_wkt,
                 "zone_rue_buffer_m": float(zone_rue_buffer_m),
-                "seuil_regle_30m": float(seuil_regle_30m),
-                "seuil_lineaire_rue_m": float(seuil_lineaire_rue_m),
+                "seuil_proximite_m": float(seuil_proximite_m),
+                "seuil_lineaire_buffer_m": float(seuil_lineaire_buffer_m),
                 "seuil_voisin_inter_m": float(seuil_voisin_inter_m),
             },
         ).mappings().all()
@@ -198,9 +221,12 @@ def compute_enedis_raccordement(
             "type_reseau": r["type_reseau"],
             "id_cable_plus_proche": r["id_cable_plus_proche"],
             "distance_directe_metres": float(r["distance_directe_metres"]),
+            "lineaire_buffer_proximite_metres": float(r["lineaire_buffer_proximite_metres"]),
             "nb_lignes_dans_uf": int(r["nb_lignes_dans_uf"]),
             "lineaire_interieur_metres": float(r["lineaire_interieur_metres"]),
-            "parcelles_voisines_fait_obstacle": r["parcelles_voisines_fait_obstacle"],
+            "parcelles_voisines_sur_trajet": r["parcelles_voisines_sur_trajet"],
+            # Alias legacy pour rapports / intégrations existantes
+            "parcelles_voisines_fait_obstacle": r["parcelles_voisines_sur_trajet"],
             "diagnostic_expert_raccordement": r["diagnostic_expert_raccordement"],
         }
         for r in rows
@@ -209,12 +235,12 @@ def compute_enedis_raccordement(
     if not analyses:
         return {
             "status": "non_concernee",
-            "diagnostic_metier": "RAS : aucun réseau BT ENEDIS exploitable trouvé à proximité",
+            "diagnostic_metier": "RAS : aucun réseau BT ENEDIS recensé à proximité immédiate du terrain",
             "analyses": [],
         }
 
     return {
         "status": "concernee",
-        "diagnostic_metier": "Analyse raccordement ENEDIS calculée",
+        "diagnostic_metier": "Proximité des réseaux BT ENEDIS (indication SIG, hors étude de raccordement)",
         "analyses": analyses,
     }

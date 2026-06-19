@@ -30,9 +30,35 @@ from pydantic import BaseModel, Field
 Kind = Literal["text", "longtext", "bool", "date", "int"]
 
 _CATALOG_DIR = Path(__file__).resolve().parent / "catalogues"
+_ADMIN_CATALOG_DIR = _CATALOG_DIR / "admin"
 _CATALOG_FILES: dict[str, Path] = {
     "argeles": _CATALOG_DIR / "argeles.json",
 }
+
+
+def _is_catalog_json_file(path: Path) -> bool:
+    """Ignore fichiers cachés / AppleDouble (._*) sur volumes macOS."""
+    name = path.name
+    if not name.endswith(".json") or name.startswith(".") or name.startswith("._"):
+        return False
+    return True
+
+
+def _discover_admin_catalog_files() -> dict[str, Path]:
+    files: dict[str, Path] = {}
+    if not _ADMIN_CATALOG_DIR.is_dir():
+        return files
+    for path in sorted(_ADMIN_CATALOG_DIR.glob("*.json")):
+        if not _is_catalog_json_file(path):
+            continue
+        slug = path.stem.strip().lower()
+        if not slug or not re.fullmatch(r"[a-z][a-z0-9_-]*", slug):
+            continue
+        files[slug] = path
+    return files
+
+
+_ADMIN_CATALOG_FILES: dict[str, Path] = _discover_admin_catalog_files()
 
 
 class Col(BaseModel):
@@ -64,6 +90,8 @@ class CommuneCatalog(BaseModel):
     label: str
     source_order: list[str] = Field(default_factory=list)
     sources: list[Source]
+    enabled: bool = True
+    disabled_message: Optional[str] = None
 
     @property
     def registry(self) -> dict[str, Source]:
@@ -78,6 +106,15 @@ class CommuneCatalog(BaseModel):
         return list(reg.values())
 
 
+def _load_catalog_from_path(path: Path) -> CommuneCatalog:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    catalog = CommuneCatalog.model_validate(data)
+    schema = catalog.schema.strip().lower()
+    if not re.fullmatch(r"[a-z_][a-z0-9_]*", schema):
+        raise HTTPException(status_code=500, detail=f"Schéma invalide dans le catalogue : {schema!r}")
+    return catalog
+
+
 def _load_catalog(commune_slug: str) -> CommuneCatalog:
     slug = (commune_slug or "").strip().lower()
     if not re.fullmatch(r"[a-z][a-z0-9_-]*", slug):
@@ -88,12 +125,39 @@ def _load_catalog(commune_slug: str) -> CommuneCatalog:
             status_code=404,
             detail=f"Catalogue règlements introuvable pour la commune : {commune_slug}",
         )
-    data = json.loads(path.read_text(encoding="utf-8"))
-    catalog = CommuneCatalog.model_validate(data)
-    schema = catalog.schema.strip().lower()
-    if not re.fullmatch(r"[a-z_][a-z0-9_]*", schema):
-        raise HTTPException(status_code=500, detail=f"Schéma invalide dans le catalogue : {schema!r}")
-    return catalog
+    return _load_catalog_from_path(path)
+
+
+def _load_admin_catalog(commune_slug: str) -> CommuneCatalog:
+    slug = (commune_slug or "").strip().lower()
+    if not re.fullmatch(r"[a-z][a-z0-9_-]*", slug):
+        raise HTTPException(status_code=400, detail=f"Slug commune invalide : {commune_slug!r}")
+    path = _ADMIN_CATALOG_FILES.get(slug) or (_ADMIN_CATALOG_DIR / f"{slug}.json")
+    if not path.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Catalogue admin introuvable pour la commune : {commune_slug}",
+        )
+    return _load_catalog_from_path(path)
+
+
+def _list_admin_catalog_summaries() -> list[dict]:
+    out: list[dict] = []
+    for slug, path in sorted(_ADMIN_CATALOG_FILES.items()):
+        if not path.is_file():
+            continue
+        catalog = _load_catalog_from_path(path)
+        out.append(
+            {
+                "commune_slug": catalog.commune_slug,
+                "label": catalog.label,
+                "schema": catalog.schema,
+                "enabled": catalog.enabled,
+                "disabled_message": catalog.disabled_message,
+                "source_count": len(catalog.sources),
+            }
+        )
+    return out
 
 
 _pool: Optional[asyncpg.Pool] = None
@@ -138,6 +202,26 @@ def require_editor(authorization: Optional[str] = Header(default=None)) -> None:
         return
     if authorization != f"Bearer {expected}":
         raise HTTPException(status_code=401, detail="Jeton admin invalide")
+
+
+def require_superadmin(authorization: Optional[str] = Header(default=None)) -> str:
+    """JWT Supabase superadmin, ou ADMIN_API_TOKEN en dev."""
+    expected = os.getenv("ADMIN_API_TOKEN")
+    if expected and authorization == f"Bearer {expected}":
+        return "admin-token"
+
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Authentification requise (Bearer token).")
+    token = authorization[7:].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Token manquant.")
+
+    from api.agents.plu_agent.routes.plu_auth import verify_supabase_access_token
+    from services.auth.commune_access import assert_superadmin
+
+    user_id = verify_supabase_access_token(token)
+    assert_superadmin(user_id)
+    return user_id
 
 
 def qi(name: str) -> str:
@@ -298,23 +382,30 @@ router = APIRouter(
     dependencies=[Depends(require_editor)],
 )
 
+admin_router = APIRouter(
+    prefix="/admin/reglements",
+    tags=["reglements-superadmin"],
+    dependencies=[Depends(require_superadmin)],
+)
 
-@router.get("/{commune_slug}/reglements/sources")
-async def list_sources(commune_slug: str) -> list[dict]:
-    catalog = _load_catalog(commune_slug)
+
+async def _list_sources_for_catalog(catalog: CommuneCatalog) -> list[dict]:
+    if not catalog.enabled:
+        return []
     return [s.model_dump() for s in catalog.ordered_sources()]
 
 
-@router.get("/{commune_slug}/reglements/{source}")
-async def list_rows(
-    commune_slug: str,
+async def _list_rows_for_catalog(
+    catalog: CommuneCatalog,
     source: str,
-    search: Optional[str] = Query(None),
-    limit: int = Query(500, le=2000),
-    offset: int = Query(0, ge=0),
-    pool: asyncpg.Pool = Depends(get_pool),
+    pool: asyncpg.Pool,
+    *,
+    search: Optional[str] = None,
+    limit: int = 500,
+    offset: int = 0,
 ) -> list[dict]:
-    catalog = _load_catalog(commune_slug)
+    if not catalog.enabled:
+        return []
     src = get_src(catalog.registry, source)
     schema = catalog.schema
     if src.source == "plu":
@@ -344,14 +435,14 @@ async def list_rows(
     return [dict(r) for r in rows]
 
 
-@router.get("/{commune_slug}/reglements/{source}/{pk}")
-async def get_row(
-    commune_slug: str,
+async def _get_row_for_catalog(
+    catalog: CommuneCatalog,
     source: str,
     pk: str,
-    pool: asyncpg.Pool = Depends(get_pool),
+    pool: asyncpg.Pool,
 ) -> dict:
-    catalog = _load_catalog(commune_slug)
+    if not catalog.enabled:
+        raise HTTPException(status_code=404, detail="Catalogue indisponible")
     src = get_src(catalog.registry, source)
     schema = catalog.schema
     if src.source == "plu":
@@ -371,14 +462,14 @@ async def get_row(
     return dict(r)
 
 
-@router.post("/{commune_slug}/reglements/{source}")
-async def create_row(
-    commune_slug: str,
+async def _create_row_for_catalog(
+    catalog: CommuneCatalog,
     source: str,
-    body: dict[str, Any] = Body(...),
-    pool: asyncpg.Pool = Depends(get_pool),
+    body: dict[str, Any],
+    pool: asyncpg.Pool,
 ) -> dict:
-    catalog = _load_catalog(commune_slug)
+    if not catalog.enabled:
+        raise HTTPException(status_code=403, detail=catalog.disabled_message or "Catalogue indisponible")
     src = get_src(catalog.registry, source)
     schema = catalog.schema
     if not src.creatable:
@@ -405,15 +496,15 @@ async def create_row(
     return dict(r)
 
 
-@router.patch("/{commune_slug}/reglements/{source}/{pk}")
-async def update_row(
-    commune_slug: str,
+async def _update_row_for_catalog(
+    catalog: CommuneCatalog,
     source: str,
     pk: str,
-    body: dict[str, Any] = Body(...),
-    pool: asyncpg.Pool = Depends(get_pool),
+    body: dict[str, Any],
+    pool: asyncpg.Pool,
 ) -> dict:
-    catalog = _load_catalog(commune_slug)
+    if not catalog.enabled:
+        raise HTTPException(status_code=403, detail=catalog.disabled_message or "Catalogue indisponible")
     src = get_src(catalog.registry, source)
     schema = catalog.schema
     editable = {c.name: c for c in src.columns if c.editable}
@@ -463,14 +554,14 @@ async def update_row(
     return dict(r)
 
 
-@router.delete("/{commune_slug}/reglements/{source}/{pk}", status_code=204, response_class=Response)
-async def delete_row(
-    commune_slug: str,
+async def _delete_row_for_catalog(
+    catalog: CommuneCatalog,
     source: str,
     pk: str,
-    pool: asyncpg.Pool = Depends(get_pool),
+    pool: asyncpg.Pool,
 ) -> Response:
-    catalog = _load_catalog(commune_slug)
+    if not catalog.enabled:
+        raise HTTPException(status_code=403, detail=catalog.disabled_message or "Catalogue indisponible")
     src = get_src(catalog.registry, source)
     schema = catalog.schema
     if not src.deletable:
@@ -480,3 +571,140 @@ async def delete_row(
     if res.endswith(" 0"):
         raise HTTPException(status_code=404, detail="Entrée introuvable")
     return Response(status_code=204)
+
+
+@router.get("/{commune_slug}/reglements/sources")
+async def list_sources(commune_slug: str) -> list[dict]:
+    catalog = _load_catalog(commune_slug)
+    return await _list_sources_for_catalog(catalog)
+
+
+@router.get("/{commune_slug}/reglements/{source}")
+async def list_rows(
+    commune_slug: str,
+    source: str,
+    search: Optional[str] = Query(None),
+    limit: int = Query(500, le=2000),
+    offset: int = Query(0, ge=0),
+    pool: asyncpg.Pool = Depends(get_pool),
+) -> list[dict]:
+    catalog = _load_catalog(commune_slug)
+    return await _list_rows_for_catalog(
+        catalog, source, pool, search=search, limit=limit, offset=offset
+    )
+
+
+@router.get("/{commune_slug}/reglements/{source}/{pk}")
+async def get_row(
+    commune_slug: str,
+    source: str,
+    pk: str,
+    pool: asyncpg.Pool = Depends(get_pool),
+) -> dict:
+    catalog = _load_catalog(commune_slug)
+    return await _get_row_for_catalog(catalog, source, pk, pool)
+
+
+@router.post("/{commune_slug}/reglements/{source}")
+async def create_row(
+    commune_slug: str,
+    source: str,
+    body: dict[str, Any] = Body(...),
+    pool: asyncpg.Pool = Depends(get_pool),
+) -> dict:
+    catalog = _load_catalog(commune_slug)
+    return await _create_row_for_catalog(catalog, source, body, pool)
+
+
+@router.patch("/{commune_slug}/reglements/{source}/{pk}")
+async def update_row(
+    commune_slug: str,
+    source: str,
+    pk: str,
+    body: dict[str, Any] = Body(...),
+    pool: asyncpg.Pool = Depends(get_pool),
+) -> dict:
+    catalog = _load_catalog(commune_slug)
+    return await _update_row_for_catalog(catalog, source, pk, body, pool)
+
+
+@router.delete("/{commune_slug}/reglements/{source}/{pk}", status_code=204, response_class=Response)
+async def delete_row(
+    commune_slug: str,
+    source: str,
+    pk: str,
+    pool: asyncpg.Pool = Depends(get_pool),
+) -> Response:
+    catalog = _load_catalog(commune_slug)
+    return await _delete_row_for_catalog(catalog, source, pk, pool)
+
+
+@admin_router.get("/catalogues")
+async def list_admin_catalogues() -> list[dict]:
+    return _list_admin_catalog_summaries()
+
+
+@admin_router.get("/{commune_slug}/sources")
+async def admin_list_sources(commune_slug: str) -> list[dict]:
+    catalog = _load_admin_catalog(commune_slug)
+    return await _list_sources_for_catalog(catalog)
+
+
+@admin_router.get("/{commune_slug}/{source}")
+async def admin_list_rows(
+    commune_slug: str,
+    source: str,
+    search: Optional[str] = Query(None),
+    limit: int = Query(500, le=2000),
+    offset: int = Query(0, ge=0),
+    pool: asyncpg.Pool = Depends(get_pool),
+) -> list[dict]:
+    catalog = _load_admin_catalog(commune_slug)
+    return await _list_rows_for_catalog(
+        catalog, source, pool, search=search, limit=limit, offset=offset
+    )
+
+
+@admin_router.get("/{commune_slug}/{source}/{pk}")
+async def admin_get_row(
+    commune_slug: str,
+    source: str,
+    pk: str,
+    pool: asyncpg.Pool = Depends(get_pool),
+) -> dict:
+    catalog = _load_admin_catalog(commune_slug)
+    return await _get_row_for_catalog(catalog, source, pk, pool)
+
+
+@admin_router.post("/{commune_slug}/{source}")
+async def admin_create_row(
+    commune_slug: str,
+    source: str,
+    body: dict[str, Any] = Body(...),
+    pool: asyncpg.Pool = Depends(get_pool),
+) -> dict:
+    catalog = _load_admin_catalog(commune_slug)
+    return await _create_row_for_catalog(catalog, source, body, pool)
+
+
+@admin_router.patch("/{commune_slug}/{source}/{pk}")
+async def admin_update_row(
+    commune_slug: str,
+    source: str,
+    pk: str,
+    body: dict[str, Any] = Body(...),
+    pool: asyncpg.Pool = Depends(get_pool),
+) -> dict:
+    catalog = _load_admin_catalog(commune_slug)
+    return await _update_row_for_catalog(catalog, source, pk, body, pool)
+
+
+@admin_router.delete("/{commune_slug}/{source}/{pk}", status_code=204, response_class=Response)
+async def admin_delete_row(
+    commune_slug: str,
+    source: str,
+    pk: str,
+    pool: asyncpg.Pool = Depends(get_pool),
+) -> Response:
+    catalog = _load_admin_catalog(commune_slug)
+    return await _delete_row_for_catalog(catalog, source, pk, pool)

@@ -222,18 +222,26 @@ def _intersect_sup_table(
         filter_clause = ""
         metric_expr = "NULL"
 
+    geom_valid = f"ST_MakeValid(t.{geom_col})"
+    distance_expr = (
+        f"ST_Distance(ST_MakeValid(uf.geom), {geom_valid}) AS distance_m, "
+        f"ST_Distance(ST_Centroid(ST_MakeValid(uf.geom)), ST_Centroid({geom_valid})) "
+        f"AS distance_centroide_m"
+    )
+
     sql = text(
         f"""
         WITH uf AS (
             SELECT ST_GeomFromText(:wkt, {SRID}) AS geom
         )
-        SELECT DISTINCT ON (ST_AsBinary(ST_MakeValid(t.{geom_col})), t.suptype)
+        SELECT DISTINCT ON (ST_AsBinary({geom_valid}), t.suptype)
                {select_cols},
-               {metric_expr} AS metric
+               {metric_expr} AS metric,
+               {distance_expr}
         FROM {schema}.{table} t
         CROSS JOIN uf
         WHERE t.{geom_col} IS NOT NULL
-          AND ST_Intersects(ST_MakeValid(t.{geom_col}), uf.geom)
+          AND ST_Intersects({geom_valid}, uf.geom)
           {filter_clause}
         """
     )
@@ -247,8 +255,27 @@ def _intersect_sup_table(
         metric = row.get("metric")
         if metric is not None:
             obj["metric"] = round(float(metric), 2)
+        for dist_key in ("distance_m", "distance_centroide_m"):
+            dist = row.get(dist_key)
+            if dist is not None:
+                obj[dist_key] = round(float(dist), 1)
         out.append(obj)
     return out
+
+
+def _distance_monument_m(entity: dict) -> Optional[float]:
+    """Distance indicative : bord à bord, ou entre centroïdes si assiette intersectée."""
+    dist = entity.get("distance_m")
+    if dist is not None and float(dist) >= 0.01:
+        return float(dist)
+    centroide = entity.get("distance_centroide_m")
+    if centroide is not None:
+        return float(centroide)
+    return float(dist) if dist is not None else None
+
+
+def _is_ac1_suptype(suptype: Any) -> bool:
+    return str(suptype or "").strip().lower() == "ac1"
 
 
 def _build_reglementation_text(base_reg: dict, i4_row: Optional[dict]) -> str:
@@ -338,6 +365,9 @@ def _resolve_servitude_entry(
     }
     if entity.get("metric") is not None:
         entry["metric"] = entity["metric"]
+    dist = _distance_monument_m(entity)
+    if dist is not None:
+        entry["distance_m"] = round(dist, 1)
     if i4_row:
         entry["i4"] = {
             "id": i4_row.get("id"),
@@ -352,6 +382,46 @@ def _resolve_servitude_entry(
         entry["i4_non_resolu"] = True
 
     return entry
+
+
+def _aggregate_ac1_servitudes(servitudes: list[dict]) -> list[dict]:
+    """Regroupe les AC1 intersectés : liste des monuments (nomsuplitt) + une seule réglementation."""
+    ac1_entries = [s for s in servitudes if _is_ac1_suptype(s.get("suptype"))]
+    if not ac1_entries:
+        return servitudes
+
+    others = [s for s in servitudes if not _is_ac1_suptype(s.get("suptype"))]
+    monuments_map: dict[str, dict] = {}
+
+    for entry in ac1_entries:
+        nom = (entry.get("nomsuplitt") or "").strip()
+        if not nom:
+            continue
+        key = nom.casefold()
+        dist = entry.get("distance_m")
+        existing = monuments_map.get(key)
+        if existing is None or (
+            dist is not None
+            and (existing.get("distance_m") is None or dist < existing["distance_m"])
+        ):
+            monuments_map[key] = {"nom": nom, "distance_m": dist}
+
+    if not monuments_map:
+        return servitudes
+
+    monuments = sorted(
+        monuments_map.values(),
+        key=lambda m: m.get("distance_m") if m.get("distance_m") is not None else float("inf"),
+    )
+    base = ac1_entries[0]
+    aggregated = {
+        k: v
+        for k, v in base.items()
+        if k not in ("entity_id", "nomsuplitt", "metric", "i4", "i4_non_resolu")
+    }
+    aggregated["libelle"] = base.get("libelle") or "Servitude AC1 — Monuments historiques"
+    aggregated["monuments"] = monuments
+    return others + [aggregated]
 
 
 def compute_servitudes_reglementation(
@@ -410,6 +480,7 @@ def compute_servitudes_reglementation(
             servitudes.append(entry)
 
     servitudes = _filter_servitudes_redundant_generic(servitudes)
+    servitudes = _aggregate_ac1_servitudes(servitudes)
 
     if not servitudes:
         return {

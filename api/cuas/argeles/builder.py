@@ -74,7 +74,7 @@ class CommuneConfig:
 # Couverture catalogue Argelès (catalogue_cua_argeles.json) :
 #   dispositions → zonage_plu, hauteurs (art. 3)
 #   sup          → sup_assiette_* (art. 4, via module servitudes_reglementees)
-#   risques      → ppr, pprif, retrait_gonflement_argiles_2026, old (art. 5)
+#   risques      → ppr, pprif (via module ppr_et_pprif), retrait_gonflement_argiles_2026, old (art. 5)
 #   prescriptions→ aoc, prescriptions_*, infos_surf (hors DPU), haies_bocages,
 #                  znieffs, zaer, batiments (art. 5/7)
 #   métier       → reseaux_enedis_lineaires, prairies_et_natura_2000 (+ natura_2000,
@@ -96,6 +96,9 @@ LAYERS_METIER = {
     "natura_2000",
     "prairies_sensibles",
     "servitudes_reglementees",
+    "ppr",
+    "pprif",
+    "ppr_et_pprif",
     "sup_assiette_s",
     "sup_assiette_l",
     "sup_assiette_p",
@@ -242,11 +245,40 @@ def _is_dpu_objet(obj: dict) -> bool:
     return "préemption" in lib or "preemption" in lib
 
 
+def _cle_dedup_libelle(obj: dict) -> Optional[str]:
+    """Clé de dédoublonnage : libellé métier, sinon texte réglementaire affiché."""
+    lib = (obj.get("libelle") or "").strip()
+    if lib:
+        return lib.casefold()
+    regl = _reglementation_text(obj)
+    if regl:
+        return regl.casefold()
+    txt = texte_objet(obj, skip_reglementation=True)
+    return txt.casefold() if txt else None
+
+
+def _dedupe_objets_par_libelle(objets: list) -> list:
+    """Conserve une seule entrée par libellé distinct (ordre d'apparition conservé)."""
+    seen: set[str] = set()
+    out: list = []
+    for obj in objets:
+        cle = _cle_dedup_libelle(obj)
+        if cle is None:
+            out.append(obj)
+            continue
+        if cle in seen:
+            continue
+        seen.add(cle)
+        out.append(obj)
+    return out
+
+
 def _objets_affichables(key: str, layer: dict) -> list:
     """Filtre les objets d'une couche (ex. DPU déjà traité dans section_dpu)."""
     objets = layer.get("objets") or []
     if key == "infos_surf":
-        return [o for o in objets if not _is_dpu_objet(o)]
+        objets = [o for o in objets if not _is_dpu_objet(o)]
+        return _dedupe_objets_par_libelle(objets)
     return objets
 
 
@@ -290,18 +322,30 @@ def _pct_sig(obj: dict) -> float:
         return 0.0
 
 
-def _zones_plu_avec_pct(objets: list) -> list[tuple[str, float]]:
-    """Zones PLU avec part de surface UF (> MIN_ZONAGE_PCT), dédoublonnées."""
+def _label_obj(obj: dict, *keys: str) -> str:
+    for key in keys:
+        val = (obj.get(key) or "").strip()
+        if val:
+            return val
+    return ""
+
+
+def _items_avec_pct(objets: list, *label_keys: str) -> list[tuple[str, float]]:
+    """Libellés distincts avec part UF maximale (> MIN_ZONAGE_PCT)."""
     seen: dict[str, float] = {}
     for obj in objets:
         pct = _pct_sig(obj)
         if pct <= MIN_ZONAGE_PCT:
             continue
-        zone = (obj.get("libelle") or obj.get("zonage_reglement") or "").strip()
-        if not zone:
+        label = _label_obj(obj, *label_keys)
+        if not label:
             continue
-        seen[zone] = max(seen.get(zone, 0.0), pct)
+        seen[label] = max(seen.get(label, 0.0), pct)
     return sorted(seen.items(), key=lambda item: -item[1])
+
+
+def _zones_plu_avec_pct(objets: list) -> list[tuple[str, float]]:
+    return _items_avec_pct(objets, "libelle", "zonage_reglement")
 
 
 def _format_zonage_plu_intro(objets: list) -> tuple[list[str], Optional[str]]:
@@ -322,7 +366,7 @@ def _format_zonage_plu_intro(objets: list) -> tuple[list[str], Optional[str]]:
 
     zones, seen = [], set()
     for obj in objets:
-        zone = (obj.get("libelle") or obj.get("zonage_reglement") or "").strip()
+        zone = _label_obj(obj, "libelle", "zonage_reglement")
         if zone and zone not in seen:
             seen.add(zone)
             zones.append(zone)
@@ -331,7 +375,42 @@ def _format_zonage_plu_intro(objets: list) -> tuple[list[str], Optional[str]]:
     return zones, f"La parcelle est située dans la zone {', '.join(zones)} du PLU."
 
 
-def _objets_zonage_significatifs(objets: list) -> list:
+def _format_hauteurs_intro(objets: list) -> tuple[list[str], Optional[str]]:
+    """Résumé secteurs de hauteur + parts de surface significatives."""
+    items = _items_avec_pct(objets, "libelong")
+    if items:
+        secteurs = [secteur for secteur, _ in items]
+        if len(items) == 1:
+            secteur, pct = items[0]
+            texte = (
+                f"La parcelle est soumise aux règles de hauteur du secteur {secteur} "
+                f"({pct:.2f} % de la surface)."
+            )
+        else:
+            parts = [f"{secteur} ({pct:.2f} %)" for secteur, pct in items]
+            texte = (
+                "La parcelle est soumise aux règles de hauteur des secteurs "
+                f"{', '.join(parts)}."
+            )
+        return secteurs, texte
+
+    secteurs, seen = [], set()
+    for obj in objets:
+        secteur = _label_obj(obj, "libelong")
+        if secteur and secteur not in seen:
+            seen.add(secteur)
+            secteurs.append(secteur)
+    if not secteurs:
+        return [], None
+    if len(secteurs) == 1:
+        return secteurs, f"La parcelle est soumise aux règles de hauteur du secteur {secteurs[0]}."
+    return secteurs, (
+        "La parcelle est soumise aux règles de hauteur des secteurs "
+        f"{', '.join(secteurs)}."
+    )
+
+
+def _objets_significatifs(objets: list) -> list:
     significatifs = [obj for obj in objets if _pct_sig(obj) > MIN_ZONAGE_PCT]
     return significatifs or list(objets)
 
@@ -346,8 +425,8 @@ def _write_zonage_plu_details(doc, objets: list, zones: list):
     seen_regl: set[str] = set()
     multi_zones = len(zones) > 1
 
-    for obj in _objets_zonage_significatifs(objets):
-        zone_code = (obj.get("libelle") or obj.get("zonage_reglement") or "").strip()
+    for obj in _objets_significatifs(objets):
+        zone_code = _label_obj(obj, "libelle", "zonage_reglement")
         libelong = (obj.get("libelong") or "").strip()
         regl = _reglementation_text(obj)
         pct = _pct_sig(obj)
@@ -371,7 +450,13 @@ def _write_zonage_plu_details(doc, objets: list, zones: list):
             add_para(doc, f"• {txt}", size=9, space_after=3)
 
 
-def _write_hauteurs_details(doc, layer: dict, *, show_layer_title: bool = True):
+def _write_hauteurs_details(
+    doc,
+    layer: dict,
+    *,
+    show_layer_title: bool = True,
+    secteurs: Optional[list] = None,
+):
     """Hauteurs PLU : libelong en titre + réglementation markdown."""
     objets = layer.get("objets") or []
     if not objets:
@@ -380,24 +465,28 @@ def _write_hauteurs_details(doc, layer: dict, *, show_layer_title: bool = True):
     if show_layer_title:
         add_para(doc, layer.get("nom") or "Hauteurs maximales (PLU)", bold=True, space_after=2)
     seen_regl: set[str] = set()
+    multi_secteurs = len(secteurs or []) > 1
     wrote = False
 
-    for obj in objets:
+    for obj in _objets_significatifs(objets):
         regl = _reglementation_text(obj)
         titre = _titre_hauteur_obj(obj)
+        pct = _pct_sig(obj)
 
         if regl:
             if regl in seen_regl:
                 continue
             seen_regl.add(regl)
             if titre:
-                add_para(doc, titre, bold=True, size=9, space_after=2)
+                suffix = f" ({pct:.2f} %)" if multi_secteurs and pct > MIN_ZONAGE_PCT else ""
+                add_para(doc, f"{titre}{suffix}", bold=True, size=9, space_after=2)
             add_markdown_block(doc, regl, size=9)
             wrote = True
             continue
 
         if titre:
-            add_para(doc, f"• {titre}", size=9, space_after=3)
+            suffix = f" ({pct:.2f} %)" if multi_secteurs and pct > MIN_ZONAGE_PCT else ""
+            add_para(doc, f"• {titre}{suffix}", size=9, space_after=3)
             wrote = True
             continue
 
@@ -458,6 +547,36 @@ def section_dpu(doc, ctx):
     doc.add_paragraph()
 
 
+def _write_ac1_monuments(doc, servitude: dict) -> None:
+    """Monuments historiques AC1 : nom en gras + distance indicative."""
+    monuments = servitude.get("monuments")
+    if monuments:
+        for mon in monuments:
+            nom = (mon.get("nom") or "").strip()
+            if not nom:
+                continue
+            dist = mon.get("distance_m")
+            if dist is not None:
+                line = f"{nom} — à environ {dist:.0f} m de la parcelle"
+            else:
+                line = nom
+            add_para(doc, line, bold=True, size=9, space_after=2)
+        return
+
+    if str(servitude.get("suptype") or "").strip().lower() != "ac1":
+        return
+    nom = (servitude.get("nomsuplitt") or "").strip()
+    if not nom:
+        return
+    dist = servitude.get("distance_m")
+    line = (
+        f"{nom} — à environ {dist:.0f} m de la parcelle"
+        if dist is not None
+        else nom
+    )
+    add_para(doc, line, bold=True, size=9, space_after=2)
+
+
 def section_sup(doc, ctx):
     serv = ctx.rapport.get("intersections", {}).get("servitudes_reglementees", {})
     servitudes = serv.get("servitudes") or []
@@ -469,6 +588,7 @@ def section_sup(doc, ctx):
             doc.add_paragraph()
         titre = s.get("libelle") or s.get("nomsuplitt") or s.get("suptype") or "Servitude"
         add_para(doc, titre, bold=True, space_after=4)
+        _write_ac1_monuments(doc, s)
         regl = (s.get("reglementation") or "").strip()
         if regl:
             add_markdown_block(doc, regl, size=9)
@@ -491,12 +611,71 @@ def section_sup(doc, ctx):
     doc.add_paragraph()
 
 
+def _write_ppr_pprif_details(doc, module: dict) -> bool:
+    """PPR / PPRIF : attributs métier + laius markdown (notes complémentaires pour le PPR)."""
+    ppr_data = module.get("ppr") or {}
+    pprif_data = module.get("pprif") or {}
+    ppr_blocs = ppr_data.get("blocs") or []
+    pprif_blocs = pprif_data.get("blocs") or []
+    if not ppr_blocs and not pprif_blocs:
+        return False
+
+    if ppr_blocs:
+        add_para(doc, ppr_data.get("nom") or "PPR (Plan de Prévention des Risques)", bold=True, space_after=2)
+        for bloc in ppr_blocs:
+            rows = []
+            if bloc.get("type_risque"):
+                rows.append(("Type de risque", bloc["type_risque"]))
+            if bloc.get("zone"):
+                rows.append(("Zone", bloc["zone"]))
+            if bloc.get("zone_reglementaire"):
+                rows.append(("Zone réglementaire", bloc["zone_reglementaire"]))
+            if rows:
+                add_kv_table(doc, rows)
+            regl = (bloc.get("reglementation") or "").strip()
+            if regl:
+                add_markdown_block(doc, regl, size=9)
+        seen_note_codes: set[str] = set()
+        for note in ppr_data.get("notes") or []:
+            code = (note.get("code") or "").strip().upper()
+            if code and code in seen_note_codes:
+                continue
+            note_regl = (note.get("reglementation") or "").strip()
+            if not note_regl:
+                continue
+            if code:
+                seen_note_codes.add(code)
+            add_markdown_block(doc, note_regl, size=9)
+
+    if pprif_blocs:
+        add_para(doc, pprif_data.get("nom") or "PPRIF (Risque Incendie de Forêt)", bold=True, space_after=2)
+        for bloc in pprif_blocs:
+            rows = []
+            if bloc.get("risque"):
+                rows.append(("Risque", bloc["risque"]))
+            if bloc.get("zone"):
+                rows.append(("Zone", bloc["zone"]))
+            if rows:
+                add_kv_table(doc, rows)
+            regl = (bloc.get("reglementation") or "").strip()
+            if regl:
+                add_markdown_block(doc, regl, size=9)
+
+    return True
+
+
 def section_risques(doc, ctx):
     groupes = couches_par_section(ctx.rapport)
     layers = groupes.get("risques", [])
-    if not layers:
+    pp = ctx.rapport.get("intersections", {}).get("ppr_et_pprif", {})
+    has_pp = bool(
+        (pp.get("ppr") or {}).get("blocs") or (pp.get("pprif") or {}).get("blocs")
+    )
+    if not layers and not has_pp:
         return
     add_title_bar(doc, "Risques naturels et technologiques")
+    if has_pp:
+        _write_ppr_pprif_details(doc, pp)
     for key, layer in layers:
         _bloc_couche(doc, layer)
     doc.add_paragraph()
@@ -558,11 +737,20 @@ def section_metier(doc, ctx):
     enedis = inter.get("reseaux_enedis_lineaires", {})
     analyses = enedis.get("analyses") or []
     if analyses:
-        add_title_bar(doc, "Desserte par les réseaux (ENEDIS)")
+        add_title_bar(doc, "Réseaux électriques BT à proximité (ENEDIS)")
+        add_para(
+            doc,
+            "Indications issues des données linéaires ENEDIS et d'analyses SIG "
+            "(distance au câble le plus proche). Ne constitue pas une étude de "
+            "faisabilité de raccordement.",
+            size=9,
+            italic=True,
+            space_after=6,
+        )
         for a in analyses:
             diag = a.get("diagnostic_expert_raccordement")
             if diag:
-                add_para(doc, f"• {a.get('type_reseau', 'Réseau')} : {diag}", size=9, space_after=3)
+                add_para(doc, f"• {diag}", size=9, space_after=3)
         doc.add_paragraph()
 
     pn = inter.get("prairies_et_natura_2000", {})
@@ -610,6 +798,8 @@ def section_dispositions(doc, ctx):
         None,
     )
     if layer_hauteurs and (layer_hauteurs.get("objets") or []):
+        objets_hauteurs = layer_hauteurs.get("objets") or []
+        secteurs, intro_hauteurs = _format_hauteurs_intro(objets_hauteurs)
         doc.add_paragraph()
         add_title_bar(doc, "Réglementation liée aux hauteurs")
         add_para_with_link(
@@ -619,7 +809,14 @@ def section_dispositions(doc, ctx):
             c.hauteurs_url,
             space_after=6,
         )
-        _write_hauteurs_details(doc, layer_hauteurs, show_layer_title=False)
+        if intro_hauteurs:
+            add_para(doc, intro_hauteurs, bold=True, space_after=6)
+        _write_hauteurs_details(
+            doc,
+            layer_hauteurs,
+            show_layer_title=False,
+            secteurs=secteurs,
+        )
 
     # Autres couches art. 3 éventuelles
     for key, layer in groupes.get("dispositions", []):

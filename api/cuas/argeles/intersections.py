@@ -72,6 +72,13 @@ except ImportError:
         sys.path.insert(0, str(_ARGELES_DIR))
     from intersection_modules.servitudes import compute_servitudes_reglementation
 
+try:
+    from api.cuas.argeles.intersection_modules.ppr_et_pprif import compute_ppr_et_pprif_reglementation
+except ImportError:
+    if str(_ARGELES_DIR) not in sys.path:
+        sys.path.insert(0, str(_ARGELES_DIR))
+    from intersection_modules.ppr_et_pprif import compute_ppr_et_pprif_reglementation
+
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 # Seuil minimal d'intersection : exclut les contacts en bordure (aire/longueur nulle)
@@ -361,6 +368,42 @@ def run_intersections(uf, catalogue, engine=None, schema=SCHEMA) -> dict:
         rapport["intersections"]["servitudes_reglementees"] = {
             "nom": "Servitudes d'utilité publique (réglementation)",
             "type": "servitude",
+            "geom_type": "surfacique",
+            "pct_sig": 0.0,
+            "objets": [],
+            "status": "erreur",
+            "error": str(exc),
+        }
+
+    # Bloc métier dédié PPR / PPRIF (laius depuis laius_ppr et laius_pprif)
+    ppr_layer = rapport["intersections"].get("ppr", {})
+    pprif_layer = rapport["intersections"].get("pprif", {})
+    try:
+        special = compute_ppr_et_pprif_reglementation(
+            ppr_objets=ppr_layer.get("objets") or [],
+            pprif_objets=pprif_layer.get("objets") or [],
+            engine=engine,
+            schema=schema,
+        )
+        rapport["intersections"]["ppr_et_pprif"] = {
+            "nom": "PPR / PPRIF (réglementation)",
+            "type": "prescription",
+            "geom_type": "surfacique",
+            "pct_sig": max(ppr_layer.get("pct_sig") or 0, pprif_layer.get("pct_sig") or 0),
+            "objets": [],
+            **special,
+        }
+        n_ppr = len((special.get("ppr") or {}).get("blocs") or [])
+        n_pprif = len((special.get("pprif") or {}).get("blocs") or [])
+        if n_ppr or n_pprif:
+            logger.info(f"  ✅ ppr_et_pprif                        PPR {n_ppr} | PPRIF {n_pprif}")
+        else:
+            logger.info("  ·  ppr_et_pprif                          —")
+    except Exception as exc:
+        logger.warning(f"  ⚠  ppr_et_pprif                     {exc}")
+        rapport["intersections"]["ppr_et_pprif"] = {
+            "nom": "PPR / PPRIF (réglementation)",
+            "type": "prescription",
             "geom_type": "surfacique",
             "pct_sig": 0.0,
             "objets": [],

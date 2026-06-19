@@ -1,0 +1,9 @@
+{
+  "commune_slug": "latresne",
+  "schema": "latresne",
+  "label": "Latresne",
+  "enabled": false,
+  "disabled_message": "Catalogue règlements Latresne — à venir",
+  "source_order": [],
+  "sources": []
+}
