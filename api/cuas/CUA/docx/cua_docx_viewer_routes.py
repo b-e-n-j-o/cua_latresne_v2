@@ -60,6 +60,11 @@ def _storage_service_key() -> str:
     return (os.getenv("SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY") or "").strip()
 
 
+def _supabase_base_url() -> str:
+    raw = getattr(supabase, "supabase_url", None) or os.getenv("SUPABASE_URL", "")
+    return str(raw).strip().rstrip("/")
+
+
 def _download_storage_fresh(bucket: str, path: str) -> bytes:
     """
     Télécharge un objet Storage en contournant le cache CDN Supabase.
@@ -67,7 +72,7 @@ def _download_storage_fresh(bucket: str, path: str) -> bytes:
     storage.download() et GET /object/... sans paramètre peuvent renvoyer une version
     périmée juste après un upsert ; ?download=1 force la version courante.
     """
-    base_url = (getattr(supabase, "supabase_url", None) or os.getenv("SUPABASE_URL", "")).rstrip("/")
+    base_url = _supabase_base_url()
     key = _storage_service_key()
     if not base_url or not key:
         raise RuntimeError("SUPABASE_URL et SERVICE_KEY requis pour lire le DOCX")
@@ -113,7 +118,7 @@ def _touch_saved_metadata(
     size_bytes: int,
 ) -> None:
     """Met à jour project_files et pipelines après sauvegarde."""
-    public_url = f"{supabase.supabase_url}/storage/v1/object/public/{bucket}/{path}"
+    public_url = f"{_supabase_base_url()}/storage/v1/object/public/{bucket}/{path}"
     file_id = decoded.get("file_id")
     slug = decoded.get("slug")
 

@@ -156,6 +156,7 @@ def generate_cua_for_parcelles(
             carto_payload,
             commune_nom=meta.get("nom", slug),
             numero_cu=numero_cu,
+            carto_catalogue=carto_catalogue,
         )
         html_path = tmp_path / CARTE_CONTEXT_FILENAME
         html_path.write_text(html_carto, encoding="utf-8")

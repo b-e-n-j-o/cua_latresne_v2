@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-carto_context_html.py — Carte HTML autonome (GeoJSON gelé) depuis run_carto_context.
+carto_context_html.py — Carte HTML autonome MapLibre (GeoJSON gelé + légende interactive).
 
-Génère une page Leaflet self-contained : données embarquées en JSON, consultable
-sans appel API ultérieur (snapshot réglementaire au moment du certificat).
+Aligné sur l'interface studyZone Argelès : fond IGN, toggles couches / groupes
+discriminants, couleurs par attribut.
 """
 
 from __future__ import annotations
@@ -12,17 +12,9 @@ import json
 from datetime import datetime
 from html import escape
 
-FAMILY_COLORS: dict[str, str] = {
-    "zonages_plu": "#2563eb",
-    "prescriptions": "#f97316",
-    "informations": "#7c3aed",
-    "servitudes": "#f43f5e",
-    "risques": "#dc2626",
-    "environnement": "#059669",
-    "reseaux": "#475569",
-    "cadastre": "#6b7280",
-    "_other": "#9ca3af",
-}
+from api.cuas.argeles.carto_context.carto_context_enrich import prepare_layers_payload
+
+IGN_STYLE = "https://data.geopf.fr/annexes/ressources/vectorTiles/styles/PLAN.IGN/standard.json"
 
 
 def _parcel_label(context: dict) -> str:
@@ -35,40 +27,19 @@ def _parcel_label(context: dict) -> str:
     return "Unité foncière"
 
 
-def _prepare_layers(context: dict) -> list[dict]:
-    layers_out = []
-    for layer_id, layer in (context.get("layers") or {}).items():
-        features = (layer.get("features") or {}).get("features") or []
-        if not features:
-            continue
-        family = layer.get("family") or "_other"
-        color = FAMILY_COLORS.get(family, FAMILY_COLORS["_other"])
-        layers_out.append({
-            "id": layer_id,
-            "title": layer.get("title") or layer_id,
-            "family": family,
-            "family_title": layer.get("family_title") or family,
-            "geom_type": layer.get("geom_type") or "surfacique",
-            "color": color,
-            "count": len(features),
-            "features": features,
-        })
-    layers_out.sort(key=lambda x: (x["family"], x["title"]))
-    return layers_out
-
-
 def render_carto_context_html(
     context: dict,
     *,
     commune_nom: str = "Argelès-sur-Mer",
     numero_cu: str | None = None,
+    carto_catalogue: dict | None = None,
 ) -> str:
-    """Construit le HTML autonome à partir du payload run_carto_context."""
+    """Construit le HTML autonome MapLibre à partir du payload run_carto_context."""
     label = _parcel_label(context)
     computed = context.get("computed_at") or datetime.utcnow().isoformat()
     buffer_m = context.get("context_buffer_m", 200)
     surface = context.get("surface_m2")
-    layers = _prepare_layers(context)
+    layers = prepare_layers_payload(context, carto_catalogue)
     parcelle = context.get("parcelle")
 
     title_parts = [f"Carte d'identité d'urbanisme — {commune_nom}", label]
@@ -84,9 +55,9 @@ def render_carto_context_html(
         "commune": commune_nom,
         "computed_at": computed,
         "surface_m2": surface,
+        "ignStyle": IGN_STYLE,
     }
-    data_json = json.dumps(payload, ensure_ascii=False)
-    data_json = data_json.replace("</", "<\\/")
+    data_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
 
     return f"""<!DOCTYPE html>
 <html lang="fr">
@@ -94,135 +65,387 @@ def render_carto_context_html(
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>{escape(page_title)}</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet"/>
   <style>
     * {{ box-sizing: border-box; }}
     html, body {{ margin: 0; height: 100%; font-family: system-ui, -apple-system, sans-serif; }}
     #map {{ position: absolute; inset: 0; }}
     .header {{
-      position: absolute; top: 12px; left: 56px; right: 12px; z-index: 1000;
-      background: rgba(255,255,255,0.95); border-radius: 8px; padding: 10px 14px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15); max-width: 520px;
+      position: absolute; top: 10px; left: 48px; z-index: 2;
+      background: rgba(255,255,255,0.95); border-radius: 8px; padding: 8px 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12); max-width: 420px; pointer-events: none;
     }}
-    .header h1 {{ margin: 0 0 4px; font-size: 15px; color: #1e3a5f; }}
-    .header p {{ margin: 0; font-size: 12px; color: #555; line-height: 1.4; }}
+    .header h1 {{ margin: 0 0 2px; font-size: 14px; color: #1e3a5f; }}
+    .header p {{ margin: 0; font-size: 11px; color: #555; }}
     .legend {{
-      position: absolute; bottom: 24px; right: 12px; z-index: 1000;
-      background: rgba(255,255,255,0.96); border-radius: 8px; padding: 10px 12px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15); max-height: 45vh; overflow-y: auto;
-      min-width: 200px; max-width: 280px; font-size: 12px;
+      position: absolute; top: 10px; right: 10px; bottom: 10px; z-index: 2;
+      width: min(300px, 38vw); background: rgba(255,255,255,0.97);
+      border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+      display: flex; flex-direction: column; overflow: hidden;
     }}
-    .legend h2 {{ margin: 0 0 8px; font-size: 13px; color: #333; }}
-    .legend-item {{ display: flex; align-items: center; gap: 8px; margin: 4px 0; }}
-    .swatch {{ width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.2); }}
-    .legend-family {{ font-weight: 600; color: #444; margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }}
-    .badge {{ display: inline-block; background: #e8f4fc; color: #1e5a8a; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 4px; }}
-    .popup-table {{ border-collapse: collapse; font-size: 12px; }}
-    .popup-table th {{ text-align: left; padding: 2px 8px 2px 0; color: #666; vertical-align: top; white-space: nowrap; }}
-    .popup-table td {{ padding: 2px 0; color: #222; }}
-    .leaflet-popup-content {{ margin: 10px 12px; max-width: 320px; }}
-    .near-label {{ color: #c05621; font-weight: 600; font-size: 11px; }}
+    .legend__head {{ padding: 10px 12px 6px; border-bottom: 1px solid #e5e7eb; }}
+    .legend__head h2 {{ margin: 0; font-size: 13px; color: #111; }}
+    .legend__scroll {{ overflow-y: auto; padding: 6px 8px 10px; flex: 1; }}
+    .fam {{ margin-top: 6px; }}
+    .fam__row {{ display: flex; align-items: center; gap: 6px; padding: 4px 2px; }}
+    .fam__title {{ font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.04em; color: #475569; flex: 1; }}
+    .layer {{ border-top: 1px solid #f1f5f9; padding: 4px 0; }}
+    .layer__row {{ display: flex; align-items: center; gap: 6px; padding: 2px 4px; }}
+    .layer__title {{ font-size: 12px; color: #0f172a; flex: 1; cursor: pointer; }}
+    .layer__title.off {{ color: #94a3b8; }}
+    .layer__meta {{ font-size: 10px; color: #64748b; }}
+    .groups {{ margin: 2px 0 4px 22px; }}
+    .grp {{ display: flex; align-items: center; gap: 6px; padding: 2px 0; }}
+    .swatch {{ width: 12px; height: 12px; border-radius: 2px; border: 1px solid rgba(0,0,0,.15); flex-shrink: 0; }}
+    .grp__label {{ font-size: 10px; color: #334155; flex: 1; truncate; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; }}
+    .grp__label.disabled {{ color: #cbd5e1; }}
+    .grp input:disabled {{ cursor: not-allowed; opacity: 0.45; }}
+    .btn {{ background: none; border: none; cursor: pointer; color: #64748b; font-size: 11px; padding: 0 4px; }}
+    input[type=checkbox] {{ accent-color: #2563eb; cursor: pointer; }}
+    .popup {{ font-size: 12px; max-width: 300px; }}
+    .popup h3 {{ margin: 0 0 6px; font-size: 13px; color: #1e3a5f; }}
+    .popup .near {{ color: #c05621; font-weight: 600; font-size: 11px; margin-bottom: 4px; }}
+    .popup table {{ border-collapse: collapse; width: 100%; }}
+    .popup th {{ text-align: left; color: #64748b; padding: 1px 6px 1px 0; vertical-align: top; font-weight: 500; }}
+    .popup td {{ color: #111; padding: 1px 0; }}
+    .maplibregl-popup-content {{ padding: 10px 12px; border-radius: 6px; }}
   </style>
 </head>
 <body>
   <div id="map"></div>
   <div class="header">
     <h1>{escape(page_title)}</h1>
-    <p>
-      Données figées au {escape(str(computed)[:19].replace("T", " "))} UTC
-      · zone d'étude {buffer_m:.0f} m
-      {f"· {surface:.0f} m²" if surface else ""}
-    </p>
+    <p>Données figées · {escape(str(computed)[:19].replace("T", " "))} UTC · {buffer_m:.0f} m
+      {f" · {surface:.0f} m²" if surface else ""}</p>
   </div>
-  <div class="legend" id="legend"></div>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <aside class="legend" id="legend">
+    <div class="legend__head"><h2>Couches &amp; entités</h2></div>
+    <div class="legend__scroll" id="legend-scroll"></div>
+  </aside>
+  <script src="https://unpkg.com/@turf/turf@7.2.0/dist/turf.min.js"></script>
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script>
     const DATA = {data_json};
 
-    const map = L.map("map", {{ zoomControl: true }});
-    L.tileLayer("https://{{s}}.basemaps.cartocdn.com/rastertiles/voyager/{{z}}/{{x}}/{{y}}{{r}}.png", {{
-      attribution: "© OpenStreetMap © CARTO",
-      maxZoom: 20,
-    }}).addTo(map);
+    const state = {{
+      visibleLayers: new Set(DATA.layers.map(l => l.layer_id)),
+      visibleGroups: {{}},
+      expandedLayers: new Set(),
+      expandedFamilies: new Set(),
+    }};
+    for (const layer of DATA.layers) {{
+      const keys = layer.legend_items.map(i => i.key);
+      state.visibleGroups[layer.layer_id] = new Set(keys);
+      state.expandedLayers.add(layer.layer_id);
+    }}
+    for (const layer of DATA.layers) state.expandedFamilies.add(layer.family_title);
 
-    const bounds = L.latLngBounds([]);
-    function extendBounds(geojson) {{
-      if (!geojson) return;
-      try {{
-        const layer = L.geoJSON(geojson);
-        const b = layer.getBounds();
-        if (b.isValid()) bounds.extend(b);
-      }} catch (e) {{}}
+    const mapLayerIds = {{}};
+    const mapSourceIds = {{}};
+
+    function sid(layerId) {{ return "ctx-src-" + layerId.replace(/[^a-zA-Z0-9_-]/g, "_"); }}
+    function lid(layerId, suffix) {{ return "ctx-" + layerId.replace(/[^a-zA-Z0-9_-]/g, "_") + "-" + suffix; }}
+
+    function groupFilter(layer) {{
+      const keys = Array.from(state.visibleGroups[layer.layer_id] || []);
+      if (!layer.filterable || keys.length === 0) return ["literal", true];
+      return ["in", ["get", "_studyKey"], ["literal", keys]];
     }}
 
-    if (DATA.parcelle) {{
-      const uf = L.geoJSON(DATA.parcelle, {{
-        style: {{ color: "#b91c1c", weight: 3, fillColor: "#ef4444", fillOpacity: 0.15 }},
-      }}).addTo(map);
-      uf.bindPopup("<strong>Unité foncière</strong><br>" + (DATA.label || ""));
-      extendBounds(DATA.parcelle);
-    }}
-
-    const legendEl = document.getElementById("legend");
-    legendEl.innerHTML = "<h2>Couches</h2>";
-    let lastFamily = "";
-
-    for (const layer of DATA.layers || []) {{
-      if (layer.family_title !== lastFamily) {{
-        lastFamily = layer.family_title;
-        const fam = document.createElement("div");
-        fam.className = "legend-family";
-        fam.textContent = layer.family_title;
-        legendEl.appendChild(fam);
+    function setLayerVisibility(layerId, on) {{
+      const ids = mapLayerIds[layerId] || [];
+      for (const id of ids) {{
+        if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
       }}
-      const item = document.createElement("div");
-      item.className = "legend-item";
-      item.innerHTML = `<span class="swatch" style="background:${{layer.color}}"></span>
-        <span>${{layer.title}}<span class="badge">${{layer.count}}</span></span>`;
-      legendEl.appendChild(item);
-
-      const fc = {{ type: "FeatureCollection", features: layer.features }};
-      const isLine = layer.geom_type === "lineaire";
-      const isPoint = layer.geom_type === "ponctuel";
-
-      L.geoJSON(fc, {{
-        style: function(f) {{
-          const inside = f.properties && f.properties.intersects_parcel;
-          const alpha = inside ? 0.45 : 0.2;
-          if (isLine) return {{ color: layer.color, weight: inside ? 4 : 2, opacity: inside ? 0.9 : 0.5 }};
-          if (isPoint) return {{}};
-          return {{ color: layer.color, weight: inside ? 2 : 1, fillColor: layer.color, fillOpacity: alpha }};
-        }},
-        pointToLayer: function(f, latlng) {{
-          const inside = f.properties && f.properties.intersects_parcel;
-          return L.circleMarker(latlng, {{
-            radius: inside ? 7 : 5,
-            color: layer.color,
-            fillColor: layer.color,
-            fillOpacity: inside ? 0.85 : 0.45,
-            weight: 2,
-          }});
-        }},
-        onEachFeature: function(f, l) {{
-          const p = f.properties || {{}};
-          let html = "<strong>" + layer.title + "</strong>";
-          if (!p.intersects_parcel) html += '<div class="near-label">À proximité (hors UF)</div>';
-          const rows = [];
-          for (const [k, v] of Object.entries(p)) {{
-            if (["_fid","intersects_parcel"].includes(k) || v == null || v === "") continue;
-            rows.push("<tr><th>" + k + "</th><td>" + String(v).slice(0,120) + "</td></tr>");
-          }}
-          if (rows.length) html += "<table class='popup-table'>" + rows.join("") + "</table>";
-          l.bindPopup(html);
-        }},
-      }}).addTo(map);
-      extendBounds(fc);
     }}
 
-    if (bounds.isValid()) {{
-      map.fitBounds(bounds, {{ padding: [40, 40], maxZoom: 17 }});
-    }} else {{
-      map.setView([42.55, 3.02], 14);
+    function applyGroupFilter(layer) {{
+      const ids = mapLayerIds[layer.layer_id] || [];
+      const filt = groupFilter(layer);
+      for (const id of ids) {{
+        if (map.getLayer(id)) map.setFilter(id, filt);
+      }}
+    }}
+
+    const UF_OUTLINE = "#FBBF24";
+    const BUFFER_LINE = "#FACC15";
+
+    function setLayerVisible(layerId, on) {{
+      const layer = DATA.layers.find(l => l.layer_id === layerId);
+      if (!layer) return;
+      if (on) {{
+        state.visibleLayers.add(layerId);
+        state.visibleGroups[layerId] = new Set(layer.legend_items.map(i => i.key));
+      }} else {{
+        state.visibleLayers.delete(layerId);
+        state.visibleGroups[layerId] = new Set();
+      }}
+      refreshMap();
+      renderLegend();
+    }}
+
+    function bringUfAndBufferToFront() {{
+      for (const id of ["ctx-buffer-line", "ctx-parcelle-fill", "ctx-parcelle-outline"]) {{
+        if (map.getLayer(id)) map.moveLayer(id);
+      }}
+    }}
+
+    function addStudyZoneOverlays() {{
+      if (!DATA.parcelle) return;
+
+      if (DATA.buffer_m > 0 && typeof turf !== "undefined") {{
+        try {{
+          const bufPoly = turf.buffer(DATA.parcelle, DATA.buffer_m / 1000, {{
+            units: "kilometers", steps: 32,
+          }});
+          const bufLine = turf.polygonToLine(bufPoly);
+          map.addSource("ctx-buffer", {{ type: "geojson", data: bufLine }});
+          map.addLayer({{
+            id: "ctx-buffer-line", type: "line", source: "ctx-buffer",
+            paint: {{
+              "line-color": BUFFER_LINE,
+              "line-width": 2,
+              "line-dasharray": [4, 3],
+              "line-opacity": 0.95,
+            }},
+          }});
+        }} catch (e) {{ console.warn("buffer", e); }}
+      }}
+
+      map.addSource("ctx-parcelle", {{ type: "geojson", data: DATA.parcelle }});
+      map.addLayer({{
+        id: "ctx-parcelle-fill", type: "fill", source: "ctx-parcelle",
+        paint: {{ "fill-color": UF_OUTLINE, "fill-opacity": 0.12 }},
+      }});
+      map.addLayer({{
+        id: "ctx-parcelle-outline", type: "line", source: "ctx-parcelle",
+        paint: {{ "line-color": UF_OUTLINE, "line-width": 3.5, "line-opacity": 1 }},
+      }});
+      bringUfAndBufferToFront();
+    }}
+
+    function refreshMap() {{
+      for (const layer of DATA.layers) {{
+        const on = state.visibleLayers.has(layer.layer_id);
+        setLayerVisibility(layer.layer_id, on);
+        if (on) applyGroupFilter(layer);
+      }}
+      bringUfAndBufferToFront();
+    }}
+
+    function popupHtml(layer, props) {{
+      let html = '<div class="popup"><h3>' + esc(layer.title) + '</h3>';
+      if (props.intersects_parcel === false) html += '<div class="near">À proximité (hors UF)</div>';
+      if (props._studyLabel) html += '<p><strong>' + esc(props._studyLabel) + '</strong></p>';
+      html += '<table>';
+      const skip = new Set(["_fid","_studyKey","_studyColor","_studyLabel","_layerId","intersects_parcel"]);
+      for (const [k,v] of Object.entries(props)) {{
+        if (skip.has(k) || v == null || v === "") continue;
+        html += "<tr><th>" + esc(k) + "</th><td>" + esc(String(v).slice(0,140)) + "</td></tr>";
+      }}
+      return html + "</table></div>";
+    }}
+
+    function esc(s) {{
+      return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }}
+
+    const map = new maplibregl.Map({{
+      container: "map",
+      style: DATA.ignStyle,
+      center: [3.017, 42.548],
+      zoom: 14,
+      attributionControl: true,
+    }});
+
+    map.addControl(new maplibregl.NavigationControl(), "top-left");
+
+    const popup = new maplibregl.Popup({{ closeButton: true, maxWidth: "320px" }});
+
+    map.on("load", () => {{
+      const clickable = [];
+
+      for (const layer of DATA.layers) {{
+        const src = sid(layer.layer_id);
+        const fc = {{ type: "FeatureCollection", features: layer.features }};
+        map.addSource(src, {{ type: "geojson", data: fc }});
+        mapSourceIds[layer.layer_id] = src;
+        const lids = [];
+        const gt = layer.geom_type;
+        const colorExpr = ["coalesce", ["get", "_studyColor"], "#888888"];
+        const filt = groupFilter(layer);
+
+        if (gt === "lineaire") {{
+          const id = lid(layer.layer_id, "line");
+          map.addLayer({{
+            id, type: "line", source: src, filter: filt,
+            paint: {{
+              "line-color": colorExpr,
+              "line-width": ["case", ["==", ["get", "intersects_parcel"], true], 4, 2],
+              "line-opacity": ["case", ["==", ["get", "intersects_parcel"], true], 0.9, 0.45],
+            }},
+          }});
+          lids.push(id); clickable.push(id);
+        }} else if (gt === "ponctuel") {{
+          const id = lid(layer.layer_id, "circle");
+          map.addLayer({{
+            id, type: "circle", source: src, filter: filt,
+            paint: {{
+              "circle-color": colorExpr,
+              "circle-radius": ["case", ["==", ["get", "intersects_parcel"], true], 7, 5],
+              "circle-stroke-color": "#fff", "circle-stroke-width": 1,
+              "circle-opacity": ["case", ["==", ["get", "intersects_parcel"], true], 0.9, 0.5],
+            }},
+          }});
+          lids.push(id); clickable.push(id);
+        }} else {{
+          const fillId = lid(layer.layer_id, "fill");
+          map.addLayer({{
+            id: fillId, type: "fill", source: src, filter: filt,
+            paint: {{
+              "fill-color": colorExpr,
+              "fill-opacity": ["case", ["==", ["get", "intersects_parcel"], true], 0.42, 0.18],
+            }},
+          }});
+          const lineId = lid(layer.layer_id, "outline");
+          map.addLayer({{
+            id: lineId, type: "line", source: src, filter: filt,
+            paint: {{ "line-color": colorExpr, "line-width": 1.2, "line-opacity": 0.85 }},
+          }});
+          lids.push(fillId, lineId);
+          clickable.push(fillId, lineId);
+        }}
+        mapLayerIds[layer.layer_id] = lids;
+      }}
+
+      addStudyZoneOverlays();
+
+      map.on("click", (e) => {{
+        const features = map.queryRenderedFeatures(e.point, {{ layers: clickable }});
+        if (!features.length) return;
+        const f = features[0];
+        const layerId = f.properties && f.properties._layerId;
+        const meta = DATA.layers.find(l => l.layer_id === layerId);
+        if (meta) popup.setLngLat(e.lngLat).setHTML(popupHtml(meta, f.properties || {{}})).addTo(map);
+      }});
+
+      map.on("mouseenter", clickable, () => {{ map.getCanvas().style.cursor = "pointer"; }});
+      map.on("mouseleave", clickable, () => {{ map.getCanvas().style.cursor = ""; }});
+
+      const bounds = new maplibregl.LngLatBounds();
+      const extend = (gj) => {{
+        if (!gj || !gj.geometry) return;
+        const g = gj.geometry;
+        const ring = (c) => {{ for (const p of c) bounds.extend(p); }};
+        if (g.type === "Point") bounds.extend(g.coordinates);
+        else if (g.type === "MultiPoint" || g.type === "LineString") ring(g.coordinates);
+        else if (g.type === "MultiLineString" || g.type === "Polygon") g.coordinates.forEach(ring);
+        else if (g.type === "MultiPolygon") g.coordinates.forEach(poly => poly.forEach(ring));
+      }};
+      if (DATA.parcelle) extend(DATA.parcelle);
+      for (const layer of DATA.layers) layer.features.forEach(extend);
+      if (!bounds.isEmpty()) map.fitBounds(bounds, {{ padding: 60, maxZoom: 17 }});
+
+      buildLegend();
+      refreshMap();
+    }});
+
+    function toggleGroup(layerId, key) {{
+      if (!state.visibleLayers.has(layerId)) return;
+      const set = state.visibleGroups[layerId];
+      if (!set) return;
+      if (set.has(key)) set.delete(key); else set.add(key);
+      applyGroupFilter(DATA.layers.find(l => l.layer_id === layerId));
+      renderLegend();
+    }}
+
+    function buildLegend() {{ renderLegend(); }}
+
+    function renderLegend() {{
+      const root = document.getElementById("legend-scroll");
+      root.innerHTML = "";
+      const byFam = {{}};
+      for (const layer of DATA.layers) {{
+        if (!byFam[layer.family_title]) byFam[layer.family_title] = [];
+        byFam[layer.family_title].push(layer);
+      }}
+
+      for (const [famTitle, layers] of Object.entries(byFam)) {{
+        const famOn = layers.some(l => state.visibleLayers.has(l.layer_id));
+        const famExp = state.expandedFamilies.has(famTitle);
+        const famDiv = document.createElement("div");
+        famDiv.className = "fam";
+        famDiv.innerHTML = `<div class="fam__row">
+          <button class="btn" data-fam="${{esc(famTitle)}}">${{famExp ? "▾" : "▸"}}</button>
+          <span class="fam__title">${{esc(famTitle)}}</span>
+          <input type="checkbox" ${{famOn ? "checked" : ""}} data-fam-toggle="${{esc(famTitle)}}"/>
+        </div>`;
+        root.appendChild(famDiv);
+
+        famDiv.querySelector("[data-fam]").onclick = () => {{
+          if (famExp) state.expandedFamilies.delete(famTitle); else state.expandedFamilies.add(famTitle);
+          renderLegend();
+        }};
+        famDiv.querySelector("[data-fam-toggle]").onchange = (e) => {{
+          const checked = e.target.checked;
+          for (const l of layers) {{
+            if (checked) {{
+              state.visibleLayers.add(l.layer_id);
+              state.visibleGroups[l.layer_id] = new Set(l.legend_items.map(i => i.key));
+            }} else {{
+              state.visibleLayers.delete(l.layer_id);
+              state.visibleGroups[l.layer_id] = new Set();
+            }}
+          }}
+          refreshMap();
+          renderLegend();
+        }};
+
+        if (!famExp) continue;
+
+        for (const layer of layers) {{
+          const on = state.visibleLayers.has(layer.layer_id);
+          const exp = state.expandedLayers.has(layer.layer_id);
+          const layerDiv = document.createElement("div");
+          layerDiv.className = "layer";
+          const hits = layer.features.filter(f => f.properties && f.properties.intersects_parcel).length;
+          layerDiv.innerHTML = `<div class="layer__row">
+            <button class="btn" data-layer-exp="${{layer.layer_id}}">${{exp ? "▾" : "▸"}}</button>
+            <input type="checkbox" ${{on ? "checked" : ""}} data-layer="${{layer.layer_id}}"/>
+            <span class="layer__title ${{on ? "" : "off"}}">${{esc(layer.title)}}
+              <span class="layer__meta">(${{layer.count}}${{hits ? ", " + hits + " sur UF" : ""}})</span></span>
+          </div>`;
+          famDiv.appendChild(layerDiv);
+
+          layerDiv.querySelector("[data-layer-exp]").onclick = () => {{
+            if (exp) state.expandedLayers.delete(layer.layer_id);
+            else state.expandedLayers.add(layer.layer_id);
+            renderLegend();
+          }};
+          layerDiv.querySelector("[data-layer]").onchange = (e) => setLayerVisible(layer.layer_id, e.target.checked);
+
+          if (!exp || !layer.filterable || layer.legend_items.length <= 1) continue;
+
+          const groups = document.createElement("div");
+          groups.className = "groups";
+
+          for (const item of layer.legend_items) {{
+            if (item.count === 0) continue;
+            const gOn = on && state.visibleGroups[layer.layer_id].has(item.key);
+            const row = document.createElement("div");
+            row.className = "grp";
+            row.innerHTML = `<input type="checkbox" ${{gOn ? "checked" : ""}} ${{on ? "" : "disabled"}}/>
+              <span class="swatch" style="background:${{item.color}};${{on ? "" : "opacity:0.35"}}"></span>
+              <span class="grp__label ${{on ? "" : "disabled"}}" title="${{esc(item.label)}}">${{esc(item.label)}}</span>
+              <span class="grp__count">${{item.count}}</span>`;
+            if (on) row.querySelector("input").onchange = () => toggleGroup(layer.layer_id, item.key);
+            groups.appendChild(row);
+          }}
+          layerDiv.appendChild(groups);
+        }}
+      }}
     }}
   </script>
 </body>
