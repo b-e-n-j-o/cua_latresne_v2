@@ -23,7 +23,7 @@ from api.cuas.argeles.carto_context import (
     run_carto_context,
     storage_object_path,
 )
-from api.cuas.argeles.db import SUPABASE_BUCKET
+from api.cuas.argeles.db import PIPELINES_SCHEMA, SUPABASE_BUCKET, get_supabase
 from api.cuas.argeles.intersections import load_catalogue, run_intersections
 from api.cuas.argeles.uf import build_uf
 
@@ -128,6 +128,38 @@ def get_parcelles_carto_context(commune_slug: str, body: CartoContextRequest):
 _PIPELINE_SLUG_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 
 
+def _resolve_carto_context_filename(pipeline_slug: str) -> str:
+    """Nom du HTML gelé : metadata pipeline, listing storage ou fallback historique."""
+    try:
+        sb = get_supabase()
+        row = (
+            sb.schema(PIPELINES_SCHEMA)
+            .table("pipelines")
+            .select("metadata")
+            .eq("slug", pipeline_slug)
+            .maybe_single()
+            .execute()
+        )
+        meta = (row.data or {}).get("metadata") or {}
+        filename = (meta.get("carte_context_filename") or "").strip()
+        if filename:
+            return filename
+    except Exception:
+        pass
+
+    try:
+        sb = get_supabase()
+        entries = sb.storage.from_(SUPABASE_BUCKET).list(pipeline_slug) or []
+        for entry in entries:
+            name = (entry.get("name") or "").strip()
+            if name.startswith("carte_context") and name.endswith(".html"):
+                return name
+    except Exception:
+        pass
+
+    return CARTE_CONTEXT_FILENAME
+
+
 @router.get("/{commune_slug}/carto/{pipeline_slug}")
 def serve_carto_context_html(commune_slug: str, pipeline_slug: str):
     """
@@ -146,7 +178,7 @@ def serve_carto_context_html(commune_slug: str, pipeline_slug: str):
     if not supabase_url:
         raise HTTPException(status_code=502, detail="Stockage indisponible")
 
-    remote = storage_object_path(pid, CARTE_CONTEXT_FILENAME)
+    remote = storage_object_path(pid, _resolve_carto_context_filename(pid))
     src = f"{supabase_url}/storage/v1/object/public/{SUPABASE_BUCKET}/{remote}"
 
     try:

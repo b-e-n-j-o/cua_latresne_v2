@@ -21,18 +21,23 @@ class ParcelleRefIn(BaseModel):
 
 
 class DossierIn(BaseModel):
+    numero_cu: str = Field(
+        ...,
+        min_length=1,
+        max_length=80,
+        description="Référence du dossier ou de la demande Cerfa à lier au CUA",
+    )
     demandeur: Optional[str] = None
     demandeur_adresse: Optional[str] = None
     terrain: Optional[str] = None
     date_depot: Optional[str] = None
-    numero_cu: Optional[str] = None
     superficie: Optional[float] = None
     cadastre: Optional[str] = None
 
 
 class GenerateCuaRequest(BaseModel):
     refs: list[ParcelleRefIn] = Field(..., min_length=1, max_length=20)
-    dossier: Optional[DossierIn] = None
+    dossier: DossierIn
     user_id: Optional[str] = None
     user_email: Optional[str] = None
     persist: bool = True
@@ -73,7 +78,8 @@ async def generate_cua(commune_slug: str, body: GenerateCuaRequest):
     assert_authorized_for_commune_slug(body.user_id, slug)
 
     refs = [{"section": r.section.strip(), "numero": r.numero.strip()} for r in body.refs]
-    dossier = body.dossier.model_dump(exclude_none=True) if body.dossier else None
+    dossier = body.dossier.model_dump(exclude_none=True)
+    dossier["numero_cu"] = body.dossier.numero_cu.strip()
 
     try:
         result = await asyncio.to_thread(

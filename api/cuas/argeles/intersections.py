@@ -79,6 +79,13 @@ except ImportError:
         sys.path.insert(0, str(_ARGELES_DIR))
     from intersection_modules.ppr_et_pprif import compute_ppr_et_pprif_reglementation
 
+try:
+    from api.cuas.argeles.intersection_modules.taxes import compute_taxes
+except ImportError:
+    if str(_ARGELES_DIR) not in sys.path:
+        sys.path.insert(0, str(_ARGELES_DIR))
+    from intersection_modules.taxes import compute_taxes
+
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 # Seuil minimal d'intersection : exclut les contacts en bordure (aire/longueur nulle)
@@ -409,6 +416,43 @@ def run_intersections(uf, catalogue, engine=None, schema=SCHEMA) -> dict:
             "objets": [],
             "status": "erreur",
             "error": str(exc),
+        }
+
+    # Bloc métier dédié taxes (taux communale depuis argeles.taxes)
+    try:
+        special = compute_taxes(
+            uf.wkt,
+            surface_sig=uf.surface_sig,
+            engine=engine,
+            schema=schema,
+        )
+        rapport["intersections"]["taxes"] = {
+            "nom": "Taxe d'aménagement – part communale",
+            "type": "fiscalite",
+            "geom_type": "surfacique",
+            "pct_sig": 0.0,
+            **special,
+        }
+        src = special.get("source")
+        taux = special.get("taux_communale_libelle")
+        if src == "intersection":
+            lib = (special.get("libelle") or "zone fiscale").strip()
+            logger.info(f"  ✅ taxes                              {taux} ({lib})")
+        else:
+            logger.info(f"  ·  taxes                              {taux} (défaut)")
+    except Exception as exc:
+        logger.warning(f"  ⚠  taxes                            {exc}")
+        rapport["intersections"]["taxes"] = {
+            "nom": "Taxe d'aménagement – part communale",
+            "type": "fiscalite",
+            "geom_type": "surfacique",
+            "pct_sig": 0.0,
+            "objets": [],
+            "status": "erreur",
+            "error": str(exc),
+            "taux_communale": 5.0,
+            "taux_communale_libelle": "5 %",
+            "source": "defaut",
         }
 
     return rapport

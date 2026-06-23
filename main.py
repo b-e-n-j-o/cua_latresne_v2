@@ -75,6 +75,7 @@ from services.plu_txt_markdown.router import router as plu_txt_markdown_router
 from api.reglements.router_reglements import admin_router as reglements_superadmin_router
 from api.reglements.router_reglements import router as reglements_admin_router
 from api.reglements.router_documents import router as documents_router
+from api.raa.raa_api import router as raa_router
 
 
 logging.basicConfig(
@@ -351,6 +352,9 @@ app.include_router(lidar_router, prefix="/lidar")
 # --- MNT 3D (topographie) ---
 app.include_router(mnt_router, prefix="/mnt")
 
+
+# --- Veille réglementaire RAA (par commune) ---
+app.include_router(raa_router)
 
 # --- Site / compte (santé, leads, auth) ---
 app.include_router(site_account_router)

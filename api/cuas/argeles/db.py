@@ -122,12 +122,13 @@ def persist_cua(
     pipelines_schema: str | None = None,
     wkt: str | None = None,
     carte_context_url: str | None = None,
+    docx_remote_path: str | None = None,
 ) -> dict:
     """Upload le CUA DOCX puis upsert la ligne dans <pipelines_schema>.pipelines."""
     sb = get_supabase()
     pipelines_schema = pipelines_schema or PIPELINES_SCHEMA
 
-    remote = f"{slug}/CUA_unite_fonciere.docx"
+    remote = docx_remote_path or f"{slug}/CUA_unite_fonciere.docx"
     cua_url = upload_file(docx_path, remote, content_type=_DOCX_MIME)
     logger.info(f"📎 CUA uploadé : {cua_url}")
 

@@ -11,9 +11,11 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 import secrets
 import string
 import tempfile
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -21,7 +23,6 @@ from typing import Any, Optional
 from api.communes.latresne.parcelles_geojson import _resolve_table_for_commune
 from api.cuas.argeles.builder import CommuneConfig, build_cua
 from api.cuas.argeles.carto_context import (
-    CARTE_CONTEXT_FILENAME,
     DEFAULT_CONTEXT_BUFFER_M,
     DEFAULT_DISPLAY_CLIP_M,
     friendly_carto_url,
@@ -42,8 +43,6 @@ DEFAULT_DOSSIER: dict[str, Any] = {
     "demandeur": "M. Dupont",
     "demandeur_adresse": "12 rue Example, 66700 Argelès-sur-Mer",
     "terrain": "Argelès-sur-Mer",
-    "date_depot": "15/06/2026",
-    "numero_cu": "CU-2026-001",
 }
 
 COMMUNE_CUA_CATALOGUE: dict[str, Path] = {
@@ -78,13 +77,45 @@ def _cua_viewer_url(remote_docx_path: str) -> str:
     return f"https://kerelia.fr/cua?t={token}"
 
 
+def _today_fr() -> str:
+    return datetime.now().strftime("%d/%m/%Y")
+
+
 def _merge_dossier(dossier: Optional[dict]) -> dict:
     merged = dict(DEFAULT_DOSSIER)
     if dossier:
         for key, value in dossier.items():
             if value is not None and str(value).strip():
                 merged[key] = value
+    numero_cu = str(merged.get("numero_cu") or "").strip()
+    if not numero_cu:
+        raise ValueError(
+            "Référence du dossier requise (numero_cu) pour générer le certificat d'urbanisme."
+        )
+    merged["numero_cu"] = numero_cu
+    if not str(merged.get("date_depot") or "").strip():
+        merged["date_depot"] = _today_fr()
     return merged
+
+
+def _sanitize_dossier_ref_for_filename(ref: str, max_len: int = 48) -> str:
+    s = unicodedata.normalize("NFKD", (ref or "").strip())
+    s = s.encode("ascii", "ignore").decode("ascii")
+    s = re.sub(r"[^\w.-]+", "-", s)
+    s = re.sub(r"-+", "-", s).strip("-._")
+    if not s:
+        raise ValueError("Référence du dossier invalide pour nom de fichier.")
+    return s[:max_len]
+
+
+def _cua_docx_filename(numero_cu: str) -> str:
+    safe_ref = _sanitize_dossier_ref_for_filename(numero_cu)
+    return f"CUA_{safe_ref}.docx"
+
+
+def _carte_context_filename(numero_cu: str) -> str:
+    safe_ref = _sanitize_dossier_ref_for_filename(numero_cu)
+    return f"carte_context_{safe_ref}.html"
 
 
 def generate_cua_for_parcelles(
@@ -151,19 +182,21 @@ def generate_cua_for_parcelles(
 
     with tempfile.TemporaryDirectory(prefix="cua_") as tmp:
         tmp_path = Path(tmp)
-        numero_cu = dossier_merged.get("numero_cu")
+        numero_cu = dossier_merged["numero_cu"]
+        carte_filename = _carte_context_filename(numero_cu)
+        docx_filename = _cua_docx_filename(numero_cu)
         html_carto = render_carto_context_html(
             carto_payload,
             commune_nom=meta.get("nom", slug),
             numero_cu=numero_cu,
             carto_catalogue=carto_catalogue,
         )
-        html_path = tmp_path / CARTE_CONTEXT_FILENAME
+        html_path = tmp_path / carte_filename
         html_path.write_text(html_carto, encoding="utf-8")
         logger.info(f"Carte contexte HTML ({html_path.stat().st_size} octets)")
 
         if persist:
-            remote_html = storage_object_path(pipeline_slug, CARTE_CONTEXT_FILENAME)
+            remote_html = storage_object_path(pipeline_slug, carte_filename)
             carte_storage_url = upload_file(
                 str(html_path),
                 remote_html,
@@ -175,7 +208,7 @@ def generate_cua_for_parcelles(
         dossier_merged["carte_context_url"] = carte_context_url
         rapport["carte_context_url"] = carte_context_url
 
-        docx_path = tmp_path / "CUA_unite_fonciere.docx"
+        docx_path = tmp_path / docx_filename
         build_cua(dossier_merged, rapport, str(docx_path), config=builder_config)
         logger.info(f"DOCX CUA généré ({docx_path.stat().st_size} octets)")
 
@@ -198,10 +231,11 @@ def generate_cua_for_parcelles(
         }
 
         if persist:
-            remote_docx = f"{pipeline_slug}/CUA_unite_fonciere.docx"
+            remote_docx = f"{pipeline_slug}/{docx_filename}"
             persisted = persist_cua(
                 slug=pipeline_slug,
                 docx_path=str(docx_path),
+                docx_remote_path=remote_docx,
                 refs=rapport.get("parcelles", []),
                 surface_cad=rapport.get("surface_indicative") or uf.surface_cadastrale,
                 commune=meta.get("commune", slug),
@@ -214,6 +248,8 @@ def generate_cua_for_parcelles(
                     "n_couches_concernees": rapport["n_couches_concernees"],
                     "dossier": dossier_merged,
                     "carte_context_storage_url": carte_storage_url,
+                    "carte_context_filename": carte_filename,
+                    "cua_docx_filename": docx_filename,
                 },
             )
             result["output_cua"] = persisted["cua_url"]
@@ -232,7 +268,7 @@ def generate_cua_for_parcelles(
                     sb,
                     slug=pipeline_slug,
                     file_kind="cua_docx",
-                    filename="CUA_unite_fonciere.docx",
+                    filename=docx_filename,
                     storage_path=remote_docx,
                     public_url=persisted["cua_url"],
                     storage_bucket=SUPABASE_BUCKET,
@@ -246,8 +282,8 @@ def generate_cua_for_parcelles(
                         sb,
                         slug=pipeline_slug,
                         file_kind="carte_context_html",
-                        filename=CARTE_CONTEXT_FILENAME,
-                        storage_path=storage_object_path(pipeline_slug, CARTE_CONTEXT_FILENAME),
+                        filename=carte_filename,
+                        storage_path=storage_object_path(pipeline_slug, carte_filename),
                         public_url=carte_context_url,
                         storage_bucket=SUPABASE_BUCKET,
                         mime_type="text/html; charset=utf-8",

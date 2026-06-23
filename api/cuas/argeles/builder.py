@@ -110,6 +110,7 @@ LAYERS_METIER = {
     "sup_assiette_s",
     "sup_assiette_l",
     "sup_assiette_p",
+    "taxes",
 }
 # Statuts à ignorer silencieusement (ne rien montrer au pétitionnaire)
 STATUTS_IGNORES = {"erreur", "table_absente"}
@@ -521,7 +522,7 @@ def section_identite(doc, ctx):
         ("Demeurant à", d.get("demandeur_adresse")),
         ("Sur un terrain sis", d.get("terrain")),
         ("Cadastre", _format_cadastre(d, ctx.rapport)),
-        ("Demande déposée le", d.get("date_depot")),
+        ("Demande déposée le", d.get("date_depot") or datetime.now().strftime("%d/%m/%Y")),
         ("Superficie", f"{superficie} m²" if superficie else None),
         ("N° de dossier", d.get("numero_cu")),
     ])
@@ -901,11 +902,13 @@ def section_sursis(doc, ctx):
 
 def section_taxes(doc, ctx):
     c = ctx.config
+    taxes = ctx.rapport.get("intersections", {}).get("taxes", {})
+    taxe_communale = taxes.get("taux_communale_libelle") or c.taxe_communale
     add_title_bar(doc, "Taxes et contributions")
     add_para(doc, "Les taxes et contributions ne peuvent être déterminées précisément qu'à l'examen "
                   "de la demande d'autorisation.")
     add_para(doc, "Fiscalité applicable au terrain :", bold=True)
-    add_para(doc, f"– Taxe d'aménagement – part communale (taux : {c.taxe_communale})")
+    add_para(doc, f"– Taxe d'aménagement – part communale (taux : {taxe_communale})")
     add_para(doc, f"– Taxe d'aménagement – part départementale (taux : {c.taxe_departementale})")
     add_para(doc, f"– Redevance d'archéologie préventive (taux : {c.rap})")
     add_para(doc, "Participations applicables au terrain :", bold=True)
