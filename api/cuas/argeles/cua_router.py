@@ -6,11 +6,12 @@ from __future__ import annotations
 import asyncio
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from api.cuas.argeles.generate_cua import COMMUNE_CUA_CATALOGUE, generate_cua_for_parcelles
 from services.auth.commune_access import assert_authorized_for_commune_slug
+from services.auth.current_user import AuthenticatedUser, get_current_user
 
 router = APIRouter(prefix="/communes", tags=["cua-generation"])
 
@@ -38,8 +39,6 @@ class DossierIn(BaseModel):
 class GenerateCuaRequest(BaseModel):
     refs: list[ParcelleRefIn] = Field(..., min_length=1, max_length=20)
     dossier: DossierIn
-    user_id: Optional[str] = None
-    user_email: Optional[str] = None
     persist: bool = True
 
 
@@ -62,7 +61,11 @@ class GenerateCuaResponse(BaseModel):
 
 
 @router.post("/{commune_slug}/cua/generate", response_model=GenerateCuaResponse)
-async def generate_cua(commune_slug: str, body: GenerateCuaRequest):
+async def generate_cua(
+    commune_slug: str,
+    body: GenerateCuaRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
     """
     Génère un certificat d'urbanisme pour une parcelle ou une UF contiguë.
 
@@ -75,7 +78,7 @@ async def generate_cua(commune_slug: str, body: GenerateCuaRequest):
             detail=f"Génération CUA indisponible pour {commune_slug}",
         )
 
-    assert_authorized_for_commune_slug(body.user_id, slug)
+    assert_authorized_for_commune_slug(current_user.id, slug)
 
     refs = [{"section": r.section.strip(), "numero": r.numero.strip()} for r in body.refs]
     dossier = body.dossier.model_dump(exclude_none=True)
@@ -88,8 +91,8 @@ async def generate_cua(commune_slug: str, body: GenerateCuaRequest):
             commune_slug=slug,
             dossier=dossier,
             persist=body.persist,
-            user_id=body.user_id,
-            user_email=body.user_email,
+            user_id=current_user.id,
+            user_email=current_user.email,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

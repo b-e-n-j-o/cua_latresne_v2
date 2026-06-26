@@ -3,10 +3,11 @@ Site vitrine / compte : santé API, leads, réinitialisation mot de passe Supaba
 """
 
 import requests
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
 
 from app.deps import SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL, supabase
+from services.auth.current_user import get_current_user_id
 from utils.email_utils import send_internal_email, send_password_reset_email
 
 router = APIRouter(tags=["site-account"])
@@ -102,9 +103,9 @@ def send_password_reset(req: PasswordResetRequest):
 
 
 @router.get("/account/commune-access")
-async def get_account_commune_access(user_id: str):
+async def get_account_commune_access(user_id: str = Depends(get_current_user_id)):
     """
-    Communes portail autorisées pour un utilisateur (garde de routes front).
+    Communes portail autorisées pour l'utilisateur authentifié (garde de routes front).
     Même logique que services.auth.commune_access (table + metadata legacy).
     """
     from services.auth.commune_access import (
@@ -112,9 +113,6 @@ async def get_account_commune_access(user_id: str):
         get_authorized_insee_codes,
         is_superadmin,
     )
-
-    if not user_id:
-        raise HTTPException(status_code=400, detail="user_id requis")
 
     slugs = get_authorized_commune_slugs(user_id)
     insee_codes = get_authorized_insee_codes(user_id)

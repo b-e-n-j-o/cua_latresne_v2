@@ -128,7 +128,11 @@ def _insert_analyse_sql(schema: str) -> str:
 """
 
 
-def _update_statut_sql(schema: str) -> str:
+def _update_statut_sql(schema: str, *, avec_vu: bool) -> str:
+    if avec_vu:
+        return (
+            f"UPDATE {schema}.raa SET statut=%s, vu=false, updated_at=now() WHERE id=%s;"
+        )
     return f"UPDATE {schema}.raa SET statut=%s, updated_at=now() WHERE id=%s;"
 
 
@@ -152,7 +156,10 @@ def _enregistrer(conn, result: dict, schema: str) -> dict:
             },
         )
         analyse_id, created_at = cur.fetchone()
-        cur.execute(_update_statut_sql(schema), (result["statut"], result["raa_id"]))
+        cur.execute(
+            _update_statut_sql(schema, avec_vu=(result["statut"] == "analyse")),
+            (result["statut"], result["raa_id"]),
+        )
     conn.commit()
     result["analyse_id"] = analyse_id
     result["created_at"] = created_at

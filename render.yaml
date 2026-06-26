@@ -43,6 +43,34 @@ services:
       - key: GOOGLE_API_KEY
         sync: false
 
+  # Veille RAA — scrape + analyse LLM des nouveaux recueils (5h UTC)
+  - type: cron
+    name: raa-sync-daily
+    runtime: python
+    region: frankfurt
+    schedule: "0 5 * * *"
+    buildCommand: |
+      apt-get update && apt-get install -y gdal-bin libgdal-dev
+      pip install -r requirements.txt
+    startCommand: bash scripts/render_cron_sync_raa.sh
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.8
+      - key: SUPABASE_HOST
+        sync: false
+      - key: SUPABASE_USER
+        sync: false
+      - key: SUPABASE_PASSWORD
+        sync: false
+      - key: SUPABASE_DB
+        sync: false
+      - key: SUPABASE_PORT
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+
   # Cron ETL quotidien (UTC). Communes : config/etl_communes.json
   # Si le Blueprint échoue sur le cron : créer le job à la main (Dashboard → New → Cron Job).
   - type: cron

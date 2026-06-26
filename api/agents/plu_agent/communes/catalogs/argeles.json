@@ -86,6 +86,26 @@
         "Libellé",
         "Degré"
       ]
+    },
+    "taxes": {
+      "enabled": true,
+      "table": "taxes",
+      "title": "Taxe d'aménagement — zonage communal",
+      "group": "fiscalite",
+      "kind": "surfacique",
+      "color": "#8338EC",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "libelle",
+        "taux"
+      ],
+      "clean_attributes": [
+        "Libellé",
+        "Taux (%)"
+      ]
     }
   }
 }

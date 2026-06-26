@@ -2,8 +2,8 @@
 """
 Module métier dédié : taux de taxe d'aménagement communale.
 
-Intersection SIG avec argeles.taxes : si l'UF intersecte une zone, on retient
-le taux associé (zone à plus forte couverture). Sinon, taux par défaut 5 %.
+Intersection SIG avec argeles.taxes : la couche couvre toute la commune ;
+on retient le taux de la zone à plus forte couverture sur l'UF.
 """
 
 from __future__ import annotations
@@ -25,7 +25,6 @@ except ImportError:
 
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 TAXES_TABLE = "taxes"
-DEFAULT_TAUX_COMMUNALE = 5.0
 MIN_INTERSECTION_AREA_M2 = 0.01
 
 
@@ -35,35 +34,13 @@ def _safe_ident(name: str) -> str:
     return name
 
 
-def _table_exists(engine, schema: str, table: str) -> bool:
-    schema = _safe_ident(schema)
-    table = _safe_ident(table)
-    with engine.connect() as conn:
-        return bool(
-            conn.execute(
-                text(
-                    """
-                    SELECT EXISTS (
-                        SELECT 1 FROM information_schema.tables
-                        WHERE table_schema = :schema AND table_name = :table
-                    )
-                    """
-                ),
-                {"schema": schema, "table": table},
-            ).scalar()
-        )
-
-
-def _normalize_taux(taux: Any) -> Optional[float]:
+def _normalize_taux(taux: Any) -> float:
     if taux is None:
-        return None
+        raise ValueError("Taux manquant sur la zone fiscale intersectée")
     if isinstance(taux, Decimal):
         val = float(taux)
     else:
-        try:
-            val = float(taux)
-        except (TypeError, ValueError):
-            return None
+        val = float(taux)
     if 0 < val < 1:
         val *= 100
     return val
@@ -76,12 +53,15 @@ def _format_taux(taux: float) -> str:
     return f"{txt.replace('.', ',')} %"
 
 
-def _intersect_taxes(
-    engine,
-    schema: str,
+def compute_taxes(
     uf_wkt: str,
-    surface_sig: float,
-) -> list[dict[str, Any]]:
+    *,
+    surface_sig: float = 0.0,
+    engine=None,
+    schema: str = SCHEMA,
+) -> dict[str, Any]:
+    """Intersecte argeles.taxes et retourne le taux communale applicable."""
+    engine = engine or get_engine()
     schema = _safe_ident(schema)
     table = _safe_ident(TAXES_TABLE)
     geom_col = _safe_ident(GEOM_COL)
@@ -115,6 +95,9 @@ def _intersect_taxes(
     with engine.connect() as conn:
         rows = conn.execute(sql, {"wkt": uf_wkt}).mappings().all()
 
+    if not rows:
+        return {"status": "non_concernee", "objets": []}
+
     objets: list[dict[str, Any]] = []
     for row in rows:
         surface = float(row["surface_inter_m2"] or 0)
@@ -127,64 +110,13 @@ def _intersect_taxes(
         if surface_sig > 0:
             obj["pct_sig"] = round(surface / surface_sig * 100, 4)
         objets.append(obj)
-    return objets
-
-
-def compute_taxes(
-    uf_wkt: str,
-    *,
-    surface_sig: float = 0.0,
-    engine=None,
-    schema: str = SCHEMA,
-    default_taux: float = DEFAULT_TAUX_COMMUNALE,
-) -> dict[str, Any]:
-    """
-    Retourne le taux communale applicable à l'UF.
-
-    Clés principales :
-      - taux_communale (float)
-      - taux_communale_libelle (str, ex. "5 %")
-      - source ("intersection" | "defaut")
-      - objets (zones intersectées, triées par couverture décroissante)
-    """
-    engine = engine or get_engine()
-
-    if not _table_exists(engine, schema, TAXES_TABLE):
-        taux = default_taux
-        return {
-            "taux_communale": taux,
-            "taux_communale_libelle": _format_taux(taux),
-            "libelle": None,
-            "source": "defaut",
-            "status": "table_absente",
-            "objets": [],
-        }
-
-    objets = _intersect_taxes(engine, schema, uf_wkt, surface_sig)
-    if not objets:
-        taux = default_taux
-        return {
-            "taux_communale": taux,
-            "taux_communale_libelle": _format_taux(taux),
-            "libelle": None,
-            "source": "defaut",
-            "status": "non_concernee",
-            "objets": [],
-        }
 
     principal = objets[0]
-    taux = principal.get("taux")
-    if taux is None:
-        taux = default_taux
-        source = "defaut"
-    else:
-        source = "intersection"
-
+    taux = principal["taux"]
     return {
         "taux_communale": taux,
         "taux_communale_libelle": _format_taux(taux),
         "libelle": principal.get("libelle"),
-        "source": source,
         "status": "concernee",
         "objets": objets,
     }

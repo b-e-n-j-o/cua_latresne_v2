@@ -114,36 +114,37 @@ def get_user_commune_access(user_id: str) -> list[dict[str, Any]]:
 
 def get_authorized_insee_codes(user_id: str) -> Optional[list[str]]:
     """
-    None → toutes les communes.
-    Liste non vide → restriction à ces codes INSEE.
+    None → superadmin (toutes communes), décidé explicitement.
+    [] → aucun accès (fail-closed).
+    Liste non vide → communes autorisées.
     """
     rows = _fetch_user_commune_access_rows(user_id)
     if rows is not None:
         if not rows:
-            return None
+            return []
         if any((r.get("role") or "").lower() == "superadmin" for r in rows):
             return None
         codes = sorted({str(r["code_insee"]).strip() for r in rows if r.get("code_insee")})
-        return codes or None
+        return codes
 
     insee_codes = _fetch_metadata_insee(user_id)
     if not insee_codes:
-        return None
+        return []
     return sorted(set(insee_codes))
 
 
 def get_authorized_commune_slugs(user_id: str) -> Optional[list[str]]:
-    """None → toutes les communes ; sinon liste de slugs autorisés."""
+    """None → toutes les communes ; sinon liste de slugs autorisés (peut être vide)."""
     codes = get_authorized_insee_codes(user_id)
     if codes is None:
         return None
     slugs = sorted({INSEE_TO_SLUG[c] for c in codes if c in INSEE_TO_SLUG})
-    return slugs or None
+    return slugs
 
 
 def is_authorized_for_insee(user_id: str, commune_insee: str) -> bool:
     if not user_id:
-        return True
+        return False
     allowed = get_authorized_insee_codes(user_id)
     if allowed is None:
         return True
@@ -159,8 +160,12 @@ def is_authorized_for_commune_slug(user_id: str, commune_slug: str) -> bool:
 
 
 def assert_authorized_for_insee(user_id: Optional[str], commune_insee: str) -> None:
-    if not user_id:
+    from services.auth.current_user import auth_required
+
+    if not auth_required():
         return
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentification requise.")
     if not is_authorized_for_insee(user_id, commune_insee):
         allowed = get_authorized_insee_codes(user_id) or []
         raise HTTPException(
@@ -182,6 +187,60 @@ def is_superadmin(user_id: str) -> bool:
     return any((r.get("role") or "").lower() == "superadmin" for r in rows)
 
 
+def get_superadmin_user_ids() -> set[str]:
+    """UUID des comptes superadmin (dossiers de test Kerelia, non partagés aux communes)."""
+    try:
+        sb = _get_supabase()
+        response = (
+            sb.schema("public")
+            .table("user_commune_access")
+            .select("user_id")
+            .eq("role", "superadmin")
+            .execute()
+        )
+        return {str(r["user_id"]) for r in (response.data or []) if r.get("user_id")}
+    except Exception as exc:
+        logger.warning("Impossible de charger les superadmin user_id : %s", exc)
+        return set()
+
+
+def is_pipeline_visible_to_viewer(pipeline: dict[str, Any], viewer_user_id: str) -> bool:
+    """
+    Les pipelines créées par un superadmin ne sont visibles que par les superadmins.
+    Partage inter-agents commune : oui pour les créateurs « normaux ».
+    """
+    if not viewer_user_id or is_superadmin(viewer_user_id):
+        return True
+    creator_id = str(pipeline.get("user_id") or "").strip()
+    if not creator_id:
+        return True
+    return creator_id not in get_superadmin_user_ids()
+
+
+def assert_pipeline_visible_to_viewer(pipeline: dict[str, Any], viewer_user_id: str) -> None:
+    if not is_pipeline_visible_to_viewer(pipeline, viewer_user_id):
+        raise HTTPException(
+            status_code=403,
+            detail="Ce dossier n'est pas accessible.",
+        )
+
+
+def filter_pipelines_for_viewer(
+    pipelines: list[dict[str, Any]],
+    viewer_user_id: str,
+) -> list[dict[str, Any]]:
+    if not viewer_user_id or is_superadmin(viewer_user_id):
+        return pipelines
+    hidden_creators = get_superadmin_user_ids()
+    if not hidden_creators:
+        return pipelines
+    return [
+        p
+        for p in pipelines
+        if str(p.get("user_id") or "").strip() not in hidden_creators
+    ]
+
+
 def assert_superadmin(user_id: Optional[str]) -> None:
     if not user_id:
         raise HTTPException(status_code=401, detail="Authentification requise")
@@ -193,8 +252,12 @@ def assert_superadmin(user_id: Optional[str]) -> None:
 
 
 def assert_authorized_for_commune_slug(user_id: Optional[str], commune_slug: str) -> None:
-    if not user_id:
+    from services.auth.current_user import auth_required
+
+    if not auth_required():
         return
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentification requise.")
     slug = (commune_slug or "").strip().lower()
     meta = COMMUNE_REGISTRY.get(slug)
     if not meta:

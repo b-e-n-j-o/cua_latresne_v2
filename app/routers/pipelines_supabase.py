@@ -2,11 +2,13 @@
 Pipelines persistés (Supabase public.pipelines) et debug connexion.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.deps import supabase
-from services.auth.commune_access import assert_authorized_for_insee
+from services.auth.current_user import get_current_user_id
 from services.auth.pipelines_query import pipelines_schema
+from services.history.pipeline_enrichment import enrich_pipelines_for_history
+from services.history.project_management import assert_can_view_pipeline
 
 router = APIRouter(tags=["pipelines-supabase"])
 
@@ -29,6 +31,11 @@ def get_latest_pipelines(limit: int = 10, user_id: str | None = None):
 
         response = query.execute()
         pipelines = response.data or []
+        if user_id:
+            from services.auth.commune_access import filter_pipelines_for_viewer
+
+            pipelines = filter_pipelines_for_viewer(pipelines, user_id)
+        pipelines = enrich_pipelines_for_history(pipelines)
         return {
             "success": True,
             "count": len(pipelines),
@@ -43,35 +50,12 @@ def get_latest_pipelines(limit: int = 10, user_id: str | None = None):
 
 
 @router.get("/pipelines/by_slug")
-def get_pipeline_by_slug(slug: str, user_id: str | None = None):
+def get_pipeline_by_slug(slug: str, user_id: str = Depends(get_current_user_id)):
     """Retrouve un pipeline par slug (lien court CUA)."""
     try:
-        response = (
-            _pipelines_table()
-            .select("*")
-            .eq("slug", slug)
-            .limit(1)
-            .execute()
-        )
-
-        rows = response.data or []
-        if not rows:
-            return {
-                "success": False,
-                "error": "Slug introuvable",
-            }
-
-        pipeline = rows[0]
-        if user_id:
-            code_insee = pipeline.get("code_insee") or ""
-            if code_insee:
-                assert_authorized_for_insee(user_id, code_insee)
-            owner_id = pipeline.get("user_id")
-            if owner_id and owner_id != user_id:
-                raise HTTPException(
-                    status_code=403,
-                    detail="Accès refusé : ce projet appartient à un autre utilisateur.",
-                )
+        pipeline = assert_can_view_pipeline(slug, user_id)
+        enriched = enrich_pipelines_for_history([pipeline])
+        pipeline = enriched[0] if enriched else pipeline
 
         return {
             "success": True,

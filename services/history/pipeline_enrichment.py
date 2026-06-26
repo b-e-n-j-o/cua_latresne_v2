@@ -121,3 +121,55 @@ def enrich_pipeline_centroid(pipeline: dict[str, Any]) -> dict[str, Any]:
 
 def enrich_pipelines_centroids(pipelines: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [enrich_pipeline_centroid(p) for p in pipelines]
+
+
+def _email_local_part(email: str | None) -> str | None:
+    if not email or "@" not in email:
+        return None
+    local = email.split("@", 1)[0].strip()
+    return local or None
+
+
+def _resolve_creator_labels(user_ids: set[str]) -> dict[str, str]:
+    """Préfixe email (avant @) pour chaque user_id créateur de pipeline."""
+    if not user_ids:
+        return {}
+
+    try:
+        from services.auth.commune_access import _get_supabase
+
+        sb = _get_supabase()
+    except Exception as exc:
+        logger.warning("Impossible de résoudre les créateurs pipeline : %s", exc)
+        return {}
+
+    labels: dict[str, str] = {}
+    for uid in user_ids:
+        try:
+            resp = sb.auth.admin.get_user_by_id(uid)
+            email = getattr(resp.user, "email", None) if resp and resp.user else None
+            local = _email_local_part(email)
+            if local:
+                labels[uid] = local
+        except Exception as exc:
+            logger.debug("Email introuvable pour user %s : %s", uid, exc)
+    return labels
+
+
+def enrich_pipeline_creator_label(pipeline: dict[str, Any], labels: dict[str, str]) -> dict[str, Any]:
+    enriched = dict(pipeline)
+    uid = str(enriched.get("user_id") or "").strip()
+    if uid and uid in labels:
+        enriched["creator_label"] = labels[uid]
+    return enriched
+
+
+def enrich_pipelines_creator_labels(pipelines: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    user_ids = {str(p.get("user_id")).strip() for p in pipelines if p.get("user_id")}
+    labels = _resolve_creator_labels(user_ids)
+    return [enrich_pipeline_creator_label(p, labels) for p in pipelines]
+
+
+def enrich_pipelines_for_history(pipelines: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Centroïde + libellé créateur (préfixe email) pour l'historique carte / sidebar."""
+    return enrich_pipelines_creator_labels(enrich_pipelines_centroids(pipelines))

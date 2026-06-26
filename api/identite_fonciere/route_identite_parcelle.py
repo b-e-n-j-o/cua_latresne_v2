@@ -11,7 +11,7 @@ import secrets
 import time
 
 import requests
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
 from pydantic import BaseModel, ConfigDict, Field, AliasChoices, field_validator, model_validator
 from typing import List, Dict, Any, Optional
@@ -29,6 +29,7 @@ from .carte_identite_fonciere import generate_identite_fonciere_map_html
 from .sse_identite_fonciere import iter_identite_fonciere_sse_chunks, sse_error_chunk
 from .pdf.rapport_identite_fonciere import generate_rapport_pdf
 from . import identite_fonciere_history as identite_fonciere_history_module
+from services.auth.current_user import get_current_user_id
 from .storage_et_urls import (
     new_project_id,
     object_path,
@@ -523,7 +524,10 @@ async def intersect_fonciere_stream(payload: IdentiteFonciereRequest):
 
 
 @router_fonciere.get("/history/by_user")
-def identite_fonciere_history_by_user(user_id: str, limit: int = 50):
+def identite_fonciere_history_by_user(
+    limit: int = 50,
+    user_id: str = Depends(get_current_user_id),
+):
     """
     Liste les publications CIF d’un utilisateur (carte + PDF), avec centroïde pour la carte.
     Même usage que GET /pipelines/by_user pour le front (session Supabase → user.id).
@@ -534,7 +538,10 @@ def identite_fonciere_history_by_user(user_id: str, limit: int = 50):
 
 
 @router_fonciere.delete("/history/{project_id}")
-def delete_identite_fonciere_history_entry(project_id: str, user_id: str):
+def delete_identite_fonciere_history_entry(
+    project_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
     """
     Supprime une publication CIF pour l’utilisateur : ligne `latresne.identite_fonciere_projects`
     et fichiers du dossier Storage `{project_id}/` (carte HTML, PDF, etc.).
@@ -542,11 +549,8 @@ def delete_identite_fonciere_history_entry(project_id: str, user_id: str):
     pid = project_id.strip()
     if not _IF_PROJECT_ID_RE.match(pid):
         raise HTTPException(status_code=404, detail="Ressource introuvable.")
-    uid = (user_id or "").strip()
-    if not uid:
-        raise HTTPException(status_code=400, detail="Paramètre user_id requis.")
 
-    res = identite_fonciere_history_module.delete_identite_fonciere_project_for_user(pid, uid)
+    res = identite_fonciere_history_module.delete_identite_fonciere_project_for_user(pid, user_id)
     if not res.get("success"):
         err = str(res.get("error") or "Échec suppression")
         if "introuvable" in err.lower() or "refusé" in err.lower():

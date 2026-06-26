@@ -10,10 +10,18 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from services.auth.commune_access import assert_authorized_for_insee
+from services.auth.commune_access import (
+    COMMUNE_REGISTRY,
+    assert_authorized_for_commune_slug,
+    assert_authorized_for_insee,
+    assert_pipeline_visible_to_viewer,
+    get_authorized_insee_codes,
+    is_pipeline_visible_to_viewer,
+)
+from services.auth.current_user import get_current_user_id
 from services.auth.pipelines_query import pipelines_schema
 
 supabase = None
@@ -62,18 +70,60 @@ def _fetch_pipeline_by_slug(slug: str) -> tuple[str, dict[str, Any]] | None:
     return None
 
 
+def assert_can_view_pipeline(slug: str, user_id: str) -> dict[str, Any]:
+    """
+    Charge une pipeline et vérifie droits commune + visibilité superadmin.
+    Répond 404 en cas de refus (ne révèle pas l'existence du projet).
+    """
+    found = _fetch_pipeline_by_slug((slug or "").strip())
+    if not found:
+        raise HTTPException(status_code=404, detail="Projet introuvable")
+
+    _schema, pipeline = found
+
+    if not is_pipeline_visible_to_viewer(pipeline, user_id):
+        raise HTTPException(status_code=404, detail="Projet introuvable")
+
+    allowed = get_authorized_insee_codes(user_id)
+    if allowed is not None:
+        if not allowed:
+            raise HTTPException(status_code=404, detail="Projet introuvable")
+
+        code_insee = (pipeline.get("code_insee") or "").strip()
+        if code_insee:
+            if code_insee not in allowed:
+                raise HTTPException(status_code=404, detail="Projet introuvable")
+        else:
+            commune_slug = (pipeline.get("commune_slug") or pipeline.get("commune") or "").strip().lower()
+            meta = COMMUNE_REGISTRY.get(commune_slug)
+            pipeline_insee = meta["code_insee"] if meta else ""
+            if not pipeline_insee or pipeline_insee not in allowed:
+                raise HTTPException(status_code=404, detail="Projet introuvable")
+
+    return pipeline
+
+
 def _assert_can_modify(row: dict[str, Any], user_id: str | None) -> None:
+    """Autorise si le user a accès à la commune de la pipeline (pas seulement s'il l'a créée)."""
     if not user_id:
-        return
-    owner_id = row.get("user_id")
-    if owner_id and str(owner_id) != str(user_id):
-        raise HTTPException(
-            status_code=403,
-            detail="Accès refusé : ce projet appartient à un autre utilisateur.",
-        )
+        raise HTTPException(status_code=401, detail="user_id requis")
+
+    assert_pipeline_visible_to_viewer(row, user_id)
+
     code_insee = row.get("code_insee") or ""
     if code_insee:
         assert_authorized_for_insee(user_id, str(code_insee))
+        return
+
+    commune_slug = (row.get("commune_slug") or row.get("commune") or "").strip().lower()
+    if commune_slug:
+        assert_authorized_for_commune_slug(user_id, commune_slug)
+        return
+
+    raise HTTPException(
+        status_code=403,
+        detail="Accès refusé : commune de la pipeline non identifiable.",
+    )
 
 
 def _delete_project_artifacts(slug: str) -> None:
@@ -86,7 +136,11 @@ def _delete_project_artifacts(slug: str) -> None:
 
 
 @router.patch("/{slug}")
-def update_pipeline_fields(slug: str, body: PipelineUpdateBody, user_id: str | None = None):
+def update_pipeline_fields(
+    slug: str,
+    body: PipelineUpdateBody,
+    user_id: str = Depends(get_current_user_id),
+):
     try:
         found = _fetch_pipeline_by_slug(slug)
         if not found:
@@ -127,7 +181,7 @@ def update_pipeline_fields(slug: str, body: PipelineUpdateBody, user_id: str | N
 
 
 @router.delete("/{slug}")
-def delete_pipeline(slug: str, user_id: str | None = None):
+def delete_pipeline(slug: str, user_id: str = Depends(get_current_user_id)):
     try:
         found = _fetch_pipeline_by_slug(slug)
         if not found:

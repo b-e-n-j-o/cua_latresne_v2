@@ -8,11 +8,12 @@ pour afficher les pings sur la carte et les infos au clic.
 Filtrage par droits commune (public.user_commune_access ou metadata Auth legacy).
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends
 
 from services.auth.commune_access import assert_authorized_for_commune_slug
+from services.auth.current_user import get_current_user_id
 from services.auth.pipelines_query import select_pipelines_for_user
-from services.history.pipeline_enrichment import enrich_pipelines_centroids
+from services.history.pipeline_enrichment import enrich_pipelines_for_history
 
 # Client Supabase injecté depuis main.py
 supabase = None
@@ -26,19 +27,20 @@ _MAP_HISTORY_COLUMNS = (
 
 
 @router.get("/by_user")
-def get_pipelines_by_user(user_id: str, limit: int = 15, commune_slug: str | None = None):
+def get_pipelines_by_user(
+    limit: int = 15,
+    commune_slug: str | None = None,
+    user_id: str = Depends(get_current_user_id),
+):
     """
-    Pipelines d'un utilisateur (historique carte / sidebar).
+    Historique des pipelines visibles pour l'utilisateur (scope commune, pas auteur).
     Option commune_slug : ne retourne que les CUAs de la commune affichée.
     """
-    if not user_id:
-        raise HTTPException(status_code=400, detail="user_id requis")
-
     if commune_slug:
         assert_authorized_for_commune_slug(user_id, commune_slug)
 
     try:
-        pipelines = enrich_pipelines_centroids(
+        pipelines = enrich_pipelines_for_history(
             select_pipelines_for_user(
                 supabase,
                 user_id=user_id,
@@ -61,18 +63,19 @@ def get_pipelines_by_user(user_id: str, limit: int = 15, commune_slug: str | Non
 
 
 @router.get("/map-history")
-def get_pipelines_map_history(user_id: str, limit: int = 15, commune_slug: str | None = None):
+def get_pipelines_map_history(
+    limit: int = 15,
+    commune_slug: str | None = None,
+    user_id: str = Depends(get_current_user_id),
+):
     """
     Variante légère : slug, centroid, cerfa_data pour l'affichage carte.
     """
-    if not user_id:
-        raise HTTPException(status_code=400, detail="user_id requis")
-
     if commune_slug:
         assert_authorized_for_commune_slug(user_id, commune_slug)
 
     try:
-        pipelines = enrich_pipelines_centroids(
+        pipelines = enrich_pipelines_for_history(
             select_pipelines_for_user(
                 supabase,
                 user_id=user_id,

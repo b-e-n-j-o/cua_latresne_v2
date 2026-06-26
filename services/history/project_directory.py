@@ -12,9 +12,11 @@ import mimetypes
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from app.deps import SUPABASE_URL
+from services.auth.current_user import get_current_user_id
+from services.history.project_management import assert_can_view_pipeline
 
 supabase = None
 
@@ -122,8 +124,9 @@ def get_project_directory(slug: str):
 
 
 @router.get("/{slug}/files")
-def list_project_files(slug: str):
+def list_project_files(slug: str, user_id: str = Depends(get_current_user_id)):
     try:
+        assert_can_view_pipeline(slug, user_id)
         res = (
             supabase.schema("latresne")
             .table("project_files")
@@ -133,8 +136,10 @@ def list_project_files(slug: str):
             .execute()
         )
         return {"success": True, "files": res.data or []}
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/{slug}/files/upload")
@@ -142,9 +147,10 @@ async def upload_project_file(
     slug: str,
     file: UploadFile = File(...),
     file_kind: str = Form("attachment"),
-    user_id: Optional[str] = Form(None),
+    user_id: str = Depends(get_current_user_id),
 ):
     try:
+        assert_can_view_pipeline(slug, user_id)
         ensure_project_directory(supabase, slug=slug, user_id=user_id, created_by=user_id)
         content = await file.read()
         content_type = file.content_type or mimetypes.guess_type(file.filename)[0] or "application/octet-stream"
@@ -173,13 +179,20 @@ async def upload_project_file(
             source="user_upload",
         )
         return {"success": True, "file": file_row}
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.delete("/{slug}/files/{file_id}")
-def delete_project_file(slug: str, file_id: str):
+def delete_project_file(
+    slug: str,
+    file_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
     try:
+        assert_can_view_pipeline(slug, user_id)
         row_res = (
             supabase.schema("latresne")
             .table("project_files")

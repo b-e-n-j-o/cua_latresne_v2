@@ -433,13 +433,12 @@ def run_intersections(uf, catalogue, engine=None, schema=SCHEMA) -> dict:
             "pct_sig": 0.0,
             **special,
         }
-        src = special.get("source")
-        taux = special.get("taux_communale_libelle")
-        if src == "intersection":
+        if special.get("status") == "concernee":
+            taux = special.get("taux_communale_libelle")
             lib = (special.get("libelle") or "zone fiscale").strip()
             logger.info(f"  ✅ taxes                              {taux} ({lib})")
         else:
-            logger.info(f"  ·  taxes                              {taux} (défaut)")
+            logger.info("  ·  taxes                                —")
     except Exception as exc:
         logger.warning(f"  ⚠  taxes                            {exc}")
         rapport["intersections"]["taxes"] = {
@@ -450,9 +449,6 @@ def run_intersections(uf, catalogue, engine=None, schema=SCHEMA) -> dict:
             "objets": [],
             "status": "erreur",
             "error": str(exc),
-            "taux_communale": 5.0,
-            "taux_communale_libelle": "5 %",
-            "source": "defaut",
         }
 
     return rapport
