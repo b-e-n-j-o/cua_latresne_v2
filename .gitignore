@@ -2,6 +2,8 @@
 venv/
 .env
 *.env
+.env.test.local
+tests/.env.test.local
 
 # Fichiers temporaires
 __pycache__/

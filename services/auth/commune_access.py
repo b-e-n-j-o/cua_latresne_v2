@@ -142,6 +142,31 @@ def get_authorized_commune_slugs(user_id: str) -> Optional[list[str]]:
     return slugs
 
 
+def get_portal_home_slug(user_id: str) -> Optional[str]:
+    """
+    Commune portail par défaut pour « Mon espace » (landing, post-login).
+    Utilise user_commune_access même pour les superadmin (ex. slug « admin » + INSEE 33234 → latresne).
+    """
+    rows = get_user_commune_access(user_id)
+    if not rows:
+        return None
+
+    registry_slugs = sorted({
+        (r.get("commune_slug") or "").strip().lower()
+        for r in rows
+        if (r.get("commune_slug") or "").strip().lower() in COMMUNE_REGISTRY
+    })
+    if registry_slugs:
+        return registry_slugs[0]
+
+    insee_slugs = sorted({
+        INSEE_TO_SLUG[str(r["code_insee"]).strip()]
+        for r in rows
+        if r.get("code_insee") and str(r["code_insee"]).strip() in INSEE_TO_SLUG
+    })
+    return insee_slugs[0] if insee_slugs else None
+
+
 def is_authorized_for_insee(user_id: str, commune_insee: str) -> bool:
     if not user_id:
         return False

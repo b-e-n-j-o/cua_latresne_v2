@@ -111,6 +111,7 @@ async def get_account_commune_access(user_id: str = Depends(get_current_user_id)
     from services.auth.commune_access import (
         get_authorized_commune_slugs,
         get_authorized_insee_codes,
+        get_portal_home_slug,
         is_superadmin,
     )
 
@@ -123,4 +124,5 @@ async def get_account_commune_access(user_id: str = Depends(get_current_user_id)
         "is_superadmin": is_superadmin(user_id),
         "allowed_commune_slugs": slugs,
         "allowed_insee_codes": insee_codes,
+        "home_commune_slug": get_portal_home_slug(user_id),
     }
