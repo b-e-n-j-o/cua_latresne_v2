@@ -21,6 +21,18 @@
         "Code CRINAOC"
       ]
     },
+    "retrait_gonflement_argiles_2026": {
+      "nom": "Retrait-gonflement des argiles 2026",
+      "type": "prescription",
+      "keep": [
+        "niveau",
+        "alea",
+        "reglementation"
+      ],
+      "origine": "shp",
+      "article": "5",
+      "geom_type": "surfacique"
+    },
     "hauteurs": {
       "enabled": true,
       "table": "hauteurs",
@@ -85,6 +97,24 @@
         "Zone PPRIF",
         "Libellé",
         "Degré"
+      ]
+    },
+    "alea_feu": {
+      "enabled": true,
+      "table": "alea_feu",
+      "title": "Risque d'incendie de forêt et de végétation",
+      "group": "risques",
+      "kind": "surfacique",
+      "color": "#BC4749",
+      "strict_parcel": true,
+      "optional": true,
+      "context_llm": true,
+      "context_carto": true,
+      "keep": [
+        "libelle"
+      ],
+      "clean_attributes": [
+        "Libellé"
       ]
     },
     "taxes": {

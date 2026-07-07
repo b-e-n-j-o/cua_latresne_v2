@@ -42,7 +42,8 @@ logger = logging.getLogger("batch_raa")
 _SQL_LIST = """
     SELECT id, titre, date_publication, statut, taille_mo
     FROM {schema}.raa
-    WHERE (%(statuts)s IS NULL OR statut = ANY(%(statuts)s))
+    WHERE COALESCE(masque, false) = false
+      AND (%(statuts)s IS NULL OR statut = ANY(%(statuts)s))
     ORDER BY date_publication ASC NULLS LAST, id ASC;
 """
 

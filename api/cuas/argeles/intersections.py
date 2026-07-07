@@ -86,6 +86,36 @@ except ImportError:
         sys.path.insert(0, str(_ARGELES_DIR))
     from intersection_modules.taxes import compute_taxes
 
+try:
+    from api.cuas.argeles.intersection_modules.alea_feu import compute_alea_feu_reglementation
+except ImportError:
+    if str(_ARGELES_DIR) not in sys.path:
+        sys.path.insert(0, str(_ARGELES_DIR))
+    from intersection_modules.alea_feu import compute_alea_feu_reglementation
+
+try:
+    from api.cuas.argeles.intersection_modules.zonage_plu import compute_zonage_plu_reglementation
+except ImportError:
+    if str(_ARGELES_DIR) not in sys.path:
+        sys.path.insert(0, str(_ARGELES_DIR))
+    from intersection_modules.zonage_plu import compute_zonage_plu_reglementation
+
+try:
+    from api.cuas.argeles.intersection_modules.prescriptions_plu import (
+        compute_prescriptions_plu_reglementation,
+    )
+except ImportError:
+    if str(_ARGELES_DIR) not in sys.path:
+        sys.path.insert(0, str(_ARGELES_DIR))
+    from intersection_modules.prescriptions_plu import compute_prescriptions_plu_reglementation
+
+try:
+    from api.cuas.argeles.intersection_modules.adresses_parcelles import compute_adresses_parcelles
+except ImportError:
+    if str(_ARGELES_DIR) not in sys.path:
+        sys.path.insert(0, str(_ARGELES_DIR))
+    from intersection_modules.adresses_parcelles import compute_adresses_parcelles
+
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 # Seuil minimal d'intersection : exclut les contacts en bordure (aire/longueur nulle)
@@ -350,7 +380,7 @@ def run_intersections(uf, catalogue, engine=None, schema=SCHEMA) -> dict:
             "error": str(exc),
         }
 
-    # Bloc métier dédié SUP (réglementations depuis servitudes_reglements)
+    # Bloc métier dédié SUP (réglementations depuis public.servitudes_reglements)
     try:
         special = compute_servitudes_reglementation(
             uf.wkt,
@@ -382,13 +412,16 @@ def run_intersections(uf, catalogue, engine=None, schema=SCHEMA) -> dict:
             "error": str(exc),
         }
 
-    # Bloc métier dédié PPR / PPRIF (laius depuis laius_ppr et laius_pprif)
+    # Bloc métier dédié PPR / PPRIF (attributs ppr + laius pprif)
     ppr_layer = rapport["intersections"].get("ppr", {})
     pprif_layer = rapport["intersections"].get("pprif", {})
     try:
         special = compute_ppr_et_pprif_reglementation(
             ppr_objets=ppr_layer.get("objets") or [],
             pprif_objets=pprif_layer.get("objets") or [],
+            parcelles=rapport.get("parcelles") or [],
+            ppr_cfg=catalogue.get("ppr"),
+            pprif_cfg=catalogue.get("pprif"),
             engine=engine,
             schema=schema,
         )
@@ -402,8 +435,10 @@ def run_intersections(uf, catalogue, engine=None, schema=SCHEMA) -> dict:
         }
         n_ppr = len((special.get("ppr") or {}).get("blocs") or [])
         n_pprif = len((special.get("pprif") or {}).get("blocs") or [])
-        if n_ppr or n_pprif:
-            logger.info(f"  ✅ ppr_et_pprif                        PPR {n_ppr} | PPRIF {n_pprif}")
+        n_parcelles = len(special.get("detail_parcelles") or [])
+        if n_ppr or n_pprif or n_parcelles:
+            extra = f" | {n_parcelles} parcelle(s)" if n_parcelles else ""
+            logger.info(f"  ✅ ppr_et_pprif                        PPR {n_ppr} | PPRIF {n_pprif}{extra}")
         else:
             logger.info("  ·  ppr_et_pprif                          —")
     except Exception as exc:
@@ -449,6 +484,137 @@ def run_intersections(uf, catalogue, engine=None, schema=SCHEMA) -> dict:
             "objets": [],
             "status": "erreur",
             "error": str(exc),
+        }
+
+    # Bloc métier dédié prescriptions PLU (surf / lin / ponct)
+    psc_surf = rapport["intersections"].get("prescriptions_surf", {})
+    psc_lin = rapport["intersections"].get("prescriptions_lineaires", {})
+    psc_ponct = rapport["intersections"].get("prescriptions_ponctuelles", {})
+    try:
+        special = compute_prescriptions_plu_reglementation(
+            surf_objets=psc_surf.get("objets") or [],
+            lineaires_objets=psc_lin.get("objets") or [],
+            ponctuelles_objets=psc_ponct.get("objets") or [],
+            parcelles=rapport.get("parcelles") or [],
+            surf_cfg=catalogue.get("prescriptions_surf"),
+            lineaires_cfg=catalogue.get("prescriptions_lineaires"),
+            ponctuelles_cfg=catalogue.get("prescriptions_ponctuelles"),
+            engine=engine,
+            schema=schema,
+        )
+        rapport["intersections"]["prescriptions_plu"] = {
+            "nom": "Prescriptions PLU",
+            "type": "prescription",
+            "geom_type": "surfacique",
+            "pct_sig": 0.0,
+            "objets": [],
+            **special,
+        }
+        n_items = sum(len(c.get("items") or []) for c in special.get("couches") or [])
+        n_parcelles = len(special.get("detail_parcelles") or [])
+        if n_items or n_parcelles:
+            extra = f" | {n_parcelles} parcelle(s)" if n_parcelles else ""
+            logger.info(f"  ✅ prescriptions_plu (métier)           {n_items} item(s){extra}")
+        else:
+            logger.info("  ·  prescriptions_plu (métier)            —")
+    except Exception as exc:
+        logger.warning(f"  ⚠  prescriptions_plu (métier)       {exc}")
+        rapport["intersections"]["prescriptions_plu"] = {
+            "nom": "Prescriptions PLU",
+            "type": "prescription",
+            "geom_type": "surfacique",
+            "pct_sig": 0.0,
+            "objets": [],
+            "status": "erreur",
+            "error": str(exc),
+            "couches": [],
+            "detail_parcelles": [],
+        }
+
+    # Bloc métier dédié zonage PLU (intro UF + détail parcelles + blocs réglementaires)
+    zonage_layer = rapport["intersections"].get("zonage_plu", {})
+    try:
+        special = compute_zonage_plu_reglementation(
+            zonage_objets=zonage_layer.get("objets") or [],
+            parcelles=rapport.get("parcelles") or [],
+            zonage_cfg=catalogue.get("zonage_plu"),
+            engine=engine,
+            schema=schema,
+        )
+        rapport["intersections"]["zonage_plu"] = {
+            **zonage_layer,
+            **special,
+        }
+        n_items = len(special.get("items") or [])
+        n_parcelles = len(special.get("detail_parcelles") or [])
+        if n_items or n_parcelles:
+            extra = f" | {n_parcelles} parcelle(s)" if n_parcelles else ""
+            logger.info(f"  ✅ zonage_plu (métier)                  {n_items} bloc(s){extra}")
+        else:
+            logger.info("  ·  zonage_plu (métier)                    —")
+    except Exception as exc:
+        logger.warning(f"  ⚠  zonage_plu (métier)              {exc}")
+        rapport["intersections"]["zonage_plu"] = {
+            **zonage_layer,
+            "status": "erreur",
+            "error": str(exc),
+            "intro": None,
+            "zones": [],
+            "items": [],
+            "detail_parcelles": [],
+        }
+
+    # Bloc métier dédié aléa feu (PAC — porté à connaissance)
+    alea_layer = rapport["intersections"].get("alea_feu", {})
+    try:
+        special = compute_alea_feu_reglementation(
+            alea_feu_objets=alea_layer.get("objets") or [],
+        )
+        rapport["intersections"]["alea_feu"] = {
+            **alea_layer,
+            **special,
+        }
+        n_blocs = len(special.get("blocs") or [])
+        if n_blocs:
+            logger.info(f"  ✅ alea_feu                             {n_blocs} aléa(s)")
+        else:
+            logger.info("  ·  alea_feu                               —")
+    except Exception as exc:
+        logger.warning(f"  ⚠  alea_feu                           {exc}")
+        rapport["intersections"]["alea_feu"] = {
+            **alea_layer,
+            "nom": "Risque d'incendie de forêt et de végétation",
+            "type": "prescription",
+            "geom_type": "surfacique",
+            "pct_sig": alea_layer.get("pct_sig") or 0.0,
+            "objets": alea_layer.get("objets") or [],
+            "status": "erreur",
+            "error": str(exc),
+            "blocs": [],
+        }
+
+    # Adresses BAN liées aux parcelles (header CUA — jointure locale, pas d'intersection SIG)
+    try:
+        adresses_bloc = compute_adresses_parcelles(
+            parcelles=rapport.get("parcelles") or [],
+            engine=engine,
+            schema=schema,
+        )
+        rapport["adresses_parcelles"] = adresses_bloc
+        if adresses_bloc.get("texte_header"):
+            logger.info(f"  ✅ adresses_parcelles                  {adresses_bloc['diagnostic_metier']}")
+        elif adresses_bloc.get("status") == "table_absente":
+            logger.warning("  ⏭  adresses_parcelles                  tables absentes")
+        else:
+            logger.info("  ·  adresses_parcelles                    —")
+    except Exception as exc:
+        logger.warning(f"  ⚠  adresses_parcelles                 {exc}")
+        rapport["adresses_parcelles"] = {
+            "status": "erreur",
+            "diagnostic_metier": str(exc),
+            "parcelles": [],
+            "adresses_uniques": [],
+            "texte_header": None,
         }
 
     return rapport

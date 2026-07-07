@@ -23,6 +23,7 @@ from api.reglements.router_reglements import require_editor
 _CATALOG_DIR = Path(__file__).resolve().parent / "catalogues"
 _DOCUMENTS_CATALOG_FILES: dict[str, Path] = {
     "argeles": _CATALOG_DIR / "documents_argeles.json",
+    "latresne": _CATALOG_DIR / "documents_latresne.json",
 }
 
 

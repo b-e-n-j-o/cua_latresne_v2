@@ -62,15 +62,26 @@
     },
     "servitudes": {
       "enabled": true,
-      "table": "sup_assiette_s",
+      "table": "servitudes",
       "group": "servitudes",
-      "geom_column": "geometry",
-      "geom_transform": "sup_geometry",
+      "geom_column": "geom_2154",
+      "geom_transform": "make_valid_2154",
       "strict_parcel": true,
       "context_llm": true,
       "context_carto": true,
       "color": "#457B9D",
-      "attributes": ["gid", "idass", "nomass", "suptype", "nom_servitude", "typeass", "nomsuplitt", "nomreg"]
+      "attributes": [
+        "suptype",
+        "nomsuplitt",
+        "nom_servitude",
+        "typeass",
+        "type",
+        "tension",
+        "nom_sup",
+        "nom_captage",
+        "transporteur",
+        "cat_fluide"
+      ]
     },
     "infos_surf": {
       "enabled": true,

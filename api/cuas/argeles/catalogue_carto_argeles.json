@@ -55,8 +55,8 @@
       "tip": "libelle",
       "legend": "info"
     },
-    "sup_assiette_s": {
-      "title": "Assiettes surfaciques",
+    "servitudes": {
+      "title": "Servitudes d'utilité publique",
       "family": "servitudes",
       "geom": "surf",
       "tip": "suptype",
@@ -131,6 +131,13 @@
       "family": "risques",
       "geom": "surf",
       "tip": "zonage",
+      "legend": "prescription"
+    },
+    "alea_feu": {
+      "title": "Aléa incendie de forêt et de végétation (PAC)",
+      "family": "risques",
+      "geom": "surf",
+      "tip": "libelle",
       "legend": "prescription"
     },
     "aoc": {

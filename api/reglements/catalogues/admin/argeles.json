@@ -30,7 +30,7 @@
     },
     {
       "source": "zonage_plu",
-      "label": "Laius PLU (zonage)",
+      "label": "Paragraphes PLU (zonage)",
       "table": "zonage_plu",
       "pk": "libelle",
       "list_primary": "libelle",
@@ -69,7 +69,7 @@
     },
     {
       "source": "laius_ppr",
-      "label": "Laius PPR",
+      "label": "Paragraphes PPR",
       "table": "laius_ppr",
       "pk": "code_degre",
       "list_primary": "code_degre",
@@ -103,7 +103,7 @@
     },
     {
       "source": "laius_pprif",
-      "label": "Laius PPRIF",
+      "label": "Paragraphes PPRIF",
       "table": "laius_pprif",
       "pk": "label",
       "list_primary": "label",
@@ -116,7 +116,9 @@
     },
     {
       "source": "servitudes",
-      "label": "Laius Servitudes",
+      "label": "Paragraphes Servitudes",
+      "write_role": "superadmin",
+      "schema": "public",
       "table": "servitudes_reglements",
       "pk": "suptype",
       "list_primary": "suptype",

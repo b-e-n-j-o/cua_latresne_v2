@@ -1,15 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-uf.py — Construction et vérification de l'unité foncière.
+uf.py — Construction de l'unité foncière.
 
 Entrée : une ou plusieurs références parcellaires {section, numero}.
 Sortie : un objet UniteFonciere (WKT unioné + surfaces).
 
-La vérification "est-ce une UF ?" se fait ici : si plusieurs parcelles sont
-fournies, on exige qu'elles soient contiguës (limite commune, pas un simple
-point de contact). Un ST_Union de parcelles partageant une arête fusionne en
-UN polygone ; sinon le résultat reste un MultiPolygon à N morceaux.
-=> contiguë  ⇔  ST_NumGeometries(ST_Multi(ST_Union(...))) == 1
+Une UF peut regrouper plusieurs parcelles contiguës ou non (multisite,
+loi Huwart). ST_Union produit un Polygon si les parcelles partagent une
+arête, sinon un MultiPolygon à N morceaux disjoints — les deux cas sont valides.
 """
 
 from dataclasses import dataclass, field
@@ -47,9 +45,7 @@ def build_uf(refs, engine=None, schema: str = SCHEMA) -> UniteFonciere:
     """
     refs : iterable de dicts {'section': 'AB', 'numero': '0123'}.
 
-    Lève ValueError si :
-      - une référence n'existe pas dans <schema>.parcelles
-      - plusieurs parcelles sont fournies mais ne forment pas une UF contiguë.
+    Lève ValueError si une référence n'existe pas dans <schema>.parcelles.
     """
     engine = engine or get_engine()
 
@@ -106,12 +102,7 @@ def build_uf(refs, engine=None, schema: str = SCHEMA) -> UniteFonciere:
             f"Parcelle(s) introuvable(s) dans {schema}.parcelles : {', '.join(missing)}"
         )
 
-    # --- Contiguïté (uniquement si UF multi-parcelles) ---
-    if len(input_pairs) > 1 and (row["n_parts"] or 1) > 1:
-        raise ValueError(
-            f"Les {len(input_pairs)} parcelles ne forment pas une unité foncière contiguë "
-            f"({row['n_parts']} blocs disjoints). Vérifie les références."
-        )
+    n_parts = int(row["n_parts"] or 1)
 
     db_parcelles = [(f["section"], f["numero"]) for f in found_rows]
 
@@ -125,8 +116,9 @@ def build_uf(refs, engine=None, schema: str = SCHEMA) -> UniteFonciere:
         n_parcelles=int(row["n"]),
         parcelles=db_parcelles,
     )
+    sites = f" | {n_parts} site(s)" if n_parts > 1 else ""
     logger.info(
-        f"📐 UF construite : {uf.n_parcelles} parcelle(s) | "
+        f"📐 UF construite : {uf.n_parcelles} parcelle(s){sites} | "
         f"SIG {uf.surface_sig} m² | contenance {uf.surface_cadastrale} m²"
     )
     return uf

@@ -1,0 +1,131 @@
+{
+  "commune_slug": "latresne",
+  "schema": "latresne",
+  "label": "Latresne",
+  "source_order": ["laius_plu", "laius_ppri", "laius_pprmvt", "laius_servitudes"],
+  "sources": [
+    {
+      "source": "laius_plu",
+      "label": "Paragraphes PLU",
+      "table": "plu_laius",
+      "pk": "code_zone",
+      "list_primary": "code_zone",
+      "list_secondary": null,
+      "search_cols": ["code_zone", "reglementation"],
+      "columns": [
+        {
+          "name": "code_zone",
+          "label": "Zone",
+          "kind": "text",
+          "editable": false,
+          "creatable": true,
+          "pk": true
+        },
+        {
+          "name": "reglementation",
+          "label": "Règlement",
+          "kind": "longtext"
+        }
+      ]
+    },
+    {
+      "source": "laius_ppri",
+      "label": "Paragraphes PPRI",
+      "table": "ppri_laius",
+      "pk": "code_zone",
+      "list_primary": "code_zone",
+      "list_secondary": null,
+      "search_cols": ["code_zone", "reglementation"],
+      "columns": [
+        {
+          "name": "code_zone",
+          "label": "Zone",
+          "kind": "text",
+          "editable": false,
+          "creatable": true,
+          "pk": true
+        },
+        {
+          "name": "reglementation",
+          "label": "Règlement",
+          "kind": "longtext"
+        }
+      ]
+    },
+    {
+      "source": "laius_pprmvt",
+      "label": "Paragraphes PPRMVT",
+      "table": "pprmvt_laius",
+      "pk": "code_zone",
+      "list_primary": "code_zone",
+      "list_secondary": null,
+      "search_cols": ["code_zone", "reglementation"],
+      "columns": [
+        {
+          "name": "code_zone",
+          "label": "Zone",
+          "kind": "text",
+          "editable": false,
+          "creatable": true,
+          "pk": true
+        },
+        {
+          "name": "reglementation",
+          "label": "Règlement",
+          "kind": "longtext"
+        }
+      ]
+    },
+    {
+      "source": "laius_servitudes",
+      "label": "Paragraphes Servitudes",
+      "write_role": "superadmin",
+      "schema": "public",
+      "table": "servitudes_reglements",
+      "pk": "suptype",
+      "list_primary": "suptype",
+      "list_secondary": "libelle",
+      "search_cols": ["suptype", "libelle", "reglementation", "base_legale"],
+      "columns": [
+        {
+          "name": "suptype",
+          "label": "Type SUP",
+          "kind": "text",
+          "editable": false,
+          "creatable": true,
+          "pk": true
+        },
+        {
+          "name": "libelle",
+          "label": "Libellé",
+          "kind": "text"
+        },
+        {
+          "name": "reglementation",
+          "label": "Règlement",
+          "kind": "longtext"
+        },
+        {
+          "name": "base_legale",
+          "label": "Base légale",
+          "kind": "text"
+        },
+        {
+          "name": "url_fiche_gpu",
+          "label": "URL fiche GPU",
+          "kind": "text"
+        },
+        {
+          "name": "date_validation",
+          "label": "Date de validation",
+          "kind": "date"
+        },
+        {
+          "name": "variable",
+          "label": "Variable",
+          "kind": "bool"
+        }
+      ]
+    }
+  ]
+}

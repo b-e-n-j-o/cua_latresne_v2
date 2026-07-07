@@ -25,12 +25,11 @@ def _load_commune_table_mapping() -> dict[str, tuple[str, str]]:
     """
     Whitelist des communes autorisees.
     Format env optionnel CADASTRE_COMMUNES_TABLES:
-    {"latresne":"latresne.parcelles","argeles":"argeles.parcelles","mios":"mios.parcelles"}
+    {"latresne":"latresne.parcelles","argeles":"argeles.parcelles"}
     """
     default_mapping = {
         "latresne": ("latresne", "parcelles"),
         "argeles": ("argeles", "parcelles"),
-        "mios": ("mios", "parcelles"),
     }
     raw = (os.getenv("CADASTRE_COMMUNES_TABLES") or "").strip()
     if not raw:

@@ -28,6 +28,7 @@ from api.communes.latresne.cuas.CERFA_ANALYSE.auth_utils import is_authorized_fo
 from api.communes.latresne.cuas.CERFA_ANALYSE.mistral_analyse_cerfa_complet import analyser_cerfa_complet
 from api.communes.latresne.cuas.CERFA_ANALYSE.verification_unite_fonciere import verifier_unite_fonciere
 from api.communes.latresne.cuas.INTERSECTIONS.intersections import CATALOGUE, calculate_intersection
+from api.communes.latresne.cuas.INTERSECTIONS.intersection_modules.enrichment import enrich_intersections_rapport
 from api.communes.latresne.cuas.CUA.sub_orchestrator_cua import generer_visualisations_et_cua_depuis_wkt
 from sqlalchemy import create_engine, text
 
@@ -172,7 +173,9 @@ def _analyse_intersections_depuis_wkt(wkt_path: str, out_dir: Path):
                 "pct_sig": 0.0,
                 "objets": []
             }
-    
+
+    enrich_intersections_rapport(rapport, parcelle_wkt, engine)
+
     # Relâcher explicitement le pool local de ce helper
     engine.dispose()
 
@@ -347,10 +350,24 @@ def run_global_pipeline(
     # ============================================================
     cerfa_meta = cerfa_json.get("data", {})
 
+    demandeur_raw = cerfa_meta.get("demandeur")
+    if isinstance(demandeur_raw, str):
+        demandeur_label = demandeur_raw.strip() or None
+    elif isinstance(demandeur_raw, dict):
+        demandeur_label = (
+            (demandeur_raw.get("denomination") or "").strip()
+            or " ".join(
+                p for p in (demandeur_raw.get("prenom"), demandeur_raw.get("nom")) if p
+            ).strip()
+            or None
+        )
+    else:
+        demandeur_label = None
+
     cerfa_data = {
         "numero_cu": cerfa_meta.get("numero_cu"),
         "date_depot": cerfa_meta.get("date_depot"),
-        "demandeur": cerfa_meta.get("demandeur", {}).get("denomination"),
+        "demandeur": demandeur_label,
         "parcelles": cerfa_meta.get("references_cadastrales"),
         "superficie": cerfa_meta.get("superficie_totale_m2"),
         "adresse_terrain": cerfa_meta.get("adresse_terrain"),

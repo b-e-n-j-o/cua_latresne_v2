@@ -186,7 +186,13 @@ def _run_batch_job(job_id: str, *, skip_judge: bool) -> None:
             job["current_file"] = stem
             raw = txt_path.read_text(encoding="utf-8")
             out_sub = work_dir / "outputs" / stem
-            result = process_txt_content(stem, raw, out_sub, skip_judge=skip_judge)
+            result = process_txt_content(
+                stem,
+                raw,
+                out_sub,
+                skip_judge=skip_judge,
+                model=model_id,
+            )
             job["results"].append(result)
             job["processed"] += 1
             job["tokens_total"] = _aggregate_job_tokens(job["results"]).model_dump()

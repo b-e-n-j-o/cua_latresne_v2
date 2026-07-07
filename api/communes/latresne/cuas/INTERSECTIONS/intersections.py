@@ -45,6 +45,8 @@ CATALOGUE_PATH = PROJECT_ROOT / "catalogues" / "catalogue_intersections_tagged.j
 with open(CATALOGUE_PATH, 'r', encoding='utf-8') as f:
     CATALOGUE = json.load(f)
 
+from api.communes.latresne.cuas.INTERSECTIONS.intersection_modules.enrichment import enrich_intersections_rapport
+
 def fetch_superficie_indicative(parcelles: list, code_insee: str) -> float:
     """Récupère la superficie indicative (contenance) depuis la base locale."""
     try:
@@ -408,7 +410,8 @@ def analyse_parcelle(section, numero):
                 "pct_sig": 0.0,
                 "objets": []
             }
-    
+
+    enrich_intersections_rapport(rapport, parcelle_wkt, engine)
     return rapport
 
 def generate_html(rapport):
@@ -633,6 +636,8 @@ if __name__ == "__main__":
             # Plus besoin de nettoyer surface_inter_m2 car déjà supprimé dans calculate_intersection
             obj.pop("surface_zone_m2", None)
             obj.pop("surface_parcelle_m2", None)
+
+    enrich_intersections_rapport(rapport, parcelle_wkt, engine)
 
     # Sauvegarde des rapports
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

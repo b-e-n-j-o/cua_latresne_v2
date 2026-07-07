@@ -20,6 +20,7 @@ import json
 import os
 import re
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, Literal, Optional
 
@@ -27,12 +28,17 @@ import asyncpg
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 
-Kind = Literal["text", "longtext", "bool", "date", "int"]
+from services.auth.commune_access import assert_authorized_for_commune_slug
+from services.auth.current_user import get_current_user_id
+
+Kind = Literal["text", "longtext", "bool", "date", "int", "json"]
+WriteRole = Literal["superadmin"]
 
 _CATALOG_DIR = Path(__file__).resolve().parent / "catalogues"
 _ADMIN_CATALOG_DIR = _CATALOG_DIR / "admin"
 _CATALOG_FILES: dict[str, Path] = {
     "argeles": _CATALOG_DIR / "argeles.json",
+    "latresne": _CATALOG_DIR / "latresne.json",
 }
 
 
@@ -74,6 +80,7 @@ class Source(BaseModel):
     source: str
     label: str
     table: str
+    schema: Optional[str] = None
     pk: str
     list_primary: str
     list_secondary: Optional[str] = None
@@ -82,6 +89,42 @@ class Source(BaseModel):
     aggregated: bool = False
     creatable: bool = True
     deletable: bool = True
+    write_role: Optional[WriteRole] = None
+
+
+def can_write_source(src: Source, user_id: str) -> bool:
+    """Écriture autorisée si pas de write_role, ou si le rôle utilisateur correspond."""
+    if not src.write_role:
+        return True
+    from services.auth.commune_access import is_superadmin
+
+    if src.write_role == "superadmin":
+        return is_superadmin(user_id)
+    return False
+
+
+def apply_source_permissions(src: Source, user_id: str) -> Source:
+    """Masque creatable/editable/deletable pour les utilisateurs sans droit d'écriture."""
+    if can_write_source(src, user_id):
+        return src
+    return src.model_copy(
+        update={
+            "creatable": False,
+            "deletable": False,
+            "columns": [
+                c.model_copy(update={"editable": False, "creatable": False})
+                for c in src.columns
+            ],
+        }
+    )
+
+
+def assert_can_write_source(src: Source, user_id: str) -> None:
+    if not can_write_source(src, user_id):
+        raise HTTPException(
+            status_code=403,
+            detail="Modification réservée aux superadministrateurs Kerelia.",
+        )
 
 
 class CommuneCatalog(BaseModel):
@@ -109,9 +152,7 @@ class CommuneCatalog(BaseModel):
 def _load_catalog_from_path(path: Path) -> CommuneCatalog:
     data = json.loads(path.read_text(encoding="utf-8"))
     catalog = CommuneCatalog.model_validate(data)
-    schema = catalog.schema.strip().lower()
-    if not re.fullmatch(r"[a-z_][a-z0-9_]*", schema):
-        raise HTTPException(status_code=500, detail=f"Schéma invalide dans le catalogue : {schema!r}")
+    _validate_schema_name(catalog.schema, label="Schéma catalogue")
     return catalog
 
 
@@ -228,6 +269,20 @@ def qi(name: str) -> str:
     return '"' + name.replace('"', '""') + '"'
 
 
+def _validate_schema_name(schema: str, *, label: str) -> str:
+    s = schema.strip().lower()
+    if not re.fullmatch(r"[a-z_][a-z0-9_]*", s):
+        raise HTTPException(status_code=500, detail=f"{label} invalide : {schema!r}")
+    return s
+
+
+def source_schema(catalog: CommuneCatalog, src: Source) -> str:
+    """Schéma Postgres pour une source (override optionnel, ex. servitudes → public)."""
+    if src.schema:
+        return _validate_schema_name(src.schema, label=f"Schéma source {src.source}")
+    return catalog.schema
+
+
 def table_ref(schema: str, src: Source) -> str:
     return f"{qi(schema)}.{qi(src.table)}"
 
@@ -239,8 +294,17 @@ def get_src(registry: dict[str, Source], source: str) -> Source:
     return src
 
 
+_JSONB_COLS: dict[str, set[str]] = {
+    "ppr_constantes": {"valeur"},
+}
+
+
 def _zonage_plu_ref(schema: str) -> str:
     return f"{qi(schema)}.{qi('zonage_plu')}"
+
+
+def _ppr_ref(schema: str) -> str:
+    return f"{qi(schema)}.{qi('ppr')}"
 
 
 def _plu_reglement_ref(schema: str) -> str:
@@ -261,7 +325,7 @@ def _reglementation_missing_sql(expr: str) -> str:
 
 
 def _has_reglementation_col(src: Source) -> bool:
-    return any(c.name == "reglementation" for c in src.columns)
+    return any(c.name in ("reglementation", "reglementation_generale") for c in src.columns)
 
 
 async def _fetch_plu_list(
@@ -360,9 +424,89 @@ async def _fetch_zonage_plu_agg(
     return [dict(r) for r in rows]
 
 
-def coerce(col: Col, v: Any) -> Any:
+async def _fetch_ppr_agg(
+    pool: asyncpg.Pool,
+    schema: str,
+    *,
+    label: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = 500,
+    offset: int = 0,
+    list_only: bool = False,
+) -> list[dict]:
+    ref = _ppr_ref(schema)
+    if list_only:
+        reg_col = (
+            ", "
+            + _reglementation_missing_sql("max(reglementation_generale)")
+            + " AS reglementation_manquante"
+        )
+        detail_cols = ""
+    else:
+        reg_col = ", max(reglementation_generale) AS reglementation_generale"
+        detail_cols = """
+            , max(ces) AS ces
+            , max(mise_hors_d_eau) AS mise_hors_d_eau
+        """
+    sql = f"""
+        SELECT
+            label,
+            max(risque) AS risque,
+            max(code_degre) AS code_degre,
+            max(degre) AS degre,
+            count(*)::int AS nb_entites
+            {detail_cols}
+            {reg_col}
+        FROM {ref}
+    """
+    args: list[Any] = []
+    if label is not None:
+        sql += " WHERE label = $1"
+        args.append(label)
+        sql += " GROUP BY label"
+    else:
+        sql += " GROUP BY label"
+        if search:
+            idx = len(args) + 1
+            sql += f"""
+                HAVING label ILIKE ${idx}
+                    OR max(risque) ILIKE ${idx}
+                    OR max(code_degre) ILIKE ${idx}
+                    OR max(degre) ILIKE ${idx}
+                    OR max(ces) ILIKE ${idx}
+                    OR max(mise_hors_d_eau) ILIKE ${idx}
+                    OR max(reglementation_generale) ILIKE ${idx}
+            """
+            args.append(f"%{search}%")
+        sql += f" ORDER BY label LIMIT {int(limit)} OFFSET {int(offset)}"
+    rows = await pool.fetch(sql, *args)
+    return [dict(r) for r in rows]
+
+
+def _serialize_api_row(row: dict, src: Source) -> dict:
+    out = dict(row)
+    json_cols = _JSONB_COLS.get(src.source, set())
+    for col in src.columns:
+        v = out.get(col.name)
+        if col.name in json_cols or col.kind == "json" or (
+            col.kind == "longtext" and isinstance(v, (dict, list))
+        ):
+            out[col.name] = json.dumps(v, ensure_ascii=False, indent=2)
+        elif col.kind == "text" and isinstance(v, (int, float, Decimal)):
+            out[col.name] = str(v)
+    return out
+
+
+def coerce(col: Col, v: Any, *, source: str = "") -> Any:
     if v is None:
         return None
+    if col.name in _JSONB_COLS.get(source, set()) or col.kind == "json":
+        if isinstance(v, str):
+            s = v.strip()
+            if s == "":
+                return None
+            return json.loads(s)
+        return v
     if col.kind == "bool":
         if isinstance(v, str):
             return v.strip().lower() in ("true", "t", "1", "oui", "yes", "on")
@@ -373,13 +517,14 @@ def coerce(col: Col, v: Any) -> Any:
         if v == "":
             return None
         return date.fromisoformat(v) if isinstance(v, str) else v
+    if col.kind == "text" and v != "" and not isinstance(v, str):
+        return str(v)
     return v
 
 
 router = APIRouter(
     prefix="/communes",
     tags=["reglements-admin"],
-    dependencies=[Depends(require_editor)],
 )
 
 admin_router = APIRouter(
@@ -389,10 +534,18 @@ admin_router = APIRouter(
 )
 
 
-async def _list_sources_for_catalog(catalog: CommuneCatalog) -> list[dict]:
+async def _list_sources_for_catalog(
+    catalog: CommuneCatalog,
+    user_id: Optional[str] = None,
+    *,
+    apply_write_roles: bool = True,
+) -> list[dict]:
     if not catalog.enabled:
         return []
-    return [s.model_dump() for s in catalog.ordered_sources()]
+    sources = catalog.ordered_sources()
+    if apply_write_roles and user_id:
+        sources = [apply_source_permissions(s, user_id) for s in sources]
+    return [s.model_dump() for s in sources]
 
 
 async def _list_rows_for_catalog(
@@ -407,13 +560,18 @@ async def _list_rows_for_catalog(
     if not catalog.enabled:
         return []
     src = get_src(catalog.registry, source)
-    schema = catalog.schema
+    schema = source_schema(catalog, src)
     if src.source == "plu":
-        return await _fetch_plu_list(pool, schema, search=search, limit=limit, offset=offset)
+        return await _fetch_plu_list(pool, catalog.schema, search=search, limit=limit, offset=offset)
     if src.aggregated and src.source == "zonage_plu":
         return await _fetch_zonage_plu_agg(
-            pool, schema, search=search, limit=limit, offset=offset, list_only=True
+            pool, catalog.schema, search=search, limit=limit, offset=offset, list_only=True
         )
+    if src.aggregated and src.source == "ppr":
+        rows = await _fetch_ppr_agg(
+            pool, catalog.schema, search=search, limit=limit, offset=offset, list_only=True
+        )
+        return [_serialize_api_row(r, src) for r in rows]
     cols: list[str] = []
     for c in (src.pk, src.list_primary, src.list_secondary):
         if c and c not in cols:
@@ -432,6 +590,8 @@ async def _list_rows_for_catalog(
         args.append(f"%{search}%")
     sql += f" ORDER BY {qi(src.list_primary)} LIMIT {int(limit)} OFFSET {int(offset)}"
     rows = await pool.fetch(sql, *args)
+    if src.source in _JSONB_COLS:
+        return [_serialize_api_row(dict(r), src) for r in rows]
     return [dict(r) for r in rows]
 
 
@@ -444,22 +604,30 @@ async def _get_row_for_catalog(
     if not catalog.enabled:
         raise HTTPException(status_code=404, detail="Catalogue indisponible")
     src = get_src(catalog.registry, source)
-    schema = catalog.schema
+    schema = source_schema(catalog, src)
     if src.source == "plu":
-        row = await _fetch_plu_row(pool, schema, pk)
+        row = await _fetch_plu_row(pool, catalog.schema, pk)
         if not row:
             raise HTTPException(status_code=404, detail="Entrée introuvable")
         return row
     if src.aggregated and src.source == "zonage_plu":
-        rows = await _fetch_zonage_plu_agg(pool, schema, libelle=pk)
+        rows = await _fetch_zonage_plu_agg(pool, catalog.schema, libelle=pk)
         if not rows:
             raise HTTPException(status_code=404, detail="Entrée introuvable")
         return rows[0]
+    if src.aggregated and src.source == "ppr":
+        rows = await _fetch_ppr_agg(pool, catalog.schema, label=pk)
+        if not rows:
+            raise HTTPException(status_code=404, detail="Entrée introuvable")
+        return _serialize_api_row(rows[0], src)
     sql = f"SELECT * FROM {table_ref(schema, src)} WHERE {qi(src.pk)}::text = $1"
     r = await pool.fetchrow(sql, str(pk))
     if not r:
         raise HTTPException(status_code=404, detail="Entrée introuvable")
-    return dict(r)
+    row = dict(r)
+    if src.source in _JSONB_COLS:
+        return _serialize_api_row(row, src)
+    return row
 
 
 async def _create_row_for_catalog(
@@ -467,15 +635,20 @@ async def _create_row_for_catalog(
     source: str,
     body: dict[str, Any],
     pool: asyncpg.Pool,
+    *,
+    user_id: Optional[str] = None,
+    enforce_write_role: bool = True,
 ) -> dict:
     if not catalog.enabled:
         raise HTTPException(status_code=403, detail=catalog.disabled_message or "Catalogue indisponible")
     src = get_src(catalog.registry, source)
-    schema = catalog.schema
+    if enforce_write_role and user_id:
+        assert_can_write_source(src, user_id)
+    schema = source_schema(catalog, src)
     if not src.creatable:
         raise HTTPException(status_code=405, detail="Création non autorisée pour cette source")
     creatable = {c.name: c for c in src.columns if c.creatable}
-    data = {k: coerce(creatable[k], v) for k, v in body.items() if k in creatable}
+    data = {k: coerce(creatable[k], v, source=src.source) for k, v in body.items() if k in creatable}
     if not data:
         raise HTTPException(status_code=400, detail="Aucun champ valide à insérer")
     cols = list(data.keys())
@@ -491,7 +664,7 @@ async def _create_row_for_catalog(
     except asyncpg.NotNullViolationError as e:
         raise HTTPException(status_code=400, detail=f"Champ obligatoire manquant : {e}")
     if src.source == "plu":
-        enriched = await _fetch_plu_row(pool, schema, str(r["code_zone"]))
+        enriched = await _fetch_plu_row(pool, catalog.schema, str(r["code_zone"]))
         return enriched or dict(r)
     return dict(r)
 
@@ -502,13 +675,18 @@ async def _update_row_for_catalog(
     pk: str,
     body: dict[str, Any],
     pool: asyncpg.Pool,
+    *,
+    user_id: Optional[str] = None,
+    enforce_write_role: bool = True,
 ) -> dict:
     if not catalog.enabled:
         raise HTTPException(status_code=403, detail=catalog.disabled_message or "Catalogue indisponible")
     src = get_src(catalog.registry, source)
-    schema = catalog.schema
+    if enforce_write_role and user_id:
+        assert_can_write_source(src, user_id)
+    schema = source_schema(catalog, src)
     editable = {c.name: c for c in src.columns if c.editable}
-    data = {k: coerce(editable[k], v) for k, v in body.items() if k in editable}
+    data = {k: coerce(editable[k], v, source=src.source) for k, v in body.items() if k in editable}
     if not data:
         raise HTTPException(status_code=400, detail="Aucun champ modifiable fourni")
     if src.aggregated and src.source == "zonage_plu":
@@ -528,8 +706,27 @@ async def _update_row_for_catalog(
             raise HTTPException(status_code=400, detail=f"Champ obligatoire vidé : {e}")
         if res.endswith(" 0"):
             raise HTTPException(status_code=404, detail="Entrée introuvable")
-        rows = await _fetch_zonage_plu_agg(pool, schema, libelle=str(pk))
+        rows = await _fetch_zonage_plu_agg(pool, catalog.schema, libelle=str(pk))
         return rows[0]
+    if src.aggregated and src.source == "ppr":
+        sets, args = [], []
+        for i, (k, v) in enumerate(data.items(), start=1):
+            sets.append(f"{qi(k)} = ${i}")
+            args.append(v)
+        idx = len(args) + 1
+        sql = (
+            f"UPDATE {table_ref(schema, src)} SET {', '.join(sets)} "
+            f"WHERE {qi(src.pk)} = ${idx}"
+        )
+        args.append(str(pk))
+        try:
+            res = await pool.execute(sql, *args)
+        except asyncpg.NotNullViolationError as e:
+            raise HTTPException(status_code=400, detail=f"Champ obligatoire vidé : {e}")
+        if res.endswith(" 0"):
+            raise HTTPException(status_code=404, detail="Entrée introuvable")
+        rows = await _fetch_ppr_agg(pool, catalog.schema, label=str(pk))
+        return _serialize_api_row(rows[0], src)
     sets, args = [], []
     for i, (k, v) in enumerate(data.items(), start=1):
         sets.append(f"{qi(k)} = ${i}")
@@ -549,9 +746,12 @@ async def _update_row_for_catalog(
     if not r:
         raise HTTPException(status_code=404, detail="Entrée introuvable")
     if src.source == "plu":
-        enriched = await _fetch_plu_row(pool, schema, str(pk))
+        enriched = await _fetch_plu_row(pool, catalog.schema, str(pk))
         return enriched or dict(r)
-    return dict(r)
+    row = dict(r)
+    if src.source in _JSONB_COLS:
+        return _serialize_api_row(row, src)
+    return row
 
 
 async def _delete_row_for_catalog(
@@ -559,11 +759,16 @@ async def _delete_row_for_catalog(
     source: str,
     pk: str,
     pool: asyncpg.Pool,
+    *,
+    user_id: Optional[str] = None,
+    enforce_write_role: bool = True,
 ) -> Response:
     if not catalog.enabled:
         raise HTTPException(status_code=403, detail=catalog.disabled_message or "Catalogue indisponible")
     src = get_src(catalog.registry, source)
-    schema = catalog.schema
+    if enforce_write_role and user_id:
+        assert_can_write_source(src, user_id)
+    schema = source_schema(catalog, src)
     if not src.deletable:
         raise HTTPException(status_code=405, detail="Suppression non autorisée pour cette source")
     sql = f"DELETE FROM {table_ref(schema, src)} WHERE {qi(src.pk)}::text = $1"
@@ -574,20 +779,26 @@ async def _delete_row_for_catalog(
 
 
 @router.get("/{commune_slug}/reglements/sources")
-async def list_sources(commune_slug: str) -> list[dict]:
+async def list_sources(
+    commune_slug: str,
+    user_id: str = Depends(get_current_user_id),
+) -> list[dict]:
+    assert_authorized_for_commune_slug(user_id, commune_slug)
     catalog = _load_catalog(commune_slug)
-    return await _list_sources_for_catalog(catalog)
+    return await _list_sources_for_catalog(catalog, user_id)
 
 
 @router.get("/{commune_slug}/reglements/{source}")
 async def list_rows(
     commune_slug: str,
     source: str,
+    user_id: str = Depends(get_current_user_id),
     search: Optional[str] = Query(None),
     limit: int = Query(500, le=2000),
     offset: int = Query(0, ge=0),
     pool: asyncpg.Pool = Depends(get_pool),
 ) -> list[dict]:
+    assert_authorized_for_commune_slug(user_id, commune_slug)
     catalog = _load_catalog(commune_slug)
     return await _list_rows_for_catalog(
         catalog, source, pool, search=search, limit=limit, offset=offset
@@ -599,8 +810,10 @@ async def get_row(
     commune_slug: str,
     source: str,
     pk: str,
+    user_id: str = Depends(get_current_user_id),
     pool: asyncpg.Pool = Depends(get_pool),
 ) -> dict:
+    assert_authorized_for_commune_slug(user_id, commune_slug)
     catalog = _load_catalog(commune_slug)
     return await _get_row_for_catalog(catalog, source, pk, pool)
 
@@ -610,10 +823,14 @@ async def create_row(
     commune_slug: str,
     source: str,
     body: dict[str, Any] = Body(...),
+    user_id: str = Depends(get_current_user_id),
     pool: asyncpg.Pool = Depends(get_pool),
 ) -> dict:
+    assert_authorized_for_commune_slug(user_id, commune_slug)
     catalog = _load_catalog(commune_slug)
-    return await _create_row_for_catalog(catalog, source, body, pool)
+    return await _create_row_for_catalog(
+        catalog, source, body, pool, user_id=user_id, enforce_write_role=True
+    )
 
 
 @router.patch("/{commune_slug}/reglements/{source}/{pk}")
@@ -622,10 +839,14 @@ async def update_row(
     source: str,
     pk: str,
     body: dict[str, Any] = Body(...),
+    user_id: str = Depends(get_current_user_id),
     pool: asyncpg.Pool = Depends(get_pool),
 ) -> dict:
+    assert_authorized_for_commune_slug(user_id, commune_slug)
     catalog = _load_catalog(commune_slug)
-    return await _update_row_for_catalog(catalog, source, pk, body, pool)
+    return await _update_row_for_catalog(
+        catalog, source, pk, body, pool, user_id=user_id, enforce_write_role=True
+    )
 
 
 @router.delete("/{commune_slug}/reglements/{source}/{pk}", status_code=204, response_class=Response)
@@ -633,10 +854,14 @@ async def delete_row(
     commune_slug: str,
     source: str,
     pk: str,
+    user_id: str = Depends(get_current_user_id),
     pool: asyncpg.Pool = Depends(get_pool),
 ) -> Response:
+    assert_authorized_for_commune_slug(user_id, commune_slug)
     catalog = _load_catalog(commune_slug)
-    return await _delete_row_for_catalog(catalog, source, pk, pool)
+    return await _delete_row_for_catalog(
+        catalog, source, pk, pool, user_id=user_id, enforce_write_role=True
+    )
 
 
 @admin_router.get("/catalogues")
@@ -647,7 +872,7 @@ async def list_admin_catalogues() -> list[dict]:
 @admin_router.get("/{commune_slug}/sources")
 async def admin_list_sources(commune_slug: str) -> list[dict]:
     catalog = _load_admin_catalog(commune_slug)
-    return await _list_sources_for_catalog(catalog)
+    return await _list_sources_for_catalog(catalog, apply_write_roles=False)
 
 
 @admin_router.get("/{commune_slug}/{source}")
@@ -684,7 +909,9 @@ async def admin_create_row(
     pool: asyncpg.Pool = Depends(get_pool),
 ) -> dict:
     catalog = _load_admin_catalog(commune_slug)
-    return await _create_row_for_catalog(catalog, source, body, pool)
+    return await _create_row_for_catalog(
+        catalog, source, body, pool, enforce_write_role=False
+    )
 
 
 @admin_router.patch("/{commune_slug}/{source}/{pk}")
@@ -696,7 +923,9 @@ async def admin_update_row(
     pool: asyncpg.Pool = Depends(get_pool),
 ) -> dict:
     catalog = _load_admin_catalog(commune_slug)
-    return await _update_row_for_catalog(catalog, source, pk, body, pool)
+    return await _update_row_for_catalog(
+        catalog, source, pk, body, pool, enforce_write_role=False
+    )
 
 
 @admin_router.delete("/{commune_slug}/{source}/{pk}", status_code=204, response_class=Response)
@@ -707,4 +936,6 @@ async def admin_delete_row(
     pool: asyncpg.Pool = Depends(get_pool),
 ) -> Response:
     catalog = _load_admin_catalog(commune_slug)
-    return await _delete_row_for_catalog(catalog, source, pk, pool)
+    return await _delete_row_for_catalog(
+        catalog, source, pk, pool, enforce_write_role=False
+    )

@@ -1,30 +1,4 @@
 {
-  "a4": {
-    "nom": "Servitudes A4 - Passage sur les berges des cours d’eau",
-    "type": "Servitudes",
-    "keep": [
-      "reglementation"
-    ],
-    "origine": "shp",
-    "article": "4",
-    "attribut_map": "None"
-  },
-  "ac1": {
-    "nom": "Servitudes AC1 - Monuments historiques",
-    "type": "Servitudes",
-    "keep": [
-      "nomsuplitt",
-      "typeass",
-      "nature_protection",
-      "precision_protection",
-      "statut_proprietaire",
-      "reglementation"
-    ],
-    "origine": "wfs",
-    "article": "4",
-    "attribut_map": "nomsuplitt",
-    "nom_attribut_map": "Monument"
-  },
   "aoc_viticoles": {
     "nom": "AOC viticoles",
     "type": "Informations",
@@ -39,16 +13,16 @@
     "nom_attribut_map": "Domaine"
   },
   "oap_linas": {
-  "nom": "OAP – Secteur de Linas",
-  "type": "prescription",
-  "keep": [
-    "reglementation"
-  ],
-  "origine": "kerelia",
-  "article": "5",
-  "attribut_map": "None",
-  "nom_attribut_map": "OAP"
-},
+    "nom": "OAP – Secteur de Linas",
+    "type": "prescription",
+    "keep": [
+      "reglementation"
+    ],
+    "origine": "kerelia",
+    "article": "5",
+    "attribut_map": "None",
+    "nom_attribut_map": "OAP"
+  },
   "debroussaillement": {
     "nom": "Zones de débroussaillement",
     "type": "Prescriptions",
@@ -81,30 +55,6 @@
     ],
     "origine": "wfs",
     "article": "5",
-    "attribut_map": "None"
-  },
-  "i1_hydrocarbure_chimique_gaz": {
-    "nom": "Servitudes I1 – Hydrocarbures, chimiques et gaz",
-    "type": "Servitudes",
-    "keep": [
-      "gml_id",
-      "transporteur",
-      "cat_fluide",
-      "reglementation"
-    ],
-    "origine": "wfs",
-    "article": "4",
-    "attribut_map": "cat_fluide",
-    "nom_attribut_map": "Catégorie de fluide"
-  },
-  "i6": {
-    "nom": "Servitudes I6",
-    "type": "Servitudes",
-    "keep": [
-      "reglementation"
-    ],
-    "origine": "shp",
-    "article": "4",
     "attribut_map": "None"
   },
   "preemption": {
@@ -213,18 +163,6 @@
     "attribut_map": "libelle",
     "nom_attribut_map": "Prescription"
   },
-  "pt3": {
-    "nom": "Servitudes attachées aux réseaux de télécommunications - PT3",
-    "type": "Servitudes",
-    "keep": [
-      "nom_sup",
-      "type",
-      "reglementation"
-    ],
-    "origine": "shp",
-    "article": "4",
-    "attribut_map": "None"
-  },
   "reseaux_aep_eu_lin": {
     "nom": "Réseaux AEP EU (linéaires)",
     "type": "Informations",
@@ -330,20 +268,6 @@
     "nom_attribut_map": "Décibels",
     "attribut_split": "jour_nuit"
   },
-  "as1_captages_eau": {
-    "nom": "Captages d'eau potable (AS1)",
-    "type": "Servitudes",
-    "keep": [
-      "nom_captage",
-      "reglementation",
-      "perimetre_protection",
-      "ins_pro__1"
-    ],
-    "origine": "wfs",
-    "article": "4",
-    "attribut_map": "nom_captage",
-    "nom_attribut_map": "Nom du captage"
-  },
   "buffers_seveso": {
     "nom": "Zones tampon Seveso",
     "type": "Informations",
@@ -356,29 +280,6 @@
     "article": "5",
     "attribut_map": "nom_ets",
     "nom_attribut_map": "Nom de l'établissement"
-  },
-  "el3_garonne": {
-    "nom": "SUP domaine public fluvial (EL3)",
-    "type": "Servitudes",
-    "keep": [
-      "reglementation"
-    ],
-    "origine": "shp",
-    "article": "4",
-    "attribut_map": "None"
-  },
-  "i4_cables_haute_tension": {
-    "nom": "Servitudes I4 - Lignes haute tension",
-    "type": "Servitudes",
-    "keep": [
-      "tension",
-      "type",
-      "reglementation"
-    ],
-    "origine": "wfs",
-    "article": "4",
-    "attribut_map": "tension",
-    "nom_attribut_map": "Tension"
   },
   "icpe_seveso": {
     "nom": "ICPE Seveso",

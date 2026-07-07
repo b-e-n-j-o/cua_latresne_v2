@@ -1,54 +1,6 @@
 {
   "_doc": "Latresne — socle GPU = default.json. Couches supplémentaires : éditer uniquement ce fichier (keep + clean_attributes). Indépendant du catalogue identité foncière.",
   "layers": {
-    "a4": {
-      "enabled": true,
-      "table": "a4",
-      "title": "Servitudes A4 - Cours d'eau",
-      "group": "servitude",
-      "kind": "lineaire",
-      "color": "#457B9D",
-      "strict_parcel": true,
-      "optional": true,
-      "context_llm": true,
-      "context_carto": true,
-      "keep": [
-        "reglementation",
-        "toponyme"
-      ],
-      "clean_attributes": [
-        "Réglementation",
-        "Nom"
-      ]
-    },
-    "ac1": {
-      "enabled": true,
-      "table": "ac1",
-      "title": "Servitudes AC1 - Monuments historiques",
-      "group": "servitude",
-      "kind": "surfacique",
-      "color": "#457B9D",
-      "strict_parcel": true,
-      "optional": true,
-      "context_llm": true,
-      "context_carto": true,
-      "keep": [
-        "nomsuplitt",
-        "typeass",
-        "nature_protection",
-        "precision_protection",
-        "statut_proprietaire",
-        "reglementation"
-      ],
-      "clean_attributes": [
-        "Nom monument",
-        "Type de protection",
-        "Nature de protection",
-        "Precision",
-        "Type proprietaire",
-        "Réglementation"
-      ]
-    },
     "pm1_detaillee_gironde": {
       "enabled": true,
       "table": "pm1_detaillee_gironde",
@@ -167,44 +119,6 @@
         "Réglementation"
       ]
     },
-    "i1_hydrocarbure_chimique_gaz": {
-      "enabled": true,
-      "table": "i1_hydrocarbure_chimique_gaz",
-      "title": "Servitudes I1 – Hydrocarbures",
-      "group": "servitude",
-      "kind": "surfacique",
-      "color": "#457B9D",
-      "strict_parcel": true,
-      "optional": true,
-      "context_llm": true,
-      "context_carto": true,
-      "keep": [
-        "cat_fluide",
-        "reglementation"
-      ],
-      "clean_attributes": [
-        "Catégorie de fluide",
-        "Réglementation"
-      ]
-    },
-    "i6": {
-      "enabled": true,
-      "table": "i6",
-      "title": "Servitudes I6 - Mines et carrières",
-      "group": "servitude",
-      "kind": "lineaire",
-      "color": "#457B9D",
-      "strict_parcel": true,
-      "optional": true,
-      "context_llm": true,
-      "context_carto": true,
-      "keep": [
-        "reglementation"
-      ],
-      "clean_attributes": [
-        "Réglementation"
-      ]
-    },
     "preemption": {
       "enabled": true,
       "table": "preemption",
@@ -271,28 +185,6 @@
       "clean_attributes": [
         "Nom",
         "Type de patrimoine",
-        "Réglementation"
-      ]
-    },
-    "pt3": {
-      "enabled": true,
-      "table": "pt3",
-      "title": "Servitudes PT3 - Réseaux télécommunications",
-      "group": "servitude",
-      "kind": "lineaire",
-      "color": "#457B9D",
-      "strict_parcel": true,
-      "optional": true,
-      "context_llm": true,
-      "context_carto": true,
-      "keep": [
-        "nom_sup",
-        "type",
-        "reglementation"
-      ],
-      "clean_attributes": [
-        "Nom servitude",
-        "Type",
         "Réglementation"
       ]
     },
@@ -411,28 +303,6 @@
         "Type"
       ]
     },
-    "retrait_gonflement_argiles_gironde": {
-      "enabled": true,
-      "table": "retrait_gonflement_argiles_gironde",
-      "title": "Retrait-gonflement des argiles",
-      "group": "prescription_locale",
-      "kind": "surfacique",
-      "color": "#9D4EDD",
-      "strict_parcel": true,
-      "optional": true,
-      "context_llm": true,
-      "context_carto": true,
-      "keep": [
-        "niveau",
-        "alea",
-        "reglementation"
-      ],
-      "clean_attributes": [
-        "Niveau",
-        "Aléa",
-        "Réglementation"
-      ]
-    },
     "retrait_gonflement_argiles_gironde_2026": {
       "enabled": true,
       "table": "retrait_gonflement_argiles_gironde_2026",
@@ -540,30 +410,6 @@
         "Réglementation"
       ]
     },
-    "as1_captages_eau": {
-      "enabled": true,
-      "table": "as1_captages_eau",
-      "title": "Captages d'eau potable (AS1)",
-      "group": "servitude",
-      "kind": "surfacique",
-      "color": "#457B9D",
-      "strict_parcel": true,
-      "optional": true,
-      "context_llm": true,
-      "context_carto": true,
-      "keep": [
-        "nom_captage",
-        "perimetre_protection",
-        "ins_pro__1",
-        "reglementation"
-      ],
-      "clean_attributes": [
-        "Nom captage",
-        "Périmètre de protection",
-        "Inscription protection",
-        "Réglementation"
-      ]
-    },
     "seveso_buffers": {
       "enabled": true,
       "table": "seveso_buffers",
@@ -589,46 +435,6 @@
         "Adresse",
         "Libellé NAF",
         "Numéro Siret",
-        "Réglementation"
-      ]
-    },
-    "el3_garonne": {
-      "enabled": true,
-      "table": "el3_garonne",
-      "title": "Servitude EL3 - Domaine public fluvial",
-      "group": "servitude",
-      "kind": "surfacique",
-      "color": "#457B9D",
-      "strict_parcel": true,
-      "optional": true,
-      "context_llm": true,
-      "context_carto": true,
-      "keep": [
-        "reglementation"
-      ],
-      "clean_attributes": [
-        "Réglementation"
-      ]
-    },
-    "i4_cables_haute_tension": {
-      "enabled": true,
-      "table": "i4_cables_haute_tension",
-      "title": "Servitude I4 - Câbles haute tension",
-      "group": "servitude",
-      "kind": "lineaire",
-      "color": "#457B9D",
-      "strict_parcel": true,
-      "optional": true,
-      "context_llm": true,
-      "context_carto": true,
-      "keep": [
-        "tension",
-        "type",
-        "reglementation"
-      ],
-      "clean_attributes": [
-        "Tension (kV)",
-        "Type",
         "Réglementation"
       ]
     },

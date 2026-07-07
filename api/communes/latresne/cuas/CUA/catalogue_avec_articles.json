@@ -1,35 +1,12 @@
 {
-  "a4": {
-    "nom": "Servitudes A4",
-    "type": "servitude",
-    "keep": [
-      "reglementation"
-    ],
-    "origine": "shp",
-    "article": "4"
-  },
   "oap_linas": {
-  "nom": "OAP – Secteur de Linas",
-  "type": "prescription",
-  "keep": [
-    "reglementation"
-  ],
-  "origine": "kerelia",
-  "article": "5"
-},
-  "ac1": {
-    "nom": "Servitudes AC1",
-    "type": "servitude",
+    "nom": "OAP – Secteur de Linas",
+    "type": "prescription",
     "keep": [
-      "nomsuplitt",
-      "typeass",
-      "nature_protection",
-      "precision_protection",
-      "statut_proprietaire",
       "reglementation"
     ],
-    "origine": "wfs",
-    "article": "4"
+    "origine": "kerelia",
+    "article": "5"
   },
   "aoc_viticoles": {
     "nom": "AOC viticoles",
@@ -78,27 +55,6 @@
     ],
     "origine": "wfs",
     "article": "5"
-  },
-  "i1_hydrocarbure_chimique_gaz": {
-    "nom": "Servitudes I1 – Hydrocarbures, chimiques et gaz",
-    "type": "servitude",
-    "keep": [
-      "gml_id",
-      "transporteur",
-      "cat_fluide",
-      "reglementation"
-    ],
-    "origine": "wfs",
-    "article": "4"
-  },
-  "i6": {
-    "nom": "Servitudes I6",
-    "type": "servitude",
-    "keep": [
-      "reglementation"
-    ],
-    "origine": "shp",
-    "article": "4"
   },
   "preemption": {
     "nom": "Zones de préemption",
@@ -190,17 +146,6 @@
     "origine": "shp",
     "article": "5"
   },
-  "pt3": {
-    "nom": "Servitudes PT3",
-    "type": "servitude",
-    "keep": [
-      "nom_sup",
-      "type",
-      "reglementation"
-    ],
-    "origine": "shp",
-    "article": "4"
-  },
   "radon": {
     "nom": "IRSN - Radon métropole",
     "type": "prescription",
@@ -290,18 +235,6 @@
     "origine": "wfs",
     "article": "7"
   },
-  "as1_captages_eau": {
-    "nom": "Captages d'eau potable (AS1)",
-    "type": "servitude",
-    "keep": [
-      "nom_captage",
-      "reglementation",
-      "perimetre_protection",
-      "ins_pro__1"
-    ],
-    "origine": "wfs",
-    "article": "4"
-  },
   "buffers_seveso": {
     "nom": "Zones tampon Seveso",
     "type": "information",
@@ -312,27 +245,6 @@
     ],
     "origine": "shp",
     "article": "5"
-  },
-  "el3_garonne": {
-    "nom": "Servitudes domaine public fluvial (EL3)",
-    "type": "servitude",
-    "keep": [
-      "reglementation"
-    ],
-    "origine": "shp",
-    "article": "4"
-  },
-  "i4_cables_haute_tension": {
-    "nom": "Câbles haute tension (I4)",
-    "type": "servitude",
-    "keep": [
-      "implantation",
-      "niveau_reglementaire",
-      "references",
-      "reglementation"
-    ],
-    "origine": "wfs",
-    "article": "4"
   },
   "i4_carte": {
     "nom": "Carte I4",

@@ -81,7 +81,32 @@ def _today_fr() -> str:
     return datetime.now().strftime("%d/%m/%Y")
 
 
-def _merge_dossier(dossier: Optional[dict]) -> dict:
+def _auto_numero_cu(
+    refs: Optional[list[dict[str, str]]] = None,
+    meta: Optional[dict[str, str]] = None,
+) -> str:
+    if refs:
+        parcel_part = "+".join(
+            f"{r['section'].strip().upper()}{r['numero'].strip()}"
+            for r in refs
+            if r.get("section") and r.get("numero")
+        )
+        if parcel_part:
+            return f"CU-{parcel_part}"
+    if meta:
+        insee = str(meta.get("code_insee") or "")
+        dept = insee[:3] if len(insee) >= 3 else "000"
+        if insee:
+            return f"{dept}-{insee}-{datetime.now().strftime('%Y')}-PARCEL"
+    return f"CU-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+
+
+def _merge_dossier(
+    dossier: Optional[dict],
+    *,
+    refs: Optional[list[dict[str, str]]] = None,
+    meta: Optional[dict[str, str]] = None,
+) -> dict:
     merged = dict(DEFAULT_DOSSIER)
     if dossier:
         for key, value in dossier.items():
@@ -89,9 +114,7 @@ def _merge_dossier(dossier: Optional[dict]) -> dict:
                 merged[key] = value
     numero_cu = str(merged.get("numero_cu") or "").strip()
     if not numero_cu:
-        raise ValueError(
-            "Référence du dossier requise (numero_cu) pour générer le certificat d'urbanisme."
-        )
+        numero_cu = _auto_numero_cu(refs, meta)
     merged["numero_cu"] = numero_cu
     if not str(merged.get("date_depot") or "").strip():
         merged["date_depot"] = _today_fr()
@@ -173,7 +196,7 @@ def generate_cua_for_parcelles(
     carto_payload["commune_slug"] = slug
     carto_payload["parcelles"] = normalized_refs
 
-    dossier_merged = _merge_dossier(dossier)
+    dossier_merged = _merge_dossier(dossier, refs=normalized_refs, meta=meta)
     builder_config = COMMUNE_BUILDER_CONFIG.get(slug, CommuneConfig())
     pipeline_slug = _generate_slug()
 

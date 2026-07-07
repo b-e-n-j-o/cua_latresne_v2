@@ -40,6 +40,6 @@ DB_CONFIG = {
 }
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-GEMINI_MODEL   = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
+GEMINI_MODEL   = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
 
 # Préfixe HTTP par commune : voir communes/ + api.create_plu_router()

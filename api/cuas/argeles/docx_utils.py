@@ -12,33 +12,57 @@ from docx.shared import Pt
 FONT = "Arial"
 _HYPERLINK_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
 
-_INLINE_MD_RE = re.compile(r"(\*\*\*.*?\*\*\*|\*\*.*?\*\*|\*.*?\*)")
+_BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
+_ITALIC_RE = re.compile(r"(?<!\*)\*([^*]+?)\*(?!\*)")
+_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+
+_NATIVE_BULLET_PREFIXES = ("•", "–", "—", "·")
+
+
+def _strip_links(text: str) -> str:
+    """Remplace [texte](url) par 'texte (url)' en texte brut."""
+    return _LINK_RE.sub(lambda m: f"{m.group(1)} ({m.group(2)})", text)
+
+
+def _style_run(run, size: int = 9, italic_base: bool = False) -> None:
+    run.font.name = FONT
+    run.font.size = Pt(size)
+    if italic_base:
+        run.italic = True
 
 
 def parse_markdown_inline(paragraph, text, size=9, italic_base=False):
-    """Parse le gras (**) et l'italique (*) en runs Word."""
-    parts = _INLINE_MD_RE.split(text)
+    """Parse **gras** et *italique* inline en runs Word (scan gauche → droite)."""
+    text = _strip_links(text)
+    pos = 0
+    while pos < len(text):
+        rest = text[pos:]
+        bold_m = _BOLD_RE.search(rest)
+        italic_m = _ITALIC_RE.search(rest)
 
-    for part in parts:
-        if not part:
-            continue
-        run = paragraph.add_run()
-        run.font.name = FONT
-        run.font.size = Pt(size)
-        run.italic = italic_base
+        match = None
+        if bold_m and (italic_m is None or bold_m.start() <= italic_m.start()):
+            match = ("bold", bold_m)
+        elif italic_m:
+            match = ("italic", italic_m)
 
-        if part.startswith("***") and part.endswith("***"):
-            run.text = part[3:-3]
+        if match is None:
+            if rest:
+                run = paragraph.add_run(rest)
+                _style_run(run, size, italic_base)
+            break
+
+        kind, m = match
+        if m.start() > 0:
+            run = paragraph.add_run(rest[: m.start()])
+            _style_run(run, size, italic_base)
+        run = paragraph.add_run(m.group(1))
+        _style_run(run, size, italic_base)
+        if kind == "bold":
             run.bold = True
-            run.italic = True
-        elif part.startswith("**") and part.endswith("**"):
-            run.text = part[2:-2]
-            run.bold = True
-        elif part.startswith("*") and part.endswith("*"):
-            run.text = part[1:-1]
-            run.italic = True
         else:
-            run.text = part
+            run.italic = True
+        pos += m.end()
 
 
 def add_markdown_block(doc, text, size=9, is_bullet=False):
@@ -47,25 +71,47 @@ def add_markdown_block(doc, text, size=9, is_bullet=False):
     is_bullet=True force une puce Word sur chaque ligne — à éviter si le texte
     contient déjà des puces (•, –, etc.) ou des préfixes markdown (- / *).
     """
-    if not text:
+    if not text or not str(text).strip():
         return
 
-    _NATIVE_BULLET_PREFIXES = ("•", "–", "—", "·")
-
-    for line in text.split("\n"):
-        cleaned_line = line.strip()
-        if not cleaned_line:
+    for raw_line in str(text).strip().split("\n"):
+        line = raw_line.strip()
+        if not line or line == "---":
             continue
 
-        if cleaned_line.startswith("#"):
-            level = len(cleaned_line) - len(cleaned_line.lstrip("#"))
-            title_text = cleaned_line.lstrip("#").strip()
-            doc.add_heading(title_text, level=min(level, 5))
+        if line.startswith("### "):
+            p = doc.add_paragraph()
+            r = p.add_run(line[4:].strip())
+            r.bold = True
+            r.font.name = FONT
+            r.font.size = Pt(max(size + 3, 11))
+            p.paragraph_format.space_before = Pt(10)
+            p.paragraph_format.space_after = Pt(4)
             continue
 
-        has_native_bullet = cleaned_line.startswith(_NATIVE_BULLET_PREFIXES)
+        if line.startswith("## "):
+            p = doc.add_paragraph()
+            r = p.add_run(line[3:].strip())
+            r.bold = True
+            r.font.name = FONT
+            r.font.size = Pt(max(size + 4, 12))
+            p.paragraph_format.space_before = Pt(12)
+            p.paragraph_format.space_after = Pt(6)
+            continue
 
+        if line.startswith("# "):
+            p = doc.add_paragraph()
+            r = p.add_run(line[2:].strip())
+            r.bold = True
+            r.font.name = FONT
+            r.font.size = Pt(max(size + 5, 13))
+            p.paragraph_format.space_before = Pt(14)
+            p.paragraph_format.space_after = Pt(6)
+            continue
+
+        has_native_bullet = line.startswith(_NATIVE_BULLET_PREFIXES)
         is_line_bullet = is_bullet and not has_native_bullet
+        cleaned_line = line
         if cleaned_line.startswith("- ") or cleaned_line.startswith("* "):
             is_line_bullet = True
             cleaned_line = cleaned_line[2:].strip()

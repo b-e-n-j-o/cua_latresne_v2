@@ -6,7 +6,7 @@
   "sources": [
     {
       "source": "zonage_plu",
-      "label": "Laius PLU",
+      "label": "Paragraphes PLU",
       "table": "zonage_plu",
       "pk": "libelle",
       "list_primary": "libelle",
@@ -24,20 +24,29 @@
     },
     {
       "source": "ppr",
-      "label": "Laius PPR",
-      "table": "laius_ppr",
-      "pk": "code_degre",
-      "list_primary": "code_degre",
-      "list_secondary": null,
-      "search_cols": ["code_degre", "reglementation"],
+      "label": "Zones PPR",
+      "table": "ppr",
+      "pk": "label",
+      "list_primary": "label",
+      "list_secondary": "degre",
+      "search_cols": ["label", "risque", "code_degre", "degre", "ces", "mise_hors_d_eau", "reglementation_generale"],
+      "aggregated": true,
+      "creatable": false,
+      "deletable": false,
       "columns": [
-        { "name": "code_degre", "label": "Code degré", "kind": "text", "editable": false, "creatable": true, "pk": true },
-        { "name": "reglementation", "label": "Règlement", "kind": "longtext" }
+        { "name": "label", "label": "Sous-zone", "kind": "text", "editable": false, "creatable": false, "pk": true },
+        { "name": "risque", "label": "Risque", "kind": "text", "editable": true, "creatable": false },
+        { "name": "code_degre", "label": "Code degré", "kind": "text", "editable": true, "creatable": false },
+        { "name": "degre", "label": "Degré", "kind": "text", "editable": true, "creatable": false },
+        { "name": "ces", "label": "CES", "kind": "text", "editable": true, "creatable": false },
+        { "name": "mise_hors_d_eau", "label": "Mise hors d'eau", "kind": "text", "editable": true, "creatable": false },
+        { "name": "reglementation_generale", "label": "Règlementation générale", "kind": "longtext", "editable": true, "creatable": false },
+        { "name": "nb_entites", "label": "Entités SIG", "kind": "int", "editable": false, "creatable": false }
       ]
     },
     {
       "source": "pprif",
-      "label": "Laius PPRIF",
+      "label": "Paragraphes PPRIF",
       "table": "laius_pprif",
       "pk": "label",
       "list_primary": "label",
@@ -50,7 +59,9 @@
     },
     {
       "source": "servitudes",
-      "label": "Laius Servitudes",
+      "label": "Paragraphes Servitudes",
+      "write_role": "superadmin",
+      "schema": "public",
       "table": "servitudes_reglements",
       "pk": "suptype",
       "list_primary": "suptype",

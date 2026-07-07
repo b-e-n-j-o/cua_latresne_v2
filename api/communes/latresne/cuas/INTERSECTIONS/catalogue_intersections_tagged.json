@@ -1,29 +1,4 @@
 {
-  "a4": {
-    "nom": "Servitudes A4",
-    "type": "servitude",
-    "keep": [
-      "reglementation"
-    ],
-    "origine": "shp",
-    "article": "4",
-    "geom_type": "lineaire"
-  },
-  "ac1": {
-    "nom": "Servitude AC1 - Monuments historiques",
-    "type": "servitude",
-    "keep": [
-      "nomsuplitt",
-      "typeass",
-      "nature_protection",
-      "precision_protection",
-      "statut_proprietaire",
-      "reglementation"
-    ],
-    "origine": "wfs",
-    "article": "4",
-    "geom_type": "surfacique"
-  },
   "pm1_detaillee_gironde": {
     "nom": "Servitude PM1 - Risques inondations",
     "type": "servitude",
@@ -93,29 +68,6 @@
     ],
     "origine": "wfs",
     "article": "5",
-    "geom_type": "lineaire"
-  },
-  "i1_hydrocarbure_chimique_gaz": {
-    "nom": "Servitudes I1 – Hydrocarbures, chimiques et gaz",
-    "type": "servitude",
-    "keep": [
-      "gml_id",
-      "transporteur",
-      "cat_fluide",
-      "reglementation"
-    ],
-    "origine": "wfs",
-    "article": "4",
-    "geom_type": "surfacique"
-  },
-  "i6": {
-    "nom": "Servitudes I6",
-    "type": "servitude",
-    "keep": [
-      "reglementation"
-    ],
-    "origine": "shp",
-    "article": "4",
     "geom_type": "lineaire"
   },
   "preemption": {
@@ -219,18 +171,6 @@
     "article": "5",
     "geom_type": "surfacique"
   },
-  "pt3": {
-    "nom": "Servitudes PT3",
-    "type": "servitude",
-    "keep": [
-      "nom_sup",
-      "type",
-      "reglementation"
-    ],
-    "origine": "shp",
-    "article": "4",
-    "geom_type": "lineaire"
-  },
   "radon": {
     "nom": "IRSN - Radon métropole",
     "type": "prescription",
@@ -302,7 +242,7 @@
     "geom_type": "surfacique"
   },
   "retrait_gonflement_argiles_gironde_2026": {
-    "nom": "Retrait-gonflement des argiles - Règlementation à venir, juillet 2026",
+    "nom": "Retrait-gonflement des argiles",
     "type": "prescription",
     "keep": [
       "niveau",
@@ -362,19 +302,6 @@
     "article": "5",
     "geom_type": "surfacique"
   },
-  "as1_captages_eau": {
-    "nom": "Captages d'eau potable (AS1)",
-    "type": "servitude",
-    "keep": [
-      "nom_captage",
-      "reglementation",
-      "perimetre_protection",
-      "ins_pro__1"
-    ],
-    "origine": "wfs",
-    "article": "4",
-    "geom_type": "surfacique"
-  },
   "buffers_seveso": {
     "nom": "Zones tampon Seveso",
     "type": "information",
@@ -386,28 +313,6 @@
     "origine": "shp",
     "article": "5",
     "geom_type": "surfacique"
-  },
-  "el3_garonne": {
-    "nom": "Servitudes domaine public fluvial (EL3)",
-    "type": "servitude",
-    "keep": [
-      "reglementation"
-    ],
-    "origine": "shp",
-    "article": "4",
-    "geom_type": "lineaire"
-  },
-  "i4_cables_haute_tension": {
-    "nom": "Câbles haute tension (I4)",
-    "type": "servitude",
-    "keep": [
-      "tension",
-      "type",
-      "reglementation"
-    ],
-    "origine": "wfs",
-    "article": "6",
-    "geom_type": "lineaire"
   },
   "icpe_seveso": {
     "nom": "ICPE Seveso",

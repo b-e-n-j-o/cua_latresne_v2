@@ -19,6 +19,7 @@ from api.communes.latresne.cuas.CUA.docx.cua_utils import (
     read_json, fmt_surface, fmt_pct, join_addr, parcels_label,
     build_footer_number, setup_doc, set_footer_num,
     add_first_article_title, add_article_title, add_paragraph, add_kv_table, add_objects_table,
+    add_markdown_block,
     filter_intersections, filter_zonage_plu,
     add_annexes_section, ensure_page_space_for_article,
 )
@@ -27,13 +28,138 @@ from api.communes.latresne.cuas.CUA.docx.cas_speciaux import appliquer_cas_speci
 from api.communes.latresne.cuas.CUA.docx.cua_header import render_first_page_header, add_mayor_section_with_vu
 from api.communes.latresne.cuas.CUA.ppri.ppri_cua_module import analyser_ppri_corrige, generer_rapport_cua_avec_table
 
+# Clés d'enrichissement post-catalogue (hors catalogue_intersections_tagged.json)
+ENRICHMENT_LAYER_KEYS = frozenset({"servitudes_reglementees"})
+
+
+# ============================================================
+# Servitudes réglementées (module métier — laius en base)
+# ============================================================
+def render_servitudes_reglementees(doc, servitudes_module: Dict[str, Any]) -> None:
+    """Affiche les servitudes enrichies depuis public.servitudes_reglements."""
+    servitudes = servitudes_module.get("servitudes") or []
+    if not servitudes:
+        return
+
+    for i, s in enumerate(servitudes):
+        if i > 0:
+            doc.add_paragraph()
+        variantes = s.get("variantes") or []
+        titre = s.get("libelle") or s.get("nomsuplitt") or s.get("suptype") or "Servitude"
+        if (
+            not variantes
+            and s.get("suptype", "").upper() == "I4"
+            and s.get("tension_kv") is not None
+        ):
+            titre = f"{titre} — {s['tension_kv']} kV"
+        add_paragraph(doc, titre, bold=True)
+
+        metric = s.get("metric")
+        nb_fragments = s.get("nb_fragments")
+        if variantes:
+            if metric is not None and nb_fragments and nb_fragments > 1:
+                add_paragraph(
+                    doc,
+                    f"Surface d'intersection totale : {metric:,.2f} m² "
+                    f"({nb_fragments} fragment(s) cartographique(s)).",
+                    italic=True,
+                )
+            elif metric is not None:
+                add_paragraph(doc, f"Surface d'intersection : {metric:,.2f} m².", italic=True)
+        elif metric is not None and nb_fragments and nb_fragments > 1:
+            add_paragraph(
+                doc,
+                f"Surface d'intersection totale : {metric:,.2f} m² "
+                f"({nb_fragments} fragment(s) cartographique(s)).",
+                italic=True,
+            )
+        elif metric is not None:
+            add_paragraph(doc, f"Surface d'intersection : {metric:,.2f} m².", italic=True)
+
+        monuments = s.get("monuments") or []
+        if monuments:
+            for m in monuments:
+                nom = m.get("nom") or "Monument"
+                dist = m.get("distance_m")
+                if dist is not None:
+                    add_paragraph(doc, f"{nom} — à environ {dist:.0f} m de la parcelle", italic=True)
+                else:
+                    add_paragraph(doc, nom, italic=True)
+
+        attrs = []
+        attr_keys = (
+            "nomsuplitt", "typeass", "nature_protection", "transporteur", "cat_fluide",
+            "nom_captage", "perimetre_protection", "tension_kv", "type", "nom_sup",
+        )
+        if not variantes:
+            for key in attr_keys:
+                val = s.get(key)
+                if val is not None and str(val).strip():
+                    attrs.append({key: val})
+        if attrs:
+            add_objects_table(doc, attrs)
+
+        if variantes:
+            base_regl = (s.get("reglementation") or "").strip()
+            if base_regl:
+                add_markdown_block(doc, base_regl)
+            for var in variantes:
+                libelle_var = (var.get("libelle_var") or "").strip()
+                if libelle_var:
+                    add_paragraph(doc, libelle_var, bold=True)
+                var_metric = var.get("metric")
+                var_nb = var.get("nb_fragments")
+                if var_metric is not None and var_nb and var_nb > 1:
+                    add_paragraph(
+                        doc,
+                        f"Surface d'intersection : {var_metric:,.2f} m² ({var_nb} fragment(s)).",
+                        italic=True,
+                    )
+                elif var_metric is not None and var_metric > 0:
+                    add_paragraph(
+                        doc,
+                        f"Surface d'intersection : {var_metric:,.2f} m².",
+                        italic=True,
+                    )
+                complement = (var.get("complement") or "").strip()
+                if complement:
+                    add_markdown_block(doc, complement)
+            if s.get("i4_non_resolu"):
+                nb_nr = s.get("nb_non_resolus")
+                if nb_nr:
+                    add_paragraph(
+                        doc,
+                        f"{nb_nr} ligne(s) n'ont pas pu être associées à une variante réglementaire.",
+                        italic=True,
+                    )
+                else:
+                    add_paragraph(
+                        doc,
+                        "Certaines lignes n'ont pas pu être associées à une variante réglementaire.",
+                        italic=True,
+                    )
+        else:
+            regl = (s.get("reglementation") or "").strip()
+            if regl:
+                add_markdown_block(doc, regl)
+
+        base = (s.get("base_legale") or "").strip()
+        if base:
+            add_paragraph(doc, f"Base légale : {base}", italic=True)
+        url = (s.get("url_fiche_gpu") or "").strip()
+        if url:
+            add_paragraph(doc, f"Fiche GPU : {url}", italic=True)
+
 
 # ============================================================
 # 🆕 HELPER : Détection attribut "reglementation" dans keep
 # ============================================================
 def has_reglementation_in_keep(layer_key: str, catalogue: Dict[str, Any]) -> bool:
-    """Vérifie si 'reglementation' est dans les attributs keep du catalogue."""
-    keep = catalogue.get(layer_key, {}).get("keep", [])
+    """Vérifie si la couche affiche une réglementation textuelle (keep ou laius en base)."""
+    cfg = catalogue.get(layer_key, {}) or {}
+    if cfg.get("laius_table"):
+        return True
+    keep = cfg.get("keep", [])
     return "reglementation" in keep
 
 
@@ -133,10 +259,14 @@ def render_layer_content(
         
         for obj in objets:
             print(f"🔍 Objet brut : {obj}")  # DEBUG
-            # ✅ Extraire la réglementation AVANT de traiter l'objet
+            if layer_key == "zonage_plu":
+                obj_sans_regl = _strip_surface_keys(
+                    {k: v for k, v in obj.items() if k != "reglementation"}
+                )
+                objets_pour_table.append(obj_sans_regl)
+                continue
             if "reglementation" in obj and obj["reglementation"]:
                 reglements_annexes.append(obj["reglementation"])
-            # ✅ Créer une copie sans réglementation pour le tableau
             obj_sans_regl = {k: v for k, v in obj.items() if k != "reglementation"}
             obj_sans_regl = _strip_surface_keys(obj_sans_regl)
             print(f"🔍 Objet après _strip_surface_keys : {obj_sans_regl}")  # DEBUG
@@ -157,8 +287,14 @@ def render_layer_content(
         else:
             add_paragraph(doc, "Aucune information détaillée disponible.", italic=True)
         
-        # Ajouter réglementations en annexe (spécifique au zonage PLU)
-        if reglements_annexes and add_annexes_callback:
+        if layer_key == "zonage_plu":
+            for obj in objets:
+                regl = (obj.get("reglementation") or "").strip()
+                if regl:
+                    nom_zone = obj.get("zonage_reglement") or obj.get("zone") or "Zone"
+                    add_paragraph(doc, f"Règlement — zone {nom_zone}", bold=True)
+                    add_markdown_block(doc, regl)
+        elif reglements_annexes and add_annexes_callback:
             add_annexes_callback({
                 "titre": f"Règlement du PLU – {nom}",
                 "contenu": "\n\n".join(reglements_annexes)
@@ -186,7 +322,7 @@ def render_layer_content(
         
         if reglementations_uniques:
             for reglement in reglementations_uniques:
-                add_paragraph(doc, reglement)
+                add_markdown_block(doc, reglement)
         else:
             add_paragraph(doc, "Aucune réglementation spécifique disponible.", italic=True)
 
@@ -247,9 +383,13 @@ def build_cua_docx(
     )
     
     intersections_raw = inters.get("intersections") or {}
+    servitudes_module = intersections_raw.get("servitudes_reglementees") or {}
+    intersections_catalogue = {
+        k: v for k, v in intersections_raw.items() if k not in ENRICHMENT_LAYER_KEYS
+    }
     
     # ✅ Recalcul des surfaces finales indicatives à partir des pourcentages SIG
-    for key, layer in intersections_raw.items():
+    for key, layer in intersections_catalogue.items():
         pct_sig = layer.get("pct_sig", 0)
         # Surface indicative = pourcentage SIG * surface indicative CERFA
         layer["surface_m2"] = round((pct_sig / 100.0) * surface_indicative, 2)
@@ -259,7 +399,7 @@ def build_cua_docx(
     # Normalisation des surfaces et pourcentages (sans filtrage par seuil)
     # Utiliser surface_indicative pour les calculs
     intersections = filter_intersections(
-        intersections_raw,
+        intersections_catalogue,
         catalogue_json,
         surface_indicative,
         min_pct=0.0  # ✅ Garder toutes les couches, filtrer après sur objets
@@ -381,28 +521,34 @@ def build_cua_docx(
 
     if layers_by_article.get("3"):
         for layer_key, layer_data in layers_by_article["3"]:
-            if layer_data.get("objets"):  # ✅ Ajout
+            if layer_data.get("objets"):
                 render_layer_content(
-                    doc, 
-                    layer_data, 
-                    layer_key, 
+                    doc,
+                    layer_data,
+                    layer_key,
                     catalogue_json,
                     add_annexes_callback=lambda annex: annexes.append(annex),
-                    force_table_mode=True  # ✅ Force mode tableau pour zonage PLU
+                    force_table_mode=True,
                 )
     else:
         add_paragraph(doc, "Aucune donnée de zonage disponible.", italic=True)
 
+    dg_text = (inters.get("plu_dispositions_generales") or "").strip()
+    if dg_text:
+        add_paragraph(doc, "Dispositions générales", bold=True)
+        add_markdown_block(doc, dg_text)
+
     # Article 4 : Servitudes d'utilité publique
     ensure_page_space_for_article(doc)
     add_article_title(doc, "Article 4 – Servitudes d'utilité publique et autres limitations administratives au droit de propriété (dont emplacements réservés)")
-    
+
+    render_servitudes_reglementees(doc, servitudes_module)
+
     if layers_by_article.get("4"):
         for layer_key, layer_data in layers_by_article["4"]:
-            # ✅ Ignorer la couche pm1_detaillee_gironde (gérée par un autre module)
             if layer_key == "pm1_detaillee_gironde":
                 continue
-            if layer_data.get("objets"):  # ✅ Ajout
+            if layer_data.get("objets"):
                 render_layer_content(doc, layer_data, layer_key, catalogue_json)
 
     # Intégration automatique du PPRI PM1
@@ -444,8 +590,14 @@ def build_cua_docx(
     
     if layers_by_article.get("5"):
         for layer_key, layer_data in layers_by_article["5"]:
-            if layer_data.get("objets"):  # ✅ Ajout
-                render_layer_content(doc, layer_data, layer_key, catalogue_json)
+            if layer_data.get("objets"):
+                render_layer_content(
+                    doc,
+                    layer_data,
+                    layer_key,
+                    catalogue_json,
+                    force_table_mode=(layer_key == "pprmvt_latresne"),
+                )
     else:
         add_paragraph(doc, "Aucune donnée pertinente détectée.", italic=True)
 

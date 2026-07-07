@@ -1,0 +1,323 @@
+{
+    "_meta": {
+      "source": "Règlement PPR Argelès-sur-Mer (dossier Octobre 2008, PPR approuvé le 25/11/2008)",
+      "insee": "66008",
+      "date_reference_ppr": "2008-11-25",
+      "avertissement": "Valeurs extraites du seul règlement PDF fourni. Aucune donnee inventee. La carte d'alea (hauteur de submersion) n'est PAS dans ce PDF : les champs qui en dependent sont marques 'depend_carte_alea'.",
+      "legende_statuts": {
+        "ok": "Valeur explicitement presente dans le reglement PDF",
+        "non_applicable": "Notion sans objet pour cette zone",
+        "non_precise": "Le reglement traite la zone mais ne donne pas de valeur pour ce critere",
+        "manquant": "Critere qui devrait logiquement s'appliquer mais TOTALEMENT absent du PDF pour ce label",
+        "depend_carte_alea": "Non deductible du polygone de zonage seul ; requiert la hauteur de submersion au point (carte d'alea non fournie)"
+      },
+      "mhe_forfaitaire_par_classe_alea": {
+        "commentaire": "Regle transversale du reglement, a appliquer quand la MHE depend de la carte d'alea",
+        "submersion_inf_0_50m": "TN + 0.70 m",
+        "submersion_0_50_a_1m": "TN + 1.20 m",
+        "submersion_sup_1m_structure_isolee_zone_I": "TN + 2.20 m",
+        "appreciation_fine": "cote d'inondation arrondie a la decimale superieure + 0.20 m de revanche"
+      }
+    },
+  
+    "zones": [
+      {
+        "label": "I-a",
+        "libelle": "Lit mineur du Tech et de la Riberette",
+        "famille": "zone_I_lit_mineur",
+        "ces": { "statut": "non_applicable", "valeur": null, "note": "Protection integrale, inconstructible" },
+        "mhe": { "statut": "non_applicable", "type": null, "valeur_m": null, "cote_ngf": null },
+        "recul_berges": { "statut": "ok", "note": "Tech 150 m ; Riberette 20 m (10 m si calibre enrochements/beton). Distance >= 1,5 x hauteur berge" },
+        "destinations": { "statut": "ok", "principe": "Inconstructibilite totale, preservation integrale du lit mineur" },
+        "seuil_erp": { "statut": "non_applicable" },
+        "zone_refuge": { "statut": "non_applicable" },
+        "clotures": { "statut": "non_applicable" },
+        "overlays": [],
+        "interdictions_cles": ["Tout amenagement du lit et des berges (soumis loi sur l'eau)"]
+      },
+      {
+        "label": "I-b1",
+        "libelle": "Lit mineur Massane, affluents et fleuves cotiers sud",
+        "famille": "zone_I_lit_mineur",
+        "ces": { "statut": "non_applicable", "valeur": null, "note": "Protection integrale, inconstructible" },
+        "mhe": { "statut": "non_applicable", "type": null, "valeur_m": null, "cote_ngf": null },
+        "recul_berges": { "statut": "ok", "note": "Massane 20 m (10 m si calibre) ; Ravaner 10 m ; autres cours d'eau et agouilles 6 m" },
+        "destinations": { "statut": "ok", "principe": "Inconstructibilite totale" },
+        "seuil_erp": { "statut": "non_applicable" },
+        "zone_refuge": { "statut": "non_applicable" },
+        "clotures": { "statut": "non_applicable" },
+        "overlays": [],
+        "interdictions_cles": ["Tout amenagement du lit et des berges (soumis loi sur l'eau)"]
+      },
+      {
+        "label": "I0",
+        "libelle": "Lit majeur / champ d'expansion de crue du Tech (interfluve Tech-Massane)",
+        "famille": "zone_I_lit_majeur",
+        "ces": { "statut": "non_precise", "valeur": null, "note": "Pas de coefficient CES pour la zone I. Seules des extensions derogatoires en m2 : habitat non-agricole <= +50 m2 (art 2.3) ; activite <= 70 m2 (art 2.5)" },
+        "mhe": { "statut": "depend_carte_alea", "type": "forfaitaire_alea", "valeur_m": null, "cote_ngf": null, "note": "Alea variable faible->fort DANS un meme polygone. Appliquer table MHE forfaitaire au point" },
+        "recul_berges": { "statut": "ok", "note": "Tech 150 m ; regle generale zone I" },
+        "destinations": {
+          "statut": "ok",
+          "interdit": ["Habitation nouvelle (sauf exploitation agricole si alea < 1 m et presence permanente justifiee)", "Nouveaux campings/HLL, augmentation capacite d'accueil", "Gites ruraux nouveaux", "Equipements collectifs sensibles (ecoles, maisons de retraite, cliniques)", "Parcs d'attractions"],
+          "autorise_sous_reserve": ["Entretien/rehabilitation existant", "Extension habitat non-agricole <= +50 m2", "Extension activite <= 70 m2", "Amenagements limites campings sans hausse de capacite", "Constructions agricoles si alea faible a moyen", "Equipements collectifs d'interet general (accord gestionnaire)"]
+        },
+        "seuil_erp": { "statut": "ok", "note": "Amenagement d'activite admis si capacite ERP reste < 50 personnes (art 2.5)" },
+        "zone_refuge": { "statut": "ok", "note": "Campings : au-dessus cote MHE, tendre vers 0,50 m2/personne, avis commission departementale securite" },
+        "clotures": { "statut": "ok", "note": "Permeabilite >= 80% de vide, murs bahuts interdits, base <= 0,20 m au-dessus du TN" },
+        "overlays": ["recul_berges", "centre_historique_possible"],
+        "interdictions_cles": ["Toute occupation reduisant la capacite de stockage ou perturbant le fonctionnement hydraulique", "Remblais hors emprises baties (sauf strict minimum)", "Nouveau plancher en sous-sol", "Reconstruction apres inondation/tempete (sauf exception campings)"]
+      },
+      {
+        "label": "I-b2",
+        "libelle": "Lit majeur Massane et cotiers, urbanise et expose",
+        "famille": "zone_I_lit_majeur",
+        "ces": { "statut": "non_precise", "valeur": null, "note": "Pas de CES. Urbanisation non poursuivie. Extensions derogatoires en m2 (idem I0)" },
+        "mhe": { "statut": "depend_carte_alea", "type": "forfaitaire_alea", "valeur_m": null, "cote_ngf": null, "note": "Alea souvent > 1 m (courants forts, montee rapide) -> TN + 2.20 m pour habitat isole" },
+        "recul_berges": { "statut": "ok", "note": "Massane 20 m (10 m si calibre) ; Ravaner 10 m ; autres 6 m" },
+        "destinations": { "statut": "ok", "principe": "Urbanisation ne peut etre poursuivie", "autorise_sous_reserve": ["Idem I0 : entretien, extensions limitees, agricole si alea faible/moyen"] },
+        "seuil_erp": { "statut": "ok", "note": "< 50 personnes (regle zone I)" },
+        "zone_refuge": { "statut": "ok", "note": "Idem zone I (campings)" },
+        "clotures": { "statut": "ok", "note": "Permeabilite >= 80%, murs bahuts interdits, base <= 0,20 m TN" },
+        "overlays": ["recul_berges"],
+        "interdictions_cles": ["Poursuite d'urbanisation", "Idem interdictions generales zone I"]
+      },
+      {
+        "label": "I-c",
+        "libelle": "Ecoulement torrentiel en lit majeur du Ravaner",
+        "famille": "zone_I_lit_majeur",
+        "ces": { "statut": "non_precise", "valeur": null, "note": "Pas de CES. Urbanisation interdite (ne peut etre entreprise)" },
+        "mhe": { "statut": "depend_carte_alea", "type": "forfaitaire_alea", "valeur_m": null, "cote_ngf": null, "note": "Alea fort (caracteristiques torrentielles intenses)" },
+        "recul_berges": { "statut": "ok", "note": "Ravaner 10 m" },
+        "destinations": { "statut": "ok", "principe": "Urbanisation interdite" },
+        "seuil_erp": { "statut": "ok", "note": "< 50 personnes (regle zone I)" },
+        "zone_refuge": { "statut": "ok", "note": "Idem zone I" },
+        "clotures": { "statut": "ok", "note": "Permeabilite >= 80%, murs bahuts interdits, base <= 0,20 m TN" },
+        "overlays": ["recul_berges"],
+        "interdictions_cles": ["Toute urbanisation nouvelle", "Idem interdictions generales zone I"]
+      },
+      {
+        "label": "I-im",
+        "libelle": "Cote sableuse, risque de submersion marine",
+        "famille": "zone_I_alea_marin",
+        "ces": { "statut": "non_precise", "valeur": null, "note": "Front naturel : tout amenagement interdit sauf exploitation des plages. Front urbanise : pas de densification" },
+        "mhe": { "statut": "ok", "type": "absolue_ngf", "valeur_m": null, "cote_ngf": 3.80, "note": "Base marine 3 m NGF ; 3,80 m NGF si alea fluvial associe (Tech/Massane). Art 3.2 : front urbanise impose 3,80 m NGF, sous-sols interdits" },
+        "recul_berges": { "statut": "non_applicable", "note": "Enjeu littoral, pas de recul cours d'eau specifique" },
+        "destinations": {
+          "statut": "ok",
+          "interdit": ["Front naturel : tout amenagement/construction (fragilisation cordon dunaire)"],
+          "autorise_sous_reserve": ["Amenagements strictement necessaires a l'exploitation des plages (demontes entre 30 oct et 15 mai)", "Ganivelles de stabilisation dunaire (sans limite de permeabilite)", "Front urbanise : amenagements tres limites de l'existant"]
+        },
+        "seuil_erp": { "statut": "non_precise" },
+        "zone_refuge": { "statut": "non_precise" },
+        "clotures": { "statut": "non_precise" },
+        "overlays": [],
+        "interdictions_cles": ["Densification du front de mer urbanise", "Sous-sols (front urbanise)", "Amenagements fragilisant le cordon dunaire"]
+      },
+      {
+        "label": "I-m",
+        "libelle": "Racou, risque fort d'invasion marine",
+        "famille": "zone_I_alea_marin",
+        "ces": { "statut": "non_precise", "valeur": null, "note": "Reglementation de l'existant pour reduire vulnerabilite. Pas de reconstruction si habitation detruite par tempete" },
+        "mhe": { "statut": "ok", "type": "absolue_ngf", "valeur_m": null, "cote_ngf": 3.80, "note": "Front urbanise 3,80 m NGF ; sous-sols interdits (art 3.2)" },
+        "recul_berges": { "statut": "non_applicable" },
+        "destinations": {
+          "statut": "ok",
+          "interdit": ["Reconstruction si habitation detruite apres tempete de mer"],
+          "autorise_sous_reserve": ["Renforcement des constructions par techniques/materiaux resistant a la poussee des vagues (zone de deferlement)"]
+        },
+        "seuil_erp": { "statut": "non_precise" },
+        "zone_refuge": { "statut": "non_precise" },
+        "clotures": { "statut": "non_precise" },
+        "overlays": [],
+        "interdictions_cles": ["Reconstruction post-tempete", "Sous-sols"]
+      },
+      {
+        "label": "I-em",
+        "libelle": "Cote rocheuse, risque d'erosion et de chute de blocs",
+        "famille": "zone_I_alea_marin",
+        "ces": { "statut": "non_applicable", "valeur": null, "note": "Enjeu = securisation du sentier littoral et des falaises, pas de bati" },
+        "mhe": { "statut": "non_applicable", "type": null, "valeur_m": null, "cote_ngf": null },
+        "recul_berges": { "statut": "ok", "note": "Recul falaises littorales : 25 m depuis le sommet (sans prejudice loi Littoral)" },
+        "destinations": { "statut": "ok", "principe": "Securisation des falaises en surplomb ; integration de protections specifiques pour le sentier littoral" },
+        "seuil_erp": { "statut": "non_applicable" },
+        "zone_refuge": { "statut": "non_applicable" },
+        "clotures": { "statut": "non_applicable" },
+        "overlays": ["recul_falaises"],
+        "interdictions_cles": ["Construction nouvelle a moins de 25 m du sommet des falaises"]
+      },
+      {
+        "label": "I-g",
+        "libelle": "Mouvement / glissement de terrain (colline Moulin d'en Sourre, Racou)",
+        "famille": "zone_I_mouvement_terrain",
+        "ces": { "statut": "non_applicable", "valeur": null, "note": "Inconstructible. Interdit : surcharge ponderale et creusement en deblai (aggravation geotechnique)" },
+        "mhe": { "statut": "non_applicable", "type": null, "valeur_m": null, "cote_ngf": null, "note": "Risque non-inondation : pas de MHE" },
+        "recul_berges": { "statut": "non_applicable" },
+        "destinations": { "statut": "ok", "principe": "Ne doit pas etre urbanise ; preservation de tout risque d'aggravation de l'alea", "interdit": ["Tout amenagement/edifice generant surcharge ponderale", "Tout creusement en deblai"] },
+        "seuil_erp": { "statut": "non_applicable" },
+        "zone_refuge": { "statut": "non_applicable" },
+        "clotures": { "statut": "non_precise" },
+        "overlays": [],
+        "interdictions_cles": ["Surcharge ponderale", "Creusement en deblai", "Urbanisation"]
+      },
+      {
+        "label": "II-a",
+        "libelle": "Urbanise, alea moyen+ (hauteur d'eau 0,50-1 m)",
+        "famille": "zone_II",
+        "ces": { "statut": "ok", "valeur": 0.20, "note": "Uniquement extensions en contiguite avec bati existant. Depassement +10% une seule fois si plafond deja atteint (habitat/hebergement)" },
+        "mhe": { "statut": "ok", "type": "relative_tn", "valeur_m": 1.20, "cote_ngf": null, "note": "Classe 0,50-1 m encodee dans le label -> pas besoin de la carte d'alea" },
+        "recul_berges": { "statut": "ok", "note": "Massane 20 m (10 m si calibre) ; Riberette 20 m ; Ravaner 10 m ; autres 6 m" },
+        "destinations": {
+          "statut": "ok",
+          "interdit": ["Constructions nouvelles (sauf extensions en contiguite du bati existant et equipements annexes aux installations publiques)", "Crèches/ecoles/etablissements sensibles s'il existe une alternative hors zone"],
+          "autorise_sous_reserve": ["Extension unique <= +50 m2 pour activite artisanale/industrielle/commerciale/tertiaire", "Equipements collectifs (emprise <= 35% en II-a)"]
+        },
+        "seuil_erp": { "statut": "non_precise", "note": "Pas de seuil ERP chiffre explicite en zone II (contrairement a la zone I)" },
+        "zone_refuge": { "statut": "ok", "note": "Si 1er plancher submersible : refuge >= 15 m2 (habitation) ou 0,50 m2/pers min 10% SHON (ERP/activite)" },
+        "clotures": { "statut": "ok", "note": "Permeabilite >= 80% SAUF sous-secteur II-a (centre historique) ; murs bahuts interdits ; base <= 0,20 m TN" },
+        "overlays": ["recul_berges", "centre_historique_possible"],
+        "interdictions_cles": ["Occupation du lit mineur", "Remblais hors emprises baties", "Nouveau plancher en sous-sol", "Installations legeres non ancrees (HLL, prefabriques)", "Reconstruction apres inondation (sauf serres souples)"]
+      },
+      {
+        "label": "II-b",
+        "libelle": "Urbanise, alea faible (hauteur d'eau 0-0,50 m)",
+        "famille": "zone_II",
+        "ces": { "statut": "ok", "valeur": 0.30, "note": "Depassement +10% une seule fois si plafond deja atteint (habitat/hebergement)" },
+        "mhe": { "statut": "ok", "type": "relative_tn", "valeur_m": 0.70, "cote_ngf": null, "note": "Classe 0-0,50 m encodee dans le label" },
+        "recul_berges": { "statut": "ok", "note": "Massane/Riberette 20 m (10 m si calibre) ; Ravaner 10 m ; autres 6 m" },
+        "destinations": {
+          "statut": "ok",
+          "note": "Bandes inconstructibles a reserver pour axes d'ecoulement transverses (ex : secteur Champs Cadaques, aval stade/la Ville)",
+          "autorise_sous_reserve": ["Extension unique <= +50 m2 pour activite", "Equipements collectifs (emprise <= 50% zone II)"]
+        },
+        "seuil_erp": { "statut": "non_precise" },
+        "zone_refuge": { "statut": "ok", "note": "Si 1er plancher submersible : refuge >= 15 m2 (habitation) ou 0,50 m2/pers min 10% SHON (ERP/activite)" },
+        "clotures": { "statut": "ok", "note": "Permeabilite >= 80%, murs bahuts interdits, base <= 0,20 m TN" },
+        "overlays": ["recul_berges", "centre_historique_possible"],
+        "interdictions_cles": ["Idem interdictions generales zone II", "Non-respect des bandes d'ecoulement transverses"]
+      },
+      {
+        "label": "II-c",
+        "libelle": "Non urbanise, alea moyen+ (hauteur d'eau 0,50-1 m)",
+        "famille": "zone_II",
+        "ces": { "statut": "ok", "valeur": 0.20, "note": "Uniquement extensions en contiguite avec bati existant" },
+        "mhe": { "statut": "ok", "type": "relative_tn", "valeur_m": 1.20, "cote_ngf": null, "note": "Classe 0,50-1 m encodee dans le label" },
+        "recul_berges": { "statut": "ok", "note": "Massane/Riberette 20 m (10 m si calibre) ; Ravaner 10 m ; autres 6 m" },
+        "destinations": {
+          "statut": "ok",
+          "interdit": ["Constructions nouvelles (sauf extensions en contiguite du bati existant)"],
+          "autorise_sous_reserve": ["Extension activite <= +50 m2", "Equipements collectifs (emprise <= 35% en II-c)"]
+        },
+        "seuil_erp": { "statut": "non_precise" },
+        "zone_refuge": { "statut": "ok", "note": "Idem II-a" },
+        "clotures": { "statut": "ok", "note": "Permeabilite >= 80%, murs bahuts interdits, base <= 0,20 m TN" },
+        "overlays": ["recul_berges", "centre_historique_possible"],
+        "interdictions_cles": ["Idem interdictions generales zone II"]
+      },
+      {
+        "label": "II-d",
+        "libelle": "Non urbanise, alea faible (hauteur d'eau 0-0,50 m)",
+        "famille": "zone_II",
+        "ces": { "statut": "ok", "valeur": 0.30, "note": "CES peut atteindre 0,50 pour les batiments a usage d'activite" },
+        "mhe": { "statut": "ok", "type": "relative_tn", "valeur_m": 0.70, "cote_ngf": null, "note": "Classe 0-0,50 m encodee dans le label" },
+        "recul_berges": { "statut": "ok", "note": "Massane/Riberette 20 m (10 m si calibre) ; Ravaner 10 m ; autres 6 m" },
+        "destinations": {
+          "statut": "ok",
+          "autorise_sous_reserve": ["Extension activite <= +50 m2", "Bati d'activite CES jusqu'a 0,50", "Equipements collectifs (emprise <= 50%)"]
+        },
+        "seuil_erp": { "statut": "non_precise" },
+        "zone_refuge": { "statut": "ok", "note": "Idem II-b" },
+        "clotures": { "statut": "ok", "note": "Permeabilite >= 80%, murs bahuts interdits, base <= 0,20 m TN" },
+        "overlays": ["recul_berges", "centre_historique_possible"],
+        "interdictions_cles": ["Idem interdictions generales zone II"]
+      },
+      {
+        "label": "II-p",
+        "libelle": "Argeles-Plage, alea moyen inondation fluviale + maritime (0-1 m)",
+        "famille": "zone_II_speciale",
+        "ces": { "statut": "manquant", "valeur": null, "note": "AUCUN CES donne pour II-p dans le PDF. L'art 2.3 ne liste que II-a/b/c/d. La zone est gouvernee par la MHE. Equipements collectifs : emprise <= 50%" },
+        "mhe": { "statut": "ok", "type": "absolue_ngf", "valeur_m": null, "cote_ngf": 3.80, "note": "Cote absolue : remblais anterieurs -> TN non fiable. Plancher habitable = 3,80 m NGF" },
+        "recul_berges": { "statut": "ok", "note": "Regles generales zone II applicables" },
+        "destinations": {
+          "statut": "ok",
+          "note": "Perimetre urbain d'Argeles-Plage entierement urbanise",
+          "derogations_planchers": ["Locaux d'accueil du public/commerce (hors hebergement) abaissables : TN+0,20 m si submersion <0,50 m, sinon 0,70 m", "Activite artisanale/industrielle abaissable jusqu'a TN+0,70 m"]
+        },
+        "seuil_erp": { "statut": "non_precise" },
+        "zone_refuge": { "statut": "ok", "note": "Si 1er plancher submersible : refuge >= 15 m2 (habitation) ou 0,50 m2/pers min 10% SHON (ERP/activite)" },
+        "clotures": { "statut": "ok", "note": "Regles generales zone II (>= 80%, base <= 0,20 m TN)" },
+        "overlays": ["recul_berges"],
+        "interdictions_cles": ["Plancher habitable sous 3,80 m NGF", "Idem interdictions generales zone II"]
+      },
+      {
+        "label": "II-p'",
+        "libelle": "Reserve pour centre nautique communal (point refuge de grande capacite)",
+        "famille": "zone_II_speciale",
+        "ces": { "statut": "manquant", "valeur": null, "note": "Equipement public specifique : aucun CES donne dans le PDF" },
+        "mhe": { "statut": "ok", "type": "absolue_ngf", "valeur_m": null, "cote_ngf": 3.80, "note": "MHE >= 3,80 m NGF" },
+        "recul_berges": { "statut": "non_precise" },
+        "destinations": { "statut": "ok", "principe": "Edification eventuelle en arriere de la RD 81, au nord du Tamariguier. Doit s'inscrire dans le schema de transparence hydraulique et servir de point refuge/helitreuillage. Subordonne a l'etude diagnostic hydraulique communale" },
+        "seuil_erp": { "statut": "non_precise" },
+        "zone_refuge": { "statut": "ok", "note": "L'equipement EST lui-meme un point refuge de grande capacite" },
+        "clotures": { "statut": "non_precise" },
+        "overlays": [],
+        "interdictions_cles": ["MHE sous 3,80 m NGF", "Implantation sans etude de transparence hydraulique prealable"]
+      },
+      {
+        "label": "Périmètre du centre historique",
+        "libelle": "Overlay derogatoire (perimetre note en rouge sur le plan) - PAS une zone d'alea autonome",
+        "famille": "overlay",
+        "ces": { "statut": "ok", "valeur": null, "note": "Derogation surfacique REMPLACANT le CES : II-a/II-c -> UF < 500 m2 : emprise <= 100 m2 ; II-b -> UF < 400 m2 : emprise <= 120 m2. UF non issues de divisions posterieures au PPR" },
+        "mhe": { "statut": "depend_carte_alea", "type": "herite_secteur", "valeur_m": null, "cote_ngf": null, "note": "MHE = celle du secteur II sous-jacent (II-a/b/c). Contraintes strictes de mise hors d'eau, RDC inondable NON habitable" },
+        "recul_berges": { "statut": "ok", "note": "Regles generales applicables" },
+        "destinations": {
+          "statut": "ok",
+          "autorise_sous_reserve": ["Remises agricoles reamenageables en habitat (hors pieces RDC inondables)", "RDC : activite diurne commerce/artisanat, AUCUN local a sommeil, acces zone refuge exige"]
+        },
+        "seuil_erp": { "statut": "non_precise" },
+        "zone_refuge": { "statut": "ok", "note": "Acces a zone refuge exige pour activite RDC" },
+        "clotures": { "statut": "ok", "note": "En sous-secteur II-a, exception a la regle 80% de permeabilite" },
+        "overlays": ["masque_geometrique_a_croiser_avec_zone_II"],
+        "interdictions_cles": ["Rendre habitable un RDC inondable", "Local a sommeil en RDC"]
+      },
+      {
+        "label": "III - Zone non réglementée par ailleurs",
+        "libelle": "Zone blanche, ruissellement pluvial seul (recommandations, non prescriptif)",
+        "famille": "zone_III",
+        "ces": { "statut": "non_applicable", "valeur": null, "note": "Pas de CES. Seule regle OPPOSABLE : recul berges et falaises" },
+        "mhe": { "statut": "non_applicable", "type": "recommandation", "valeur_m": 0.20, "cote_ngf": null, "note": "RECOMMANDATION (non opposable) : plancher/installations sensibles >= +0,20 m au-dessus voirie/TN, jusqu'a +0,50 m localement selon ruissellement" },
+        "recul_berges": { "statut": "ok", "note": "OPPOSABLE : Massane/Riberette 20 m (10 m si calibre) ; Ravaner 10 m ; autres 6 m ; falaises 25 m" },
+        "destinations": { "statut": "ok", "principe": "Non soumise au risque de debordement des fleuves. Recommandations : sous-sols enterres deconseilles, ouvrages de franchissement largement dimensionnes en zones preferentielles d'ecoulement" },
+        "seuil_erp": { "statut": "non_applicable" },
+        "zone_refuge": { "statut": "non_applicable" },
+        "clotures": { "statut": "non_precise" },
+        "overlays": ["recul_berges", "recul_falaises"],
+        "interdictions_cles": ["Construction nouvelle dans le buffer berges/falaises (seule interdiction opposable)"]
+      },
+      {
+        "label": "Recul minimum réglementaire des constructions par rapport au sommet des berges des cours d'eau",
+        "libelle": "Overlay / buffer d'interdiction de construction nouvelle (transversal a toutes les zones)",
+        "famille": "overlay",
+        "ces": { "statut": "non_applicable", "valeur": null, "note": "Non une zone d'alea. IMPORTANT : le CES/COS des zones se calcule HORS de cette bande de recul (partie constructible de l'UF seulement)" },
+        "mhe": { "statut": "non_applicable", "type": null, "valeur_m": null, "cote_ngf": null },
+        "recul_berges": {
+          "statut": "ok",
+          "regle_generale": "Distance >= 1,5 x hauteur de la berge (hauteur comptee verticalement du fond de lit au sommet de rive, en etiage severe), sans etre inferieure aux minima suivants :",
+          "minima_m": {
+            "Tech": { "valeur": 150, "note": "Zone I uniquement" },
+            "Massane": { "valeur": 20, "reduit": 10, "condition_reduction": "partie calibree en enrochements ou beton" },
+            "Riberette": { "valeur": 20, "reduit": 10, "condition_reduction": "partie calibree en enrochements ou beton" },
+            "Ravaner": { "valeur": 10 },
+            "autres_cours_eau_et_agouilles": { "valeur": 6 },
+            "falaises_littorales": { "valeur": 25, "note": "sans prejudice loi Littoral" }
+          },
+          "exception": "Implantation d'interet general devant etre a proximite du cours d'eau (dispositif de mesures...), si impact hydraulique negligeable et accord du gestionnaire de la servitude PPR"
+        },
+        "destinations": { "statut": "ok", "principe": "Interdiction de toute construction nouvelle dans le buffer" },
+        "seuil_erp": { "statut": "non_applicable" },
+        "zone_refuge": { "statut": "non_applicable" },
+        "clotures": { "statut": "ok", "note": "Zone II : toute cloture interdite dans la bande de recul le long des cours d'eau" },
+        "overlays": ["masque_geometrique_a_soustraire_de_la_surface_constructible"],
+        "interdictions_cles": ["Toute construction nouvelle dans le buffer", "Zone II : cloture dans le buffer"]
+      }
+    ]
+  }

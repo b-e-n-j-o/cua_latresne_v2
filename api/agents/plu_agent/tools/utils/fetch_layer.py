@@ -31,7 +31,7 @@ def _sql_attr(alias: str, column: str) -> str:
 
 def _entity_geom_sql(alias: str, spec: LayerSpec) -> str:
     if spec.geom_transform == "sup_geometry":
-        return _geom_2154_sql(alias)
+        return _geom_2154_sql(alias, spec.geom_column)
     col = f"{alias}.{spec.geom_column}"
     return f"ST_MakeValid({col})"
 

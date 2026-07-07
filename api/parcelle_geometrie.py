@@ -83,13 +83,12 @@ def _load_cadastre_tables() -> dict[str, tuple[str, str]]:
     """
     Whitelist des tables cadastrales.
     Format env optionnel CADASTRE_COMMUNES_TABLES:
-    {"latresne":"latresne.parcelles","argeles":"argeles.parcelles","mios":"mios.parcelles"}
+    {"latresne":"latresne.parcelles","argeles":"argeles.parcelles"}
     """
     default_mapping = {
         "LATRESNE": ("latresne", "parcelles"),
         "ARGELES": ("argeles", "parcelles"),
         "ARGELES SUR MER": ("argeles", "parcelles"),
-        "MIOS": ("mios", "parcelles"),
     }
     raw = (os.getenv("CADASTRE_COMMUNES_TABLES") or "").strip()
     if not raw:
@@ -121,7 +120,6 @@ CADASTRE_TABLES = _load_cadastre_tables()
 INSEE_TO_COMMUNE_KEY = {
     "33234": "LATRESNE",
     "66008": "ARGELES SUR MER",
-    "33284": "MIOS",
 }
 
 SUPABASE_HOST = str(os.getenv("SUPABASE_HOST") or "").strip().strip('"').strip("'")

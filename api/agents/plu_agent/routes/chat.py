@@ -61,9 +61,8 @@ class ChatResponse(BaseModel):
 
 def _build_gemini_client() -> genai.Client:
     if GEMINI_API_KEY:
-        return genai.Client(api_key=GEMINI_API_KEY)
-    return genai.Client()
-
+        return genai.Client(vertexai=True, api_key=GEMINI_API_KEY)
+    return genai.Client(vertexai=True)
 
 def _build_system_prompt(zones: list[dict]) -> str:
     base = get_current_profile().system_prompt

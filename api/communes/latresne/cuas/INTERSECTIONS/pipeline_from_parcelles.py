@@ -30,6 +30,7 @@ from api.communes.latresne.cuas.INTERSECTIONS.intersections import (
     calculate_intersection,
     fetch_superficie_indicative,
 )
+from api.communes.latresne.cuas.INTERSECTIONS.intersection_modules.enrichment import enrich_intersections_rapport
 from api.communes.latresne.cuas.CUA.sub_orchestrator_cua import generer_visualisations_et_cua_depuis_wkt
 from api.communes.latresne.cuas.CERFA_ANALYSE.auth_utils import is_authorized_for_insee
 
@@ -358,6 +359,9 @@ def run_pipeline_from_parcelles(
             log_memory(f"INTERSECTIONS_{i}/{n_tables}")
             gc.collect()
 
+    enrich_intersections_rapport(rapport, parcelle_wkt, engine)
+    engine.dispose()
+
     log_memory("APRES_INTERSECTIONS")
 
     # Sauvegarde des rapports
@@ -376,10 +380,23 @@ def run_pipeline_from_parcelles(
 
     # Passer les métadonnées CERFA au sous-orchestrateur
     cerfa_meta = cerfa_json.get("data", {})
+    demandeur_raw = cerfa_meta.get("demandeur")
+    if isinstance(demandeur_raw, str):
+        demandeur_label = demandeur_raw.strip() or "DEMANDEUR"
+    elif isinstance(demandeur_raw, dict):
+        demandeur_label = (
+            (demandeur_raw.get("denomination") or "").strip()
+            or " ".join(
+                p for p in (demandeur_raw.get("prenom"), demandeur_raw.get("nom")) if p
+            ).strip()
+            or "DEMANDEUR"
+        )
+    else:
+        demandeur_label = "DEMANDEUR"
     cerfa_data = {
         "numero_cu": cerfa_meta.get("numero_cu"),
         "date_depot": cerfa_meta.get("date_depot"),
-        "demandeur": cerfa_meta.get("demandeur", {}).get("denomination") or "DEMANDEUR",
+        "demandeur": demandeur_label,
         "parcelles": cerfa_meta.get("references_cadastrales"),
         "superficie": cerfa_meta.get("superficie_totale_m2"),
         "adresse_terrain": cerfa_meta.get("adresse_terrain"),

@@ -11,7 +11,6 @@ import json
 import os
 import pathlib
 import tempfile
-import time
 
 import requests
 from google import genai
@@ -23,17 +22,16 @@ from .raa_config import RaaCommuneConfig, get_raa_config, normalise_arrete_natur
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (Kerelia veille RAA)"}
 DOWNLOAD_TIMEOUT = 120
-FILE_ACTIVE_TIMEOUT = 120
+INLINE_PDF_MAX_BYTES = 50 * 1024 * 1024  # limite Gemini inline (Vertex + Developer)
 
 PRIX_IN = 0.25
 PRIX_OUT = 1.50
 
 
 def get_client() -> genai.Client:
-    key = GEMINI_API_KEY or os.environ.get("GOOGLE_API_KEY", "")
-    if not key:
-        raise RuntimeError("GEMINI_API_KEY manquante")
-    return genai.Client(api_key=key)
+    if GEMINI_API_KEY:
+        return genai.Client(vertexai=True, api_key=GEMINI_API_KEY)
+    return genai.Client(vertexai=True)
 
 
 def _download_pdf(url: str) -> pathlib.Path:
@@ -60,34 +58,26 @@ def _cout(tokens_in: int, tokens_out: int) -> float:
 
 
 def _call_gemini(client: genai.Client, pdf_path: pathlib.Path, cfg: RaaCommuneConfig) -> dict:
-    uploaded = client.files.upload(
-        file=pdf_path,
-        config=types.UploadFileConfig(mime_type="application/pdf"),
+    """
+    Analyse un PDF via generate_content (compatible Vertex AI).
+    L'API Files (upload) n'est disponible qu'avec le client Gemini Developer.
+    """
+    pdf_bytes = pdf_path.read_bytes()
+    if len(pdf_bytes) > INLINE_PDF_MAX_BYTES:
+        mo = len(pdf_bytes) / (1024 * 1024)
+        raise ValueError(f"PDF trop volumineux ({mo:.1f} Mo, max 50 Mo en inline)")
+
+    response = client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=[
+            types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
+            cfg.analyse_prompt,
+        ],
+        config=types.GenerateContentConfig(
+            system_instruction=cfg.system_prompt,
+            temperature=0.1,
+        ),
     )
-    try:
-        t0 = time.time()
-        while uploaded.state and uploaded.state.name == "PROCESSING":
-            if time.time() - t0 > FILE_ACTIVE_TIMEOUT:
-                raise TimeoutError("Fichier Gemini bloqué en PROCESSING")
-            time.sleep(2)
-            uploaded = client.files.get(name=uploaded.name)
-
-        if uploaded.state and uploaded.state.name == "FAILED":
-            raise RuntimeError("Échec du traitement du fichier par Gemini")
-
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=[uploaded, cfg.analyse_prompt],
-            config=types.GenerateContentConfig(
-                system_instruction=cfg.system_prompt,
-                temperature=0.1,
-            ),
-        )
-    finally:
-        try:
-            client.files.delete(name=uploaded.name)
-        except Exception:
-            pass
 
     usage = response.usage_metadata
     tokens_in = usage.prompt_token_count if usage else 0

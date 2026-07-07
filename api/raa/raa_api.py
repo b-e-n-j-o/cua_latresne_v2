@@ -7,7 +7,10 @@ Endpoints (par slug communal) :
     GET  /{commune_slug}/raa                 -> liste (RAA + dernière analyse jointe)
     GET  /{commune_slug}/raa/{raa_id}       -> détail (avec le tableau `arretes`)
     POST /{commune_slug}/raa/sync           -> scrape préfecture, diff, analyse des nouveaux (202)
+    POST /{commune_slug}/raa/reinitialiser-bloques -> débloque en_cours/erreur et relance (202)
+    POST /{commune_slug}/raa/analyser-en-attente -> analyse les recueils en statut detecte (202)
     POST /{commune_slug}/raa/{raa_id}/marquer-vu -> marque un recueil comme lu
+    POST /{commune_slug}/raa/{raa_id}/masquer -> masque un recueil (soft-delete, conserve pdf_url)
     POST /{commune_slug}/raa/{raa_id}/analyser -> lance l'analyse en tâche de fond (202)
 
 Communes supportées : voir raa_config.RAA_COMMUNES (argeles, latresne, …).
@@ -72,7 +75,8 @@ def _sql_list(schema: str) -> str:
         ORDER BY aa.created_at DESC
         LIMIT 1
     ) a ON TRUE
-    WHERE (%(annee)s IS NULL OR EXTRACT(YEAR FROM r.date_publication) = %(annee)s)
+    WHERE COALESCE(r.masque, false) = false
+      AND (%(annee)s IS NULL OR EXTRACT(YEAR FROM r.date_publication) = %(annee)s)
     ORDER BY r.date_publication DESC NULLS LAST, r.id DESC
     LIMIT %(limit)s;
 """
@@ -96,7 +100,7 @@ def _sql_detail(schema: str) -> str:
     return f"""
     SELECT
         r.id, r.titre, r.date_publication, r.pdf_url, r.page_url,
-        r.taille_mo, r.statut, r.vu, r.departement, r.created_at, r.updated_at,
+        r.taille_mo, r.statut, r.vu, r.masque, r.departement, r.created_at, r.updated_at,
         a.id AS analyse_id, a.modele, a.niveau_alerte,
         a.nb_arretes_total, a.nb_arretes_pertinents, a.commune_mentionnee,
         a.resume_global, a.arretes, a.tokens_in, a.tokens_out,
@@ -126,6 +130,24 @@ def raa_get(cfg: RaaCommuneConfig, raa_id: int) -> dict | None:
     return row
 
 
+def raa_masquer(cfg: RaaCommuneConfig, raa_id: int) -> bool:
+    conn = _db_conn()
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                UPDATE {cfg.schema}.raa
+                SET masque=true, updated_at=now()
+                WHERE id=%s AND COALESCE(masque, false) = false
+                RETURNING id;
+                """,
+                (raa_id,),
+            )
+            ok = cur.fetchone() is not None
+    conn.close()
+    return ok
+
+
 def raa_marquer_vu(cfg: RaaCommuneConfig, raa_id: int) -> bool:
     conn = _db_conn()
     with conn:
@@ -148,6 +170,46 @@ def raa_set_statut(cfg: RaaCommuneConfig, raa_id: int, statut: str) -> None:
                 (statut, raa_id),
             )
     conn.close()
+
+
+def raa_reinitialiser_bloques(cfg: RaaCommuneConfig) -> list[int]:
+    """
+    Repasse en « detecte » les recueils bloqués (en_cours sans worker actif, ou erreur).
+    Ne touche pas aux recueils déjà en statut « analyse ».
+    """
+    conn = _db_conn()
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                UPDATE {cfg.schema}.raa
+                SET statut='detecte', updated_at=now()
+                WHERE COALESCE(masque, false) = false
+                  AND statut IN ('en_cours', 'erreur')
+                RETURNING id;
+                """,
+            )
+            ids = [row[0] for row in cur.fetchall()]
+    conn.close()
+    return ids
+
+
+def raa_list_en_attente(cfg: RaaCommuneConfig) -> list[int]:
+    """Recueils jamais analysés avec succès (statut detecte)."""
+    conn = _db_conn()
+    conn.autocommit = True
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            SELECT id FROM {cfg.schema}.raa
+            WHERE COALESCE(masque, false) = false
+              AND statut = 'detecte'
+            ORDER BY date_publication ASC NULLS LAST, id ASC;
+            """,
+        )
+        ids = [row[0] for row in cur.fetchall()]
+    conn.close()
+    return ids
 
 
 def _run_analyse_bg(commune_slug: str, raa_id: int) -> None:
@@ -242,6 +304,28 @@ class MarquerVuResponse(BaseModel):
     vu: bool
 
 
+class MasquerResponse(BaseModel):
+    commune_slug: str
+    raa_id: int
+    masque: bool
+    message: str
+
+
+class ReinitialiserBloquesResponse(BaseModel):
+    commune_slug: str
+    nb_reinitialises: int
+    raa_ids: list[int]
+    analyses_lancees: list[int]
+    message: str
+
+
+class AnalyserEnAttenteResponse(BaseModel):
+    commune_slug: str
+    nb_en_attente: int
+    analyses_lancees: list[int]
+    message: str
+
+
 @router.get("/{commune_slug}/raa", response_model=RaaListResponse)
 def list_raa(commune_slug: str, annee: int | None = None):
     """Liste des RAA (plus récents d'abord) avec leur dernière analyse."""
@@ -313,6 +397,102 @@ def sync_raa_endpoint(
     )
 
 
+@router.post(
+    "/{commune_slug}/raa/reinitialiser-bloques",
+    response_model=ReinitialiserBloquesResponse,
+    status_code=202,
+)
+def reinitialiser_bloques(
+    commune_slug: str,
+    background: BackgroundTasks,
+    relancer: bool = True,
+):
+    """
+    Débloque les recueils coincés en « en_cours » ou « erreur » (ex. clé API invalide).
+    Les repasse en « detecte » puis relance leur analyse en tâche de fond.
+    Les recueils déjà analysés avec succès ne sont pas modifiés.
+    """
+    cfg = _require_config(commune_slug)
+    ids = raa_reinitialiser_bloques(cfg)
+    analyses_lancees: list[int] = []
+
+    if relancer and ids:
+        for raa_id in ids:
+            raa_set_statut(cfg, raa_id, "en_cours")
+        background.add_task(_run_analyses_sequentielles_bg, commune_slug, ids)
+        analyses_lancees = ids
+
+    nb = len(ids)
+    if nb == 0:
+        msg = "Aucun recueil bloqué à réinitialiser."
+    elif relancer:
+        msg = (
+            f"{nb} recueil(s) débloqué(s) — analyse relancée."
+            if nb == 1
+            else f"{nb} recueils débloqués — analyses relancées."
+        )
+    else:
+        msg = f"{nb} recueil(s) repassé(s) en attente d'analyse."
+
+    return ReinitialiserBloquesResponse(
+        commune_slug=commune_slug,
+        nb_reinitialises=nb,
+        raa_ids=ids,
+        analyses_lancees=analyses_lancees,
+        message=msg,
+    )
+
+
+@router.post(
+    "/{commune_slug}/raa/analyser-en-attente",
+    response_model=AnalyserEnAttenteResponse,
+    status_code=202,
+)
+def analyser_en_attente(commune_slug: str, background: BackgroundTasks):
+    """Lance l'analyse de tous les recueils en statut « detecte » (jamais analysés avec succès)."""
+    cfg = _require_config(commune_slug)
+    ids = raa_list_en_attente(cfg)
+    if ids:
+        for raa_id in ids:
+            raa_set_statut(cfg, raa_id, "en_cours")
+        background.add_task(_run_analyses_sequentielles_bg, commune_slug, ids)
+
+    nb = len(ids)
+    if nb == 0:
+        msg = "Aucun recueil en attente d'analyse."
+    elif nb == 1:
+        msg = "1 recueil en attente — analyse lancée."
+    else:
+        msg = f"{nb} recueils en attente — analyses lancées."
+
+    return AnalyserEnAttenteResponse(
+        commune_slug=commune_slug,
+        nb_en_attente=nb,
+        analyses_lancees=ids,
+        message=msg,
+    )
+
+
+@router.post("/{commune_slug}/raa/{raa_id}/masquer", response_model=MasquerResponse)
+def masquer_raa(commune_slug: str, raa_id: int):
+    """
+    Masque un recueil pour l'utilisateur (soft-delete).
+    La ligne reste en base : la sync ne le réinsère pas et ne le réanalyse pas.
+    """
+    cfg = _require_config(commune_slug)
+    row = raa_get(cfg, raa_id)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"RAA {raa_id} introuvable.")
+    if not raa_masquer(cfg, raa_id):
+        raise HTTPException(status_code=404, detail=f"RAA {raa_id} introuvable ou déjà masqué.")
+    return MasquerResponse(
+        commune_slug=commune_slug,
+        raa_id=raa_id,
+        masque=True,
+        message="Recueil retiré de la veille.",
+    )
+
+
 @router.post("/{commune_slug}/raa/{raa_id}/marquer-vu", response_model=MarquerVuResponse)
 def marquer_vu(commune_slug: str, raa_id: int):
     """Marque un recueil analysé comme lu par un utilisateur (retire le badge « Nouveau »)."""
@@ -335,6 +515,12 @@ def lancer_analyse(commune_slug: str, raa_id: int, background: BackgroundTasks):
     row = raa_get(cfg, raa_id)
     if not row:
         raise HTTPException(status_code=404, detail=f"RAA {raa_id} introuvable.")
+
+    if row.get("masque"):
+        raise HTTPException(
+            status_code=409,
+            detail="Ce recueil est masqué. Relancez-le depuis l'administration si besoin.",
+        )
 
     if row["statut"] == "en_cours":
         return AnalyseLancee(

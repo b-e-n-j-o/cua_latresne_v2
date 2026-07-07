@@ -8,7 +8,7 @@ Utilitaires communs pour le builder CUA (v4)
 - Filtrage des intersections : supprime UNIQUEMENT les entités < min_pct
 """
 
-import json, os
+import json, os, re
 from pathlib import Path
 from datetime import datetime
 from typing import Any, Dict, List, Tuple, Optional
@@ -16,8 +16,6 @@ from typing import Any, Dict, List, Tuple, Optional
 from docx import Document
 from docx.shared import Pt, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml import parse_xml
-from docx.oxml.ns import nsdecls
 
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -210,15 +208,113 @@ def add_kv_table(doc: Document, rows: List[Tuple[str,str]]):
             par.space_after = Pt(2); par.space_before = Pt(2)
     doc.add_paragraph("")
 
+
+# ========================== RENDU MARKDOWN → DOCX ==========================
+
+_BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
+_ITALIC_RE = re.compile(r"(?<!\*)\*([^*]+?)\*(?!\*)")
+_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+
+
+def _strip_links(text: str) -> str:
+    """Remplace [texte](url) par 'texte (url)' en texte brut."""
+    return _LINK_RE.sub(lambda m: f"{m.group(1)} ({m.group(2)})", text)
+
+
+def _add_runs_with_bold(paragraph, text: str):
+    """Ajoute des runs à un paragraphe existant, en interprétant **gras** et *italique* inline."""
+    text = _strip_links(text)
+    pos = 0
+    while pos < len(text):
+        rest = text[pos:]
+        bold_m = _BOLD_RE.search(rest)
+        italic_m = _ITALIC_RE.search(rest)
+
+        match = None
+        if bold_m and (italic_m is None or bold_m.start() <= italic_m.start()):
+            match = ("bold", bold_m)
+        elif italic_m:
+            match = ("italic", italic_m)
+
+        if match is None:
+            paragraph.add_run(rest)
+            break
+
+        kind, m = match
+        if m.start() > 0:
+            paragraph.add_run(rest[: m.start()])
+        r = paragraph.add_run(m.group(1))
+        if kind == "bold":
+            r.bold = True
+        else:
+            r.italic = True
+        pos += m.end()
+
+
+def add_markdown_block(doc: Document, markdown_text: str):
+    """
+    Convertit un texte markdown simple (titres #/##/###, **gras**, *italique* inline,
+    listes à puces - / * , liens [texte](url), séparateurs ---) en paragraphes DOCX.
+
+    Italique inline : *texte* (astérisques simples, sans * à l'intérieur).
+    Gras inline : **texte**. Les ** sont prioritaires sur les * à position égale.
+    """
+    if not markdown_text or not str(markdown_text).strip():
+        return
+
+    lines = str(markdown_text).strip().split("\n")
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line == "---":
+            continue
+
+        if line.startswith("### "):
+            p = doc.add_paragraph()
+            r = p.add_run(line[4:].strip())
+            r.bold = True
+            r.font.size = Pt(12)
+            p.paragraph_format.space_before = Pt(10)
+            p.paragraph_format.space_after = Pt(4)
+            continue
+
+        if line.startswith("## "):
+            p = doc.add_paragraph()
+            r = p.add_run(line[3:].strip())
+            r.bold = True
+            r.font.size = Pt(13)
+            p.paragraph_format.space_before = Pt(12)
+            p.paragraph_format.space_after = Pt(6)
+            continue
+
+        if line.startswith("# "):
+            p = doc.add_paragraph()
+            r = p.add_run(line[2:].strip())
+            r.bold = True
+            r.font.size = Pt(14)
+            p.paragraph_format.space_before = Pt(14)
+            p.paragraph_format.space_after = Pt(6)
+            continue
+
+        if line.startswith("- ") or line.startswith("* "):
+            p = doc.add_paragraph(style="List Bullet")
+            _add_runs_with_bold(p, line[2:].strip())
+            p.paragraph_format.space_after = Pt(2)
+            continue
+
+        p = doc.add_paragraph()
+        _add_runs_with_bold(p, line)
+        p.paragraph_format.space_after = Pt(6)
+
+
 def add_reglementation_block(doc: Document, texte: str):
-    if not (texte and str(texte).strip()): 
+    if not (texte and str(texte).strip()):
         return
     p = doc.add_paragraph()
-    shading_elm = parse_xml(r'<w:shd {} w:fill="F2F2F2"/>'.format(nsdecls('w')))
-    p._element.get_or_add_pPr().append(shading_elm)
-    p.add_run("Réglementation :").bold = True
-    p.add_run("\n" + str(texte).strip())
-    p.paragraph_format.space_after = Pt(6)
+    r = p.add_run("Réglementation :")
+    r.bold = True
+    p.paragraph_format.space_after = Pt(4)
+    add_markdown_block(doc, texte)
+
 
 def add_objects_table(doc: Document, objets: List[Dict[str, Any]]):
     """
@@ -491,7 +587,7 @@ def add_annexes_section(doc: Document, annexes: List[Dict[str, str]]):
         if not contenu:
             continue
         add_paragraph(doc, titre, bold=True)
-        add_paragraph(doc, contenu)
+        add_markdown_block(doc, contenu)
 
 def ensure_page_space_for_article(doc, threshold_ratio: float = 0.5):
     """

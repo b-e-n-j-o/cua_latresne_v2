@@ -22,11 +22,10 @@ class ParcelleRefIn(BaseModel):
 
 
 class DossierIn(BaseModel):
-    numero_cu: str = Field(
-        ...,
-        min_length=1,
+    numero_cu: Optional[str] = Field(
+        default="",
         max_length=80,
-        description="Référence du dossier ou de la demande Cerfa à lier au CUA",
+        description="Référence du dossier ou de la demande Cerfa (auto-générée si absente)",
     )
     demandeur: Optional[str] = None
     demandeur_adresse: Optional[str] = None
@@ -82,7 +81,7 @@ async def generate_cua(
 
     refs = [{"section": r.section.strip(), "numero": r.numero.strip()} for r in body.refs]
     dossier = body.dossier.model_dump(exclude_none=True)
-    dossier["numero_cu"] = body.dossier.numero_cu.strip()
+    dossier["numero_cu"] = (body.dossier.numero_cu or "").strip()
 
     try:
         result = await asyncio.to_thread(

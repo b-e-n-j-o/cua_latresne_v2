@@ -80,11 +80,12 @@ class CommuneConfig:
 
 # Routage couche → section. Tout ce qui n'est pas listé tombe en "prescriptions".
 # Couverture catalogue Argelès (catalogue_cua_argeles.json) :
-#   dispositions → zonage_plu, hauteurs (art. 3)
-#   sup          → sup_assiette_* (art. 4, via module servitudes_reglementees)
-#   risques      → ppr, pprif (via module ppr_et_pprif), retrait_gonflement_argiles_2026, old (art. 5)
-#   prescriptions→ aoc, prescriptions_*, infos_surf (hors DPU), haies_bocages,
-#                  znieffs, zaer, batiments (art. 5/7)
+#   dispositions → zonage_plu (via module zonage_plu), hauteurs (art. 3)
+#   sup          → servitudes_reglementees (art. 4, module partagé api.modules_communs)
+#   risques      → ppr, pprif (via module ppr_et_pprif), alea_feu (via module alea_feu),
+#                  retrait_gonflement_argiles_2026, old (art. 5)
+#   prescriptions→ aoc, prescriptions_* (via module prescriptions_plu), infos_surf (hors DPU),
+#                  haies_bocages, znieffs, zaer, batiments (art. 5/7)
 #   métier       → reseaux_enedis_lineaires, prairies_et_natura_2000 (+ natura_2000,
 #                  prairies_sensibles via module dédié), servitudes_reglementees
 LAYER_TO_SECTION = {
@@ -94,6 +95,7 @@ LAYER_TO_SECTION = {
     "pprif":                 "risques",
     "retrait_gonflement_argiles_2026": "risques",
     "old":                   "risques",
+    "alea_feu":              "risques",
     "zonage_plu":            "dispositions",
     "hauteurs":              "dispositions",
 }
@@ -107,11 +109,20 @@ LAYERS_METIER = {
     "ppr",
     "pprif",
     "ppr_et_pprif",
-    "sup_assiette_s",
-    "sup_assiette_l",
-    "sup_assiette_p",
+    "alea_feu",
+    "zonage_plu",
+    "prescriptions_surf",
+    "prescriptions_lineaires",
+    "prescriptions_ponctuelles",
+    "prescriptions_plu",
     "taxes",
 }
+# Couches prescriptions PLU gérées par prescriptions_plu (exclues du flux générique)
+PRESCRIPTION_PLU_KEYS = frozenset({
+    "prescriptions_surf",
+    "prescriptions_lineaires",
+    "prescriptions_ponctuelles",
+})
 # Statuts à ignorer silencieusement (ne rien montrer au pétitionnaire)
 STATUTS_IGNORES = {"erreur", "table_absente"}
 MIN_ZONAGE_PCT = 1.0
@@ -191,6 +202,92 @@ def add_kv_table(doc, rows):
     doc.add_paragraph()
 
 
+def _add_labeled_para(doc, label: str, value: str, *, size: int = 9, space_after: int = 3) -> None:
+    """Ligne intitulée (label : valeur) pour les blocs PPR sous-zone."""
+    text = str(value).strip()
+    if not text:
+        return
+    p = doc.add_paragraph()
+    p.paragraph_format.space_after = Pt(space_after)
+    r_label = p.add_run(f"{label} : ")
+    r_label.bold = True
+    r_label.font.size = Pt(size)
+    r_label.font.name = FONT
+    r_val = p.add_run(text)
+    r_val.font.size = Pt(size)
+    r_val.font.name = FONT
+
+
+def _add_parcelles_concernées_para(doc, parcelles: list[dict], *, size: int = 9) -> None:
+    """Ligne « Parcelles concernées » en fin de sous-zone, références en gras."""
+    if not parcelles:
+        return
+
+    p = doc.add_paragraph()
+    p.paragraph_format.space_after = Pt(3)
+    r_label = p.add_run("Parcelles concernées : ")
+    r_label.bold = True
+    r_label.font.size = Pt(size)
+    r_label.font.name = FONT
+
+    first = True
+    for parcelle in parcelles:
+        ref = (parcelle.get("libelle") or "").strip()
+        if not ref:
+            section = (parcelle.get("section") or "").strip().upper()
+            numero = (parcelle.get("numero") or "").strip()
+            if section and numero:
+                ref = f"Parcelle {section} n°{numero}"
+        if not ref:
+            continue
+
+        if not first:
+            r_sep = p.add_run(", ")
+            r_sep.font.size = Pt(size)
+            r_sep.font.name = FONT
+        first = False
+
+        r_ref = p.add_run(ref)
+        r_ref.bold = True
+        r_ref.font.size = Pt(size)
+        r_ref.font.name = FONT
+
+        try:
+            pct = float(parcelle.get("pct") or 0)
+        except (TypeError, ValueError):
+            pct = 0.0
+        if pct > 0:
+            r_pct = p.add_run(f" ({pct:.2f} %)")
+            r_pct.font.size = Pt(size)
+            r_pct.font.name = FONT
+
+
+def _write_ppr_sous_zone(doc, bloc: dict) -> None:
+    """Paragraphes intitulés pour une sous-zone PPR (sans tableau)."""
+    _add_labeled_para(doc, "Sous-zone", bloc.get("label") or "")
+    _add_labeled_para(doc, "Degré", bloc.get("degre") or "")
+    _add_labeled_para(doc, "Risque", bloc.get("risque") or "")
+    _add_labeled_para(doc, "Coefficient d'emprise au sol (CES)", bloc.get("ces") or "")
+    _add_labeled_para(doc, "Mise hors d'eau obligatoire", bloc.get("mise_hors_d_eau") or "")
+
+    regl = (
+        (bloc.get("reglementation_generale") or bloc.get("reglementation") or "")
+        .strip()
+    )
+    if regl:
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(2)
+        r = p.add_run("Règlementation de la sous-zone :")
+        r.bold = True
+        r.font.size = Pt(9)
+        r.font.name = FONT
+        add_markdown_block(doc, regl, size=9)
+
+    _add_parcelles_concernées_para(doc, bloc.get("parcelles") or [])
+
+    doc.add_paragraph()
+
+
 # ============================================================
 # EXTRACTION DU TEXTE D'UN OBJET
 # ============================================================
@@ -209,6 +306,15 @@ def _format_cadastre(dossier: dict, rapport: dict) -> Optional[str]:
         if section and numero:
             parts.append(f"{section} n°{numero}")
     return ", ".join(parts) if parts else None
+
+
+def _format_adresses_parcelles(rapport: dict) -> Optional[str]:
+    """Adresse(s) BAN liée(s) aux parcelles de l'UF (résolution locale)."""
+    bloc = rapport.get("adresses_parcelles")
+    if bloc is None:
+        return None
+    txt = (bloc.get("texte_header") or "").strip()
+    return txt if txt else "—"
 
 
 def _reglementation_text(obj: dict) -> Optional[str]:
@@ -357,35 +463,42 @@ def _items_avec_pct(objets: list, *label_keys: str) -> list[tuple[str, float]]:
     return sorted(seen.items(), key=lambda item: -item[1])
 
 
-def _zones_plu_avec_pct(objets: list) -> list[tuple[str, float]]:
-    return _items_avec_pct(objets, "libelle", "zonage_reglement")
+def _write_zonage_plu_detail_parcelles(doc, module: dict) -> bool:
+    """Détail zonage par parcelle (UF multi-parcelles) — en tête de section PLU."""
+    details = module.get("detail_parcelles") or []
+    if not details:
+        return False
+
+    add_para(doc, "Détail par parcelle de l'unité foncière :", bold=True, space_after=4)
+    for parcelle in details:
+        texte = (parcelle.get("texte") or "").strip()
+        if texte:
+            add_para(doc, f"• {texte}", size=9, space_after=3)
+    doc.add_paragraph()
+    return True
 
 
-def _format_zonage_plu_intro(objets: list) -> tuple[list[str], Optional[str]]:
-    """Résumé zonage + parts de surface significatives."""
-    items = _zones_plu_avec_pct(objets)
-    if items:
-        zones = [zone for zone, _ in items]
-        if len(items) == 1:
-            zone, pct = items[0]
-            texte = (
-                f"La parcelle est située dans la zone {zone} du PLU "
-                f"({pct:.2f} % de la surface)."
-            )
-        else:
-            parts = [f"{zone} ({pct:.2f} %)" for zone, pct in items]
-            texte = f"La parcelle est située dans les zones {', '.join(parts)} du PLU."
-        return zones, texte
+def _write_zonage_plu_details(doc, module: dict) -> bool:
+    """Zonage PLU : items pré-calculés par le module intersection_modules/zonage_plu."""
+    items = module.get("items") or []
+    if not items:
+        return False
 
-    zones, seen = [], set()
-    for obj in objets:
-        zone = _label_obj(obj, "libelle", "zonage_reglement")
-        if zone and zone not in seen:
-            seen.add(zone)
-            zones.append(zone)
-    if not zones:
-        return [], None
-    return zones, f"La parcelle est située dans la zone {', '.join(zones)} du PLU."
+    for item in items:
+        kind = item.get("kind")
+        if kind == "reglementation":
+            titre = (item.get("titre") or "").strip()
+            if titre:
+                add_para(doc, titre, bold=True, space_after=2)
+            regl = (item.get("reglementation") or "").strip()
+            if regl:
+                add_markdown_block(doc, regl, size=9)
+            continue
+        if kind == "bullet":
+            texte = (item.get("texte") or "").strip()
+            if texte:
+                add_para(doc, f"• {texte}", size=9, space_after=3)
+    return True
 
 
 def _format_hauteurs_intro(objets: list) -> tuple[list[str], Optional[str]]:
@@ -396,13 +509,13 @@ def _format_hauteurs_intro(objets: list) -> tuple[list[str], Optional[str]]:
         if len(items) == 1:
             secteur, pct = items[0]
             texte = (
-                f"La parcelle est soumise aux règles de hauteur du secteur {secteur} "
+                f"L'unité foncière est soumise aux règles de hauteur du secteur {secteur} "
                 f"({pct:.2f} % de la surface)."
             )
         else:
             parts = [f"{secteur} ({pct:.2f} %)" for secteur, pct in items]
             texte = (
-                "La parcelle est soumise aux règles de hauteur des secteurs "
+                "L'unité foncière est soumise aux règles de hauteur des secteurs "
                 f"{', '.join(parts)}."
             )
         return secteurs, texte
@@ -416,9 +529,9 @@ def _format_hauteurs_intro(objets: list) -> tuple[list[str], Optional[str]]:
     if not secteurs:
         return [], None
     if len(secteurs) == 1:
-        return secteurs, f"La parcelle est soumise aux règles de hauteur du secteur {secteurs[0]}."
+        return secteurs, f"L'unité foncière est soumise aux règles de hauteur du secteur {secteurs[0]}."
     return secteurs, (
-        "La parcelle est soumise aux règles de hauteur des secteurs "
+        "L'unité foncière est soumise aux règles de hauteur des secteurs "
         f"{', '.join(secteurs)}."
     )
 
@@ -431,36 +544,6 @@ def _objets_significatifs(objets: list) -> list:
 def _titre_hauteur_obj(obj: dict) -> Optional[str]:
     libelong = (obj.get("libelong") or "").strip()
     return libelong or None
-
-
-def _write_zonage_plu_details(doc, objets: list, zones: list):
-    """Réglementation PLU par zone (markdown) + libellés complémentaires."""
-    seen_regl: set[str] = set()
-    multi_zones = len(zones) > 1
-
-    for obj in _objets_significatifs(objets):
-        zone_code = _label_obj(obj, "libelle", "zonage_reglement")
-        libelong = (obj.get("libelong") or "").strip()
-        regl = _reglementation_text(obj)
-        pct = _pct_sig(obj)
-
-        if regl:
-            if regl in seen_regl:
-                continue
-            seen_regl.add(regl)
-            if multi_zones and zone_code:
-                suffix = f" ({pct:.2f} %)" if pct > MIN_ZONAGE_PCT else ""
-                add_para(doc, f"Zone {zone_code}{suffix}", bold=True, space_after=2)
-            add_markdown_block(doc, regl, size=9)
-            continue
-
-        if libelong and libelong not in zones:
-            add_para(doc, f"• {libelong}", size=9, space_after=3)
-            continue
-
-        txt = texte_objet(obj, skip_reglementation=True)
-        if txt and txt not in zones and txt != libelong and txt != zone_code:
-            add_para(doc, f"• {txt}", size=9, space_after=3)
 
 
 def _write_hauteurs_details(
@@ -517,15 +600,21 @@ def _write_hauteurs_details(
 def section_identite(doc, ctx):
     d = ctx.dossier
     superficie = d.get("superficie") or ctx.rapport.get("surface_indicative")
-    add_kv_table(doc, [
+    rows = [
         ("Par", d.get("demandeur")),
         ("Demeurant à", d.get("demandeur_adresse")),
         ("Sur un terrain sis", d.get("terrain")),
         ("Cadastre", _format_cadastre(d, ctx.rapport)),
+    ]
+    adresses_parcelles = _format_adresses_parcelles(ctx.rapport)
+    if "adresses_parcelles" in ctx.rapport:
+        rows.append(("Adresse(s) de la parcelle", adresses_parcelles))
+    rows.extend([
         ("Demande déposée le", d.get("date_depot") or datetime.now().strftime("%d/%m/%Y")),
         ("Superficie", f"{superficie} m²" if superficie else None),
         ("N° de dossier", d.get("numero_cu")),
     ])
+    add_kv_table(doc, rows)
 
 
 def section_carte_identite(doc, ctx):
@@ -573,24 +662,34 @@ def section_dpu(doc, ctx):
     if dpu_txt:
         add_para(doc, dpu_txt)
     else:
-        add_para(doc, "La parcelle n'est pas soumise au Droit de Préemption Urbain (DPU).")
+        add_para(doc, "L'unité foncière n'est pas soumise au Droit de Préemption Urbain (DPU).")
     doc.add_paragraph()
 
 
+def _format_ac1_monument_line(nom: str, dist: float | None) -> str:
+    """Libellé AC1 : distance_m mesure l'écart au périmètre des abords (buffer), pas au monument."""
+    if dist is None:
+        return nom
+    if dist <= 0:
+        return f"{nom} — l'unité foncière est concernée par le périmètre des abords"
+    return f"{nom} — à environ {dist:.0f} m du périmètre des abords"
+
+
 def _write_ac1_monuments(doc, servitude: dict) -> None:
-    """Monuments historiques AC1 : nom en gras + distance indicative."""
+    """Monuments historiques AC1 : nom en gras + distance au périmètre des abords."""
     monuments = servitude.get("monuments")
     if monuments:
         for mon in monuments:
             nom = (mon.get("nom") or "").strip()
             if not nom:
                 continue
-            dist = mon.get("distance_m")
-            if dist is not None:
-                line = f"{nom} — à environ {dist:.0f} m de la parcelle"
-            else:
-                line = nom
-            add_para(doc, line, bold=True, size=9, space_after=2)
+            add_para(
+                doc,
+                _format_ac1_monument_line(nom, mon.get("distance_m")),
+                bold=True,
+                size=9,
+                space_after=2,
+            )
         return
 
     if str(servitude.get("suptype") or "").strip().lower() != "ac1":
@@ -598,34 +697,60 @@ def _write_ac1_monuments(doc, servitude: dict) -> None:
     nom = (servitude.get("nomsuplitt") or "").strip()
     if not nom:
         return
-    dist = servitude.get("distance_m")
-    line = (
-        f"{nom} — à environ {dist:.0f} m de la parcelle"
-        if dist is not None
-        else nom
+    add_para(
+        doc,
+        _format_ac1_monument_line(nom, servitude.get("distance_m")),
+        bold=True,
+        size=9,
+        space_after=2,
     )
-    add_para(doc, line, bold=True, size=9, space_after=2)
 
 
 def _dedupe_servitudes(servitudes: list[dict]) -> list[dict]:
-    """Une seule entrée par suptype / variante i4 (plusieurs assiettes, même réglementation)."""
-    seen: set[tuple] = set()
+    """Une entrée par suptype (agrégation déjà faite dans modules_communs)."""
+    seen: set[str] = set()
     out: list[dict] = []
     for s in servitudes:
-        suptype = (s.get("suptype") or "").strip().lower()
-        if s.get("monuments"):
-            key = (suptype, "ac1")
-        elif s.get("i4"):
-            key = (suptype, "i4", (s.get("i4") or {}).get("id"))
-        elif s.get("i4_non_resolu"):
-            key = (suptype, "generic")
-        else:
-            key = (suptype,)
-        if key in seen:
+        key = (s.get("suptype") or "").strip().upper()
+        if not key or key in seen:
             continue
         seen.add(key)
         out.append(s)
     return out
+
+
+def _write_i4_variantes(doc, servitude: dict) -> None:
+    variantes = servitude.get("variantes") or []
+    if not variantes:
+        return
+    base_regl = (servitude.get("reglementation") or "").strip()
+    if base_regl:
+        add_markdown_block(doc, base_regl, size=9)
+    for var in variantes:
+        libelle_var = (var.get("libelle_var") or "").strip()
+        if libelle_var:
+            add_para(doc, libelle_var, bold=True, size=9, space_after=2)
+        complement = (var.get("complement") or "").strip()
+        if complement:
+            add_markdown_block(doc, complement, size=9)
+        var_metric = var.get("metric")
+        var_nb = var.get("nb_fragments")
+        if var_metric is not None and var_nb and var_nb > 1:
+            add_para(
+                doc,
+                f"Surface d'intersection : {var_metric:,.2f} m² ({var_nb} fragment(s)).",
+                italic=True,
+                size=9,
+                space_after=2,
+            )
+        elif var_metric is not None:
+            add_para(
+                doc,
+                f"Surface d'intersection : {var_metric:,.2f} m².",
+                italic=True,
+                size=9,
+                space_after=2,
+            )
 
 
 def section_sup(doc, ctx):
@@ -640,9 +765,13 @@ def section_sup(doc, ctx):
         titre = s.get("libelle") or s.get("nomsuplitt") or s.get("suptype") or "Servitude"
         add_para(doc, titre, bold=True, space_after=4)
         _write_ac1_monuments(doc, s)
-        regl = (s.get("reglementation") or "").strip()
-        if regl:
-            add_markdown_block(doc, regl, size=9)
+        variantes = s.get("variantes") or []
+        if variantes:
+            _write_i4_variantes(doc, s)
+        else:
+            regl = (s.get("reglementation") or "").strip()
+            if regl:
+                add_markdown_block(doc, regl, size=9)
         url_gpu = (s.get("url_fiche_gpu") or "").strip()
         if url_gpu:
             add_para_with_link(
@@ -662,14 +791,37 @@ def section_sup(doc, ctx):
     doc.add_paragraph()
 
 
+def _write_ppr_pprif_detail_parcelles(doc, module: dict) -> bool:
+    """Détail PPR / PPRIF par parcelle (UF multi-parcelles) — si pas déjà sur les blocs."""
+    ppr_blocs = (module.get("ppr") or {}).get("blocs") or []
+    pprif_blocs = (module.get("pprif") or {}).get("blocs") or []
+    if any(b.get("parcelles") for b in ppr_blocs + pprif_blocs):
+        return False
+
+    details = module.get("detail_parcelles") or []
+    if not details:
+        return False
+
+    add_para(doc, "Détail par parcelle de l'unité foncière :", bold=True, space_after=4)
+    for parcelle in details:
+        texte = (parcelle.get("texte") or "").strip()
+        if texte:
+            add_para(doc, f"• {texte}", size=9, space_after=3)
+    doc.add_paragraph()
+    return True
+
+
 def _write_ppr_pprif_details(doc, module: dict, config: CommuneConfig) -> bool:
-    """PPR / PPRIF : attributs métier + laius markdown (notes complémentaires pour le PPR)."""
+    """PPR / PPRIF : paragraphes intitulés par sous-zone (PPR) + laius PPRIF."""
     ppr_data = module.get("ppr") or {}
     pprif_data = module.get("pprif") or {}
     ppr_blocs = ppr_data.get("blocs") or []
     pprif_blocs = pprif_data.get("blocs") or []
-    if not ppr_blocs and not pprif_blocs:
+    has_detail = bool(module.get("detail_parcelles"))
+    if not ppr_blocs and not pprif_blocs and not has_detail:
         return False
+
+    _write_ppr_pprif_detail_parcelles(doc, module)
 
     if ppr_blocs:
         add_para(doc, ppr_data.get("nom") or "PPR (Plan de Prévention des Risques)", bold=True, space_after=2)
@@ -680,19 +832,14 @@ def _write_ppr_pprif_details(doc, module: dict, config: CommuneConfig) -> bool:
             config.ppr_url,
             space_after=6,
         )
+        add_para(
+            doc,
+            "L'unité foncière est concernée par une ou plusieurs zones du Plan de Prévention des Risques :",
+            size=9,
+            space_after=6,
+        )
         for bloc in ppr_blocs:
-            rows = []
-            if bloc.get("type_risque"):
-                rows.append(("Type de risque", bloc["type_risque"]))
-            if bloc.get("zone"):
-                rows.append(("Zone", bloc["zone"]))
-            if bloc.get("zone_reglementaire"):
-                rows.append(("Zone réglementaire", bloc["zone_reglementaire"]))
-            if rows:
-                add_kv_table(doc, rows)
-            regl = (bloc.get("reglementation") or "").strip()
-            if regl:
-                add_markdown_block(doc, regl, size=9)
+            _write_ppr_sous_zone(doc, bloc)
         seen_note_codes: set[str] = set()
         for note in ppr_data.get("notes") or []:
             code = (note.get("code") or "").strip().upper()
@@ -725,7 +872,41 @@ def _write_ppr_pprif_details(doc, module: dict, config: CommuneConfig) -> bool:
             regl = (bloc.get("reglementation") or "").strip()
             if regl:
                 add_markdown_block(doc, regl, size=9)
+            _add_parcelles_concernées_para(doc, bloc.get("parcelles") or [])
 
+    return True
+
+
+def _write_alea_feu_details(doc, module: dict) -> bool:
+    """PAC — aléas incendie de forêt et de végétation par libellé distinct."""
+    blocs = module.get("blocs") or []
+    if not blocs:
+        return False
+
+    add_para(
+        doc,
+        module.get("nom") or "Risque d'incendie de forêt et de végétation",
+        bold=True,
+        space_after=2,
+    )
+    for bloc in blocs:
+        libelle = (bloc.get("libelle") or "").strip()
+        if not libelle:
+            continue
+        pct = float(bloc.get("pct_sig") or 0)
+        add_para(
+            doc,
+            f"• {libelle} ({pct:.2f} % de l'unité foncière)",
+            size=9,
+            space_after=3,
+        )
+    add_para_with_link(
+        doc,
+        "Porté à connaissance consultable sur : ",
+        "Plan d'Aléa Feu (PAC)",
+        module.get("pac_url") or "",
+        space_after=6,
+    )
     return True
 
 
@@ -733,25 +914,89 @@ def section_risques(doc, ctx):
     groupes = couches_par_section(ctx.rapport)
     layers = groupes.get("risques", [])
     pp = ctx.rapport.get("intersections", {}).get("ppr_et_pprif", {})
+    alea_feu = ctx.rapport.get("intersections", {}).get("alea_feu", {})
     has_pp = bool(
-        (pp.get("ppr") or {}).get("blocs") or (pp.get("pprif") or {}).get("blocs")
+        (pp.get("ppr") or {}).get("blocs")
+        or (pp.get("pprif") or {}).get("blocs")
+        or pp.get("detail_parcelles")
     )
-    if not layers and not has_pp:
+    has_alea_feu = bool(alea_feu.get("blocs"))
+    if not layers and not has_pp and not has_alea_feu:
         return
     add_title_bar(doc, "Risques naturels et technologiques")
     if has_pp:
         _write_ppr_pprif_details(doc, pp, ctx.config)
+    if has_alea_feu:
+        _write_alea_feu_details(doc, alea_feu)
     for key, layer in layers:
         _bloc_couche(doc, layer)
     doc.add_paragraph()
 
 
+def _write_prescriptions_plu_detail_parcelles(doc, module: dict) -> bool:
+    """Détail prescriptions PLU par parcelle (libellés touchés, sans %)."""
+    details = module.get("detail_parcelles") or []
+    if not details:
+        return False
+
+    add_para(doc, "Détail par parcelle de l'unité foncière :", bold=True, space_after=4)
+    for parcelle in details:
+        texte = (parcelle.get("texte") or "").strip()
+        if texte:
+            add_para(doc, f"• {texte}", size=9, space_after=3)
+    doc.add_paragraph()
+    return True
+
+
+def _write_prescriptions_plu_details(doc, module: dict) -> bool:
+    """Prescriptions PLU : libellé + réglementation, sans pourcentage."""
+    couches = module.get("couches") or []
+    has_detail = bool(module.get("detail_parcelles"))
+    if not couches and not has_detail:
+        return False
+
+    _write_prescriptions_plu_detail_parcelles(doc, module)
+
+    for couche in couches:
+        nom = (couche.get("nom") or "").strip()
+        items = couche.get("items") or []
+        if not items:
+            continue
+        if nom:
+            add_para(doc, nom, bold=True, space_after=2)
+        for item in items:
+            kind = item.get("kind")
+            if kind == "reglementation":
+                libelle = (item.get("libelle") or "").strip()
+                if libelle:
+                    add_para(doc, libelle, bold=True, size=9, space_after=2)
+                regl = (item.get("reglementation") or "").strip()
+                if regl:
+                    add_markdown_block(doc, regl, size=9)
+                continue
+            if kind == "bullet":
+                texte = (item.get("texte") or "").strip()
+                if texte:
+                    add_para(doc, f"• {texte}", size=9, space_after=3)
+    return True
+
+
 def section_prescriptions(doc, ctx):
+    prescriptions_plu = ctx.rapport.get("intersections", {}).get("prescriptions_plu", {})
     groupes = couches_par_section(ctx.rapport)
-    layers = groupes.get("prescriptions", [])
-    if not layers:
+    layers = [
+        (key, layer)
+        for key, layer in groupes.get("prescriptions", [])
+        if key not in PRESCRIPTION_PLU_KEYS
+    ]
+    has_prescriptions_plu = bool(
+        prescriptions_plu.get("couches") or prescriptions_plu.get("detail_parcelles")
+    )
+    if not layers and not has_prescriptions_plu:
         return
     add_title_bar(doc, "Prescriptions et informations applicables au terrain")
+    if has_prescriptions_plu:
+        _write_prescriptions_plu_details(doc, prescriptions_plu)
     for key, layer in layers:
         _bloc_couche(doc, layer, objets=_objets_affichables(key, layer))
     doc.add_paragraph()
@@ -839,8 +1084,7 @@ def section_dispositions(doc, ctx):
 
     # ── Zonage PLU ──
     zonage = ctx.rapport.get("intersections", {}).get("zonage_plu", {})
-    objets_zonage = zonage.get("objets") or []
-    zones, intro_zonage = _format_zonage_plu_intro(objets_zonage)
+    intro_zonage = zonage.get("intro")
 
     add_title_bar(doc, "Zonage du PLU")
     add_para_with_link(
@@ -850,11 +1094,12 @@ def section_dispositions(doc, ctx):
         c.geoportail_url,
         space_after=6,
     )
+    _write_zonage_plu_detail_parcelles(doc, zonage)
     if intro_zonage:
         add_para(doc, intro_zonage, bold=True, space_after=6)
     else:
         add_para(doc, "Zonage PLU non déterminé pour ce terrain.", italic=True, space_after=6)
-    _write_zonage_plu_details(doc, objets_zonage, zones)
+    _write_zonage_plu_details(doc, zonage)
 
     # ── Hauteurs PLU ──
     groupes = couches_par_section(ctx.rapport)

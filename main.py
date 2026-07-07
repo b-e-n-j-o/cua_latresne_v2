@@ -1,5 +1,5 @@
 """
-Point d'entrée FastAPI Kerelia CUA — agrège middleware, routeurs métier et routeurs existants (carto, RAG, etc.).
+Point d'entrée FastAPI Kerelia CUA — agrège middleware, routeurs métier et routeurs existants (carto, etc.).
 """
 
 from dotenv import load_dotenv
@@ -43,13 +43,11 @@ from api.documents_urba.pieces_dossier_urba import router as pieces_dossier_urba
 from api.agents.plu_agent.api import argeles_router as plu_agent_argeles_router
 from api.agents.plu_agent.api import france_router as plu_agent_france_router
 from api.agents.plu_agent.api import latresne_router as plu_agent_latresne_router
-from api.agents.plu_agent.api import mios_router as plu_agent_mios_router
 from api.lidar.lidar_router import router as lidar_router
 from api.mnt.router_mnt import router as mnt_router
 from api.tiles_generic import router as tiles_router
 from api.tiles_mbtiles import router as mbtiles_router
 from api.tiles_mbtiles_parcelles import router as tiles_parcelles
-from api.topography_consolidated import router as topo_router
 from services.ingestion_cadastre.router_ingest_parcelles import router as parcelles_ingest_router
 from services.ingestion_cadastre.router_sync_parcelles import router as parcelles_sync_router
 from services.ingestion_cadastre.router_etl_commune import router as etl_commune_router
@@ -72,6 +70,7 @@ import services.history.project_management as project_management_module
 from services.history.project_directory import router as project_directory_router
 import services.history.project_directory as project_directory_module
 from services.plu_txt_markdown.router import router as plu_txt_markdown_router
+from services.plu_txt_markdown.router_laius import router as plu_laius_router
 from api.reglements.router_reglements import admin_router as reglements_superadmin_router
 from api.reglements.router_reglements import router as reglements_admin_router
 from api.reglements.router_documents import router as documents_router
@@ -307,14 +306,12 @@ app.include_router(departements_router)
 app.include_router(latresne_mbtiles_router)
 app.include_router(tiles_router)
 app.include_router(mbtiles_router)
-app.include_router(topo_router)
 app.include_router(dpe_router)
 app.include_router(plu_router)
 app.include_router(chat_router)
 app.include_router(plu_agent_argeles_router)
 app.include_router(plu_agent_france_router)
 app.include_router(plu_agent_latresne_router)
-app.include_router(plu_agent_mios_router)
 app.include_router(identite_parcelle_router)
 app.include_router(identite_fonciere_router)
 app.include_router(reglement_router)
@@ -345,6 +342,7 @@ app.include_router(pipelines_supabase_router)
 
 # --- PLU : TXT brut → Markdown (batch LLM) ---
 app.include_router(plu_txt_markdown_router)
+app.include_router(plu_laius_router)
 
 # --- LiDAR HD (nuage de points) ---
 app.include_router(lidar_router, prefix="/lidar")

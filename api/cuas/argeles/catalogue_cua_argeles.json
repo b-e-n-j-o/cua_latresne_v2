@@ -2,33 +2,43 @@
   "zonage_plu": {
     "nom": "Zonage PLU",
     "type": "prescription",
-    "keep": ["zonage_reglement", "libelle", "libelong", "reglementation"],
+    "keep": [
+      "zonage_reglement",
+      "libelle",
+      "libelong",
+      "reglementation"
+    ],
     "origine": "plu",
     "article": "3",
-    "group_by": ["zonage_reglement"],
+    "group_by": [
+      "zonage_reglement"
+    ],
     "geom_type": "surfacique"
   },
   "hauteurs": {
     "nom": "Hauteurs maximales (PLU)",
     "type": "prescription",
-    "keep": ["hauteur", "libelong", "reglementation"],
+    "keep": [
+      "hauteur",
+      "libelong",
+      "reglementation"
+    ],
     "origine": "plu",
     "article": "3",
     "geom_type": "surfacique"
   },
-  "sup_assiette_s": {
-    "nom": "Servitudes d'utilite publique (assiettes)",
-    "type": "servitude",
-    "keep": ["nomsuplitt", "suptype", "nomreg"],
-    "origine": "geoportail",
-    "article": "4",
-    "geom_type": "surfacique",
-    "geom_col": "geometry"
-  },
   "ppr": {
     "nom": "PPR (Plan de Prevention des Risques)",
     "type": "prescription",
-    "keep": ["risque", "degre", "label"],
+    "keep": [
+      "risque",
+      "degre",
+      "label",
+      "code_degre",
+      "ces",
+      "mise_hors_d_eau",
+      "reglementation_generale"
+    ],
     "origine": "georisques",
     "article": "5",
     "geom_type": "surfacique"
@@ -36,7 +46,11 @@
   "pprif": {
     "nom": "PPRIF (Risque Incendie de Foret)",
     "type": "prescription",
-    "keep": ["risque", "degre", "label"],
+    "keep": [
+      "risque",
+      "degre",
+      "label"
+    ],
     "origine": "georisques",
     "article": "5",
     "geom_type": "surfacique"
@@ -44,7 +58,11 @@
   "aoc": {
     "nom": "AOC viticoles",
     "type": "information",
-    "keep": ["denom", "crinao", "reglementation"],
+    "keep": [
+      "denom",
+      "crinao",
+      "reglementation"
+    ],
     "origine": "inao",
     "article": "5",
     "geom_type": "surfacique"
@@ -52,7 +70,11 @@
   "prescriptions_surf": {
     "nom": "Prescriptions surfaciques (PLU)",
     "type": "prescription",
-    "keep": ["libelle", "typepsc", "reglementation"],
+    "keep": [
+      "libelle",
+      "typepsc",
+      "reglementation"
+    ],
     "origine": "plu",
     "article": "5",
     "geom_type": "surfacique"
@@ -60,7 +82,11 @@
   "prescriptions_lineaires": {
     "nom": "Prescriptions lineaires (PLU)",
     "type": "prescription",
-    "keep": ["libelle", "typepsc", "reglementation"],
+    "keep": [
+      "libelle",
+      "typepsc",
+      "reglementation"
+    ],
     "origine": "plu",
     "article": "5",
     "geom_type": "lineaire"
@@ -68,7 +94,11 @@
   "prescriptions_ponctuelles": {
     "nom": "Prescriptions ponctuelles (PLU)",
     "type": "prescription",
-    "keep": ["libelle", "typepsc", "reglementation"],
+    "keep": [
+      "libelle",
+      "typepsc",
+      "reglementation"
+    ],
     "origine": "plu",
     "article": "5",
     "geom_type": "ponctuel"
@@ -76,7 +106,11 @@
   "infos_surf": {
     "nom": "Informations surfaciques",
     "type": "information",
-    "keep": ["libelle", "typeinf", "reglementation"],
+    "keep": [
+      "libelle",
+      "typeinf",
+      "reglementation"
+    ],
     "origine": "plu",
     "article": "7",
     "geom_type": "surfacique"
@@ -84,7 +118,11 @@
   "retrait_gonflement_argiles_2026": {
     "nom": "Retrait-gonflement des argiles (2026)",
     "type": "prescription",
-    "keep": ["niveau", "alea", "reglementation"],
+    "keep": [
+      "niveau",
+      "alea",
+      "reglementation"
+    ],
     "origine": "shp",
     "article": "5",
     "geom_type": "surfacique"
@@ -92,7 +130,21 @@
   "old": {
     "nom": "Zones de debroussaillement (OLD)",
     "type": "prescription",
-    "keep": ["zonage", "dat_ap_old", "reglementation"],
+    "keep": [
+      "zonage",
+      "dat_ap_old",
+      "reglementation"
+    ],
+    "origine": "shp",
+    "article": "5",
+    "geom_type": "surfacique"
+  },
+  "alea_feu": {
+    "nom": "Risque d'incendie de forêt et de végétation (PAC)",
+    "type": "prescription",
+    "keep": [
+      "libelle"
+    ],
     "origine": "shp",
     "article": "5",
     "geom_type": "surfacique"
@@ -100,7 +152,10 @@
   "haies_bocages": {
     "nom": "Haies et bocages",
     "type": "information",
-    "keep": ["id", "reglementation"],
+    "keep": [
+      "id",
+      "reglementation"
+    ],
     "origine": "wfs",
     "article": "5",
     "geom_type": "lineaire"
@@ -108,7 +163,11 @@
   "znieffs": {
     "nom": "ZNIEFF",
     "type": "information",
-    "keep": ["nom_site", "znieff_type", "reglementation"],
+    "keep": [
+      "nom_site",
+      "znieff_type",
+      "reglementation"
+    ],
     "origine": "wfs",
     "article": "5",
     "geom_type": "surfacique"
@@ -116,7 +175,9 @@
   "prairies_sensibles": {
     "nom": "Prairies permanentes",
     "type": "information",
-    "keep": ["id"],
+    "keep": [
+      "id"
+    ],
     "origine": "wfs",
     "article": "5",
     "geom_type": "surfacique"
@@ -124,7 +185,12 @@
   "natura_2000": {
     "nom": "NATURA 2000",
     "type": "information",
-    "keep": ["id", "c_site", "n_site", "t_site"],
+    "keep": [
+      "id",
+      "c_site",
+      "n_site",
+      "t_site"
+    ],
     "origine": "wfs",
     "article": "5",
     "geom_type": "surfacique"
@@ -132,7 +198,10 @@
   "reseaux_enedis_lineaires": {
     "nom": "Réseaux ENEDIS linéaires",
     "type": "reseaux",
-    "keep": ["id", "type"],
+    "keep": [
+      "id",
+      "type"
+    ],
     "origine": "enedis",
     "article": "5",
     "geom_type": "lineaire"
@@ -140,33 +209,21 @@
   "zaer": {
     "nom": "ZAER (Zones d'Accélération des Energies Renouvelables)",
     "type": "information",
-    "keep": ["nom", "filiere", "detail_filiere"],
+    "keep": [
+      "nom",
+      "filiere",
+      "detail_filiere"
+    ],
     "origine": "wfs",
     "article": "5",
     "geom_type": "surfacique"
   },
-  "sup_assiette_l": {
-    "nom": "Servitudes (assiettes lineaires)",
-    "type": "servitude",
-    "keep": ["nomsuplitt", "suptype", "nomreg"],
-    "origine": "geoportail",
-    "article": "4",
-    "geom_type": "lineaire",
-    "geom_col": "geometry"
-  },
-  "sup_assiette_p": {
-    "nom": "Servitudes (assiettes ponctuelles)",
-    "type": "servitude",
-    "keep": ["nomsuplitt", "suptype", "nomreg"],
-    "origine": "geoportail",
-    "article": "4",
-    "geom_type": "ponctuel",
-    "geom_col": "geometry"
-  },
   "batiments": {
     "nom": "Batiments",
     "type": "information",
-    "keep": ["type"],
+    "keep": [
+      "type"
+    ],
     "origine": "cadastre",
     "article": "5",
     "geom_type": "surfacique"

@@ -2,13 +2,9 @@
 """
 Module métier dédié : PPR inondation et PPRIF.
 
-Enrichit les objets intersectés (couches ppr / pprif) avec les laius
-depuis argeles.laius_ppr (jointure code_degre) et argeles.laius_pprif
-(jointure label).
-
-Cas particulier PPR : RECUL et CENTRE HISTORIQUE sont des laius
-complémentaires — lorsqu'ils sont intersectés, leur texte s'ajoute en
-note aux blocs des zones principales (I, II, III).
+PPR : attributs réglementaires lus directement sur argeles.ppr (jointure label).
+Seuil d'intersection : > 1 % de la surface de l'UF par fragment SIG (comme le zonage PLU).
+PPRIF : laius depuis argeles.laius_pprif (jointure label).
 """
 
 from __future__ import annotations
@@ -20,18 +16,31 @@ from sqlalchemy import text
 
 try:
     from api.cuas.argeles.db import SCHEMA, get_engine
+    from api.cuas.argeles.intersection_modules.parcelles_geom import (
+        fetch_parcelles_geom,
+        format_parcelle_ref,
+        intersect_couche_parcelle,
+    )
 except ImportError:
     import sys
     from pathlib import Path
 
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from db import SCHEMA, get_engine
+    from intersection_modules.parcelles_geom import (
+        fetch_parcelles_geom,
+        format_parcelle_ref,
+        intersect_couche_parcelle,
+    )
 
 
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
-MAIN_ZONE_CODES = ("I", "II", "III")
-SUPPLEMENTARY_CODES = frozenset({"RECUL", "CENTRE HISTORIQUE"})
+PPR_TABLE = "ppr"
+PPRIF_TABLE = "pprif"
+# Seuil de significativité UF (aligné zonage PLU, prescriptions, enrich_parcelles_resume).
+MIN_PPR_PCT = 1.0
+MIN_DETAIL_PCT = MIN_PPR_PCT
 
 
 def _safe_ident(name: str) -> str:
@@ -89,105 +98,77 @@ def _pct_sig(obj: dict) -> float:
         return 0.0
 
 
-def _resolve_ppr_code_degre(obj: dict) -> Optional[str]:
-    """Déduit le code_degre laius_ppr depuis les attributs intersectés."""
-    label = (obj.get("label") or "").strip()
-    degre = (obj.get("degre") or "").strip()
-    label_lower = label.lower()
-
-    if "centre historique" in label_lower:
-        return "CENTRE HISTORIQUE"
-    if label_lower.startswith("recul minimum") or label_lower == "recul":
-        return "RECUL"
-
-    degre_upper = degre.upper()
-    label_upper = label.upper()
-
-    if degre_upper in SUPPLEMENTARY_CODES:
-        return degre_upper
-    if label_upper in SUPPLEMENTARY_CODES:
-        return label_upper
-
-    if degre_upper in MAIN_ZONE_CODES:
-        return degre_upper
-
-    compact = label_upper.replace(" ", "")
-    if compact.startswith("III"):
-        return "III"
-    if compact.startswith("II"):
-        return "II"
-    if compact.startswith("I"):
-        return "I"
-
-    return None
+def _str_field(obj: dict, key: str) -> Optional[str]:
+    v = obj.get(key)
+    if v is None:
+        return None
+    s = str(v).strip()
+    return s or None
 
 
 def _pick_best_entity(entities: list[dict]) -> dict:
     return max(entities, key=_pct_sig)
 
 
-def _build_ppr_notes(
-    supplementary_codes: set[str],
-    laius: dict[str, str],
-) -> list[dict[str, str]]:
-    notes: list[dict[str, str]] = []
-    for code in sorted(supplementary_codes):
-        regl = (laius.get(code) or "").strip()
-        if regl:
-            notes.append({"code": code, "reglementation": regl})
-    return notes
+def _bloc_from_ppr_entity(entity: dict) -> dict[str, Any]:
+    regl = _str_field(entity, "reglementation_generale")
+    return {
+        "label": _str_field(entity, "label"),
+        "degre": _str_field(entity, "degre"),
+        "risque": _str_field(entity, "risque"),
+        "code_degre": _str_field(entity, "code_degre"),
+        "ces": _str_field(entity, "ces"),
+        "mise_hors_d_eau": _str_field(entity, "mise_hors_d_eau"),
+        "reglementation_generale": regl,
+        "reglementation": regl,
+        "pct_sig": _pct_sig(entity),
+    }
+
+
+def _ppr_objets_significatifs(
+    objets: list[dict],
+    min_pct: float = MIN_PPR_PCT,
+) -> list[dict]:
+    """Exclut les micro-recouvrements frontaliers (≤ seuil % de l'UF)."""
+    return [obj for obj in objets if _pct_sig(obj) > min_pct]
+
+
+def _merge_ppr_fields(entities: list[dict]) -> dict[str, Any]:
+    """Fusionne les attributs réglementaires sur tous les fragments d'un même label."""
+    bloc = _bloc_from_ppr_entity(_pick_best_entity(entities))
+    for key in ("ces", "mise_hors_d_eau", "reglementation_generale", "code_degre"):
+        if bloc.get(key):
+            continue
+        for ent in sorted(entities, key=_pct_sig, reverse=True):
+            val = _str_field(ent, key)
+            if val:
+                bloc[key] = val
+                if key == "reglementation_generale":
+                    bloc["reglementation"] = val
+                break
+    return bloc
 
 
 def _build_ppr_blocs(
     objets: list[dict],
-    laius: dict[str, str],
-) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    min_pct: float = MIN_PPR_PCT,
+) -> list[dict[str, Any]]:
+    """Un bloc par sous-zone PPR intersectée (clé = label), si part UF > seuil."""
+    objets = _ppr_objets_significatifs(objets, min_pct)
     if not objets:
-        return [], []
+        return []
 
-    by_code: dict[str, list[dict]] = {}
+    by_label: dict[str, list[dict]] = {}
     for obj in objets:
-        code = _resolve_ppr_code_degre(obj)
-        if not code:
+        label = _str_field(obj, "label")
+        if not label:
             continue
-        by_code.setdefault(code, []).append(obj)
-
-    supplementary_active = {c for c in by_code if c in SUPPLEMENTARY_CODES}
-    main_active = {c for c in by_code if c in MAIN_ZONE_CODES}
-    notes = _build_ppr_notes(supplementary_active, laius)
+        by_label.setdefault(label.upper(), []).append(obj)
 
     blocs: list[dict[str, Any]] = []
-
-    if main_active:
-        for code in sorted(main_active, key=lambda c: MAIN_ZONE_CODES.index(c) if c in MAIN_ZONE_CODES else 99):
-            entity = _pick_best_entity(by_code[code])
-            regl = (laius.get(code) or "").strip()
-            blocs.append(
-                {
-                    "code_degre": code,
-                    "type_risque": (entity.get("risque") or "").strip() or None,
-                    "zone": (entity.get("degre") or "").strip() or None,
-                    "zone_reglementaire": (entity.get("label") or "").strip() or None,
-                    "reglementation": regl or None,
-                    "pct_sig": _pct_sig(entity),
-                }
-            )
-        return blocs, notes
-
-    for code in sorted(supplementary_active):
-        entity = _pick_best_entity(by_code[code])
-        regl = (laius.get(code) or "").strip()
-        blocs.append(
-            {
-                "code_degre": code,
-                "type_risque": (entity.get("risque") or "").strip() or None,
-                "zone": (entity.get("degre") or "").strip() or None,
-                "zone_reglementaire": (entity.get("label") or "").strip() or None,
-                "reglementation": regl or None,
-                "pct_sig": _pct_sig(entity),
-            }
-        )
-    return blocs, []
+    for label_key in sorted(by_label):
+        blocs.append(_merge_ppr_fields(by_label[label_key]))
+    return blocs
 
 
 def _build_pprif_blocs(
@@ -199,7 +180,7 @@ def _build_pprif_blocs(
 
     by_label: dict[str, list[dict]] = {}
     for obj in objets:
-        label = (obj.get("label") or "").strip()
+        label = _str_field(obj, "label")
         if not label:
             continue
         by_label.setdefault(label.upper(), []).append(obj)
@@ -207,12 +188,12 @@ def _build_pprif_blocs(
     blocs: list[dict[str, Any]] = []
     for label_key in sorted(by_label):
         entity = _pick_best_entity(by_label[label_key])
-        display_label = (entity.get("label") or "").strip()
+        display_label = _str_field(entity, "label")
         regl = (laius.get(label_key) or "").strip()
         blocs.append(
             {
                 "label": display_label,
-                "risque": (entity.get("degre") or "").strip() or None,
+                "risque": _str_field(entity, "degre"),
                 "zone": display_label,
                 "reglementation": regl or None,
                 "pct_sig": _pct_sig(entity),
@@ -221,29 +202,266 @@ def _build_pprif_blocs(
     return blocs
 
 
+def _zone_label(obj: dict) -> str:
+    return _str_field(obj, "label") or _str_field(obj, "degre") or ""
+
+
+def _zones_agregees(
+    objets: list[dict],
+    min_pct: float,
+) -> list[tuple[str, float]]:
+    """Sous-zones SIG distinctes avec % cumulé sur la parcelle."""
+    by_zone: dict[str, float] = {}
+    for obj in objets:
+        zone = _zone_label(obj)
+        if not zone:
+            continue
+        by_zone[zone] = by_zone.get(zone, 0.0) + _pct_sig(obj)
+
+    items = [
+        (zone, pct)
+        for zone, pct in sorted(by_zone.items(), key=lambda item: -item[1])
+        if pct > min_pct
+    ]
+    if items:
+        return items
+    return sorted(by_zone.items(), key=lambda item: -item[1])
+
+
+def _format_sous_zones(zones_pct: list[tuple[str, float]]) -> str:
+    return ", ".join(f"sous-zone {zone} ({pct:.2f} %)" for zone, pct in zones_pct)
+
+
+def _format_risque_parcelle(prefix: str, zones_pct: list[tuple[str, float]]) -> str:
+    if not zones_pct:
+        return ""
+    if len(zones_pct) == 1:
+        zone, pct = zones_pct[0]
+        return f"{prefix} : sous-zone {zone} ({pct:.2f} %)"
+    return f"{prefix} : {_format_sous_zones(zones_pct)}"
+
+
+def _format_parcelles_concernées(parcelles: list[dict]) -> str:
+    parts: list[str] = []
+    for p in parcelles:
+        ref = (p.get("libelle") or "").strip()
+        if not ref:
+            continue
+        try:
+            pct = float(p.get("pct") or 0)
+        except (TypeError, ValueError):
+            pct = 0.0
+        if pct > 0:
+            parts.append(f"{ref} ({pct:.2f} %)")
+        else:
+            parts.append(ref)
+    return ", ".join(parts)
+
+
+def _build_parcelles_par_label(
+    parcelles: list[dict],
+    table: str,
+    cfg: dict | None,
+    engine,
+    schema: str,
+    min_pct: float,
+) -> dict[str, list[dict[str, Any]]]:
+    """Index sous-zone (label) → parcelles UF avec % de surface parcelle."""
+    if len(parcelles) <= 1 or not cfg:
+        return {}
+
+    parcelle_geoms = fetch_parcelles_geom(parcelles, engine, schema)
+    if not parcelle_geoms:
+        return {}
+
+    by_label: dict[str, list[dict[str, Any]]] = {}
+    for parcelle in parcelle_geoms:
+        surface = parcelle["surface_sig"]
+        if surface <= 0:
+            continue
+
+        objets = intersect_couche_parcelle(
+            parcelle["wkt"],
+            surface,
+            table,
+            cfg,
+            engine,
+            schema,
+        )
+        zones_pct = _zones_agregees(objets, min_pct)
+        if not zones_pct:
+            continue
+
+        section = str(parcelle["section"])
+        numero = str(parcelle["numero"])
+        ref = format_parcelle_ref(section, numero)
+        for zone, pct in zones_pct:
+            by_label.setdefault(zone.upper(), []).append(
+                {
+                    "section": section,
+                    "numero": numero,
+                    "libelle": ref,
+                    "pct": round(pct, 2),
+                }
+            )
+
+    for key in by_label:
+        by_label[key] = sorted(by_label[key], key=lambda p: -float(p.get("pct") or 0))
+    return by_label
+
+
+def _attach_parcelles_aux_blocs(
+    blocs: list[dict[str, Any]],
+    parcelles_par_label: dict[str, list[dict[str, Any]]],
+) -> None:
+    for bloc in blocs:
+        label = (bloc.get("label") or "").strip().upper()
+        if label and label in parcelles_par_label:
+            bloc["parcelles"] = parcelles_par_label[label]
+
+
+def _build_detail_parcelles(
+    parcelles: list[dict],
+    ppr_cfg: dict | None,
+    pprif_cfg: dict | None,
+    engine,
+    schema: str,
+    min_pct: float = MIN_DETAIL_PCT,
+) -> list[dict[str, Any]]:
+    """Détail PPR / PPRIF par parcelle (UF multi-parcelles uniquement)."""
+    if len(parcelles) <= 1 or not (ppr_cfg or pprif_cfg):
+        return []
+
+    parcelle_geoms = fetch_parcelles_geom(parcelles, engine, schema)
+    if not parcelle_geoms:
+        return []
+
+    details: list[dict[str, Any]] = []
+    for parcelle in parcelle_geoms:
+        surface = parcelle["surface_sig"]
+        if surface <= 0:
+            continue
+
+        ppr_zones: list[tuple[str, float]] = []
+        pprif_zones: list[tuple[str, float]] = []
+
+        if ppr_cfg:
+            ppr_objets = intersect_couche_parcelle(
+                parcelle["wkt"],
+                surface,
+                PPR_TABLE,
+                ppr_cfg,
+                engine,
+                schema,
+            )
+            ppr_zones = _zones_agregees(ppr_objets, min_pct)
+
+        if pprif_cfg:
+            pprif_objets = intersect_couche_parcelle(
+                parcelle["wkt"],
+                surface,
+                PPRIF_TABLE,
+                pprif_cfg,
+                engine,
+                schema,
+            )
+            pprif_zones = _zones_agregees(pprif_objets, min_pct)
+
+        if not ppr_zones and not pprif_zones:
+            continue
+
+        section = str(parcelle["section"])
+        numero = str(parcelle["numero"])
+        ref = format_parcelle_ref(section, numero)
+
+        parts: list[str] = []
+        if ppr_zones:
+            parts.append(_format_risque_parcelle("PPR", ppr_zones))
+        if pprif_zones:
+            parts.append(_format_risque_parcelle("PPRIF", pprif_zones))
+
+        details.append(
+            {
+                "section": section,
+                "numero": numero,
+                "libelle": ref,
+                "ppr": {
+                    "zones": [
+                        {"zone": zone, "pct": round(pct, 2)}
+                        for zone, pct in ppr_zones
+                    ],
+                }
+                if ppr_zones
+                else None,
+                "pprif": {
+                    "zones": [
+                        {"zone": zone, "pct": round(pct, 2)}
+                        for zone, pct in pprif_zones
+                    ],
+                }
+                if pprif_zones
+                else None,
+                "texte": f"{ref} : {' · '.join(parts)} de la surface parcelle.",
+            }
+        )
+
+    return details
+
+
 def compute_ppr_et_pprif_reglementation(
     *,
     ppr_objets: list[dict] | None = None,
     pprif_objets: list[dict] | None = None,
+    parcelles: list[dict] | None = None,
+    ppr_cfg: dict | None = None,
+    pprif_cfg: dict | None = None,
     engine=None,
     schema: str = SCHEMA,
     ppr_laius_table: str = "laius_ppr",
     pprif_laius_table: str = "laius_pprif",
+    min_detail_pct: float = MIN_DETAIL_PCT,
 ) -> dict:
     """
-    Enrichit les intersections PPR / PPRIF avec les laius réglementaires.
-    """
-    engine = engine or get_engine()
-    schema = _safe_ident(schema)
-    ppr_laius_table = _safe_ident(ppr_laius_table)
-    pprif_laius_table = _safe_ident(pprif_laius_table)
+    Enrichit les intersections PPR / PPRIF avec la réglementation applicable.
 
+    PPR : attributs portés par la couche argeles.ppr (label, degre, ces, etc.).
+    PPRIF : laius depuis la table laius_pprif.
+    """
+    _ = ppr_laius_table  # conservé pour signature publique, non utilisé pour le PPR
     ppr_objets = list(ppr_objets or [])
     pprif_objets = list(pprif_objets or [])
+    parcelles = list(parcelles or [])
+
+    detail_parcelles: list[dict[str, Any]] = []
+    if len(parcelles) > 1 and (ppr_cfg or pprif_cfg):
+        detail_parcelles = _build_detail_parcelles(
+            parcelles,
+            ppr_cfg,
+            pprif_cfg,
+            engine or get_engine(),
+            schema,
+            min_detail_pct,
+        )
+
+    if not ppr_objets and not pprif_objets:
+        has_detail = bool(detail_parcelles)
+        return {
+            "status": "concernee" if has_detail else "non_concernee",
+            "diagnostic_metier": (
+                f"{len(detail_parcelles)} parcelle(s) détaillée(s)"
+                if has_detail
+                else "RAS : aucune contrainte PPR / PPRIF réglementée sur l'UF"
+            ),
+            "detail_parcelles": detail_parcelles,
+            "ppr": {"status": "non_concernee", "blocs": [], "notes": []},
+            "pprif": {"status": "non_concernee", "blocs": []},
+        }
+
+    engine = engine or get_engine()
+    schema = _safe_ident(schema)
+    pprif_laius_table = _safe_ident(pprif_laius_table)
 
     missing: list[str] = []
-    if ppr_objets and not _table_exists(engine, schema, ppr_laius_table):
-        missing.append(ppr_laius_table)
     if pprif_objets and not _table_exists(engine, schema, pprif_laius_table):
         missing.append(pprif_laius_table)
 
@@ -252,29 +470,47 @@ def compute_ppr_et_pprif_reglementation(
             "status": "table_absente",
             "diagnostic_metier": "Module non exécutable : table(s) de laius manquante(s)",
             "tables_manquantes": missing,
+            "detail_parcelles": detail_parcelles,
             "ppr": {"status": "table_absente", "blocs": []},
             "pprif": {"status": "table_absente", "blocs": []},
         }
 
-    ppr_laius = _load_laius(engine, schema, ppr_laius_table, "code_degre") if ppr_objets else {}
+    ppr_blocs = _build_ppr_blocs(ppr_objets, min_pct=min_detail_pct)
     pprif_laius = _load_laius(engine, schema, pprif_laius_table, "label") if pprif_objets else {}
-
-    ppr_blocs, ppr_notes = _build_ppr_blocs(ppr_objets, ppr_laius)
     pprif_blocs = _build_pprif_blocs(pprif_objets, pprif_laius)
 
-    has_content = bool(ppr_blocs or pprif_blocs or ppr_notes)
+    if len(parcelles) > 1:
+        ppr_par_label = _build_parcelles_par_label(
+            parcelles, PPR_TABLE, ppr_cfg, engine, schema, min_detail_pct,
+        )
+        pprif_par_label = _build_parcelles_par_label(
+            parcelles, PPRIF_TABLE, pprif_cfg, engine, schema, min_detail_pct,
+        )
+        _attach_parcelles_aux_blocs(ppr_blocs, ppr_par_label)
+        _attach_parcelles_aux_blocs(pprif_blocs, pprif_par_label)
+
+    has_content = bool(ppr_blocs or pprif_blocs or detail_parcelles)
+    diag_parts = []
+    if detail_parcelles:
+        diag_parts.append(f"{len(detail_parcelles)} parcelle(s) détaillée(s)")
+    if ppr_blocs:
+        diag_parts.append(f"PPR : {len(ppr_blocs)} sous-zone(s)")
+    if pprif_blocs:
+        diag_parts.append(f"PPRIF : {len(pprif_blocs)} bloc(s)")
+
     return {
         "status": "concernee" if has_content else "non_concernee",
         "diagnostic_metier": (
-            f"PPR : {len(ppr_blocs)} bloc(s) | PPRIF : {len(pprif_blocs)} bloc(s)"
-            if has_content
+            " | ".join(diag_parts)
+            if diag_parts
             else "RAS : aucune contrainte PPR / PPRIF réglementée sur l'UF"
         ),
+        "detail_parcelles": detail_parcelles,
         "ppr": {
             "nom": "PPR (Plan de Prévention des Risques)",
-            "status": "concernee" if (ppr_blocs or ppr_notes) else "non_concernee",
+            "status": "concernee" if ppr_blocs else "non_concernee",
             "blocs": ppr_blocs,
-            "notes": ppr_notes,
+            "notes": [],
         },
         "pprif": {
             "nom": "PPRIF (Risque Incendie de Forêt)",
