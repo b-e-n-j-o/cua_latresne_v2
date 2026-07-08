@@ -125,12 +125,12 @@ def _format_intro(objets: list, min_zonage_pct: float) -> tuple[list[str], Optio
         if len(items) == 1:
             zone, pct = items[0]
             texte = (
-                f"La parcelle est située dans la zone {zone} du PLU "
+                f"L'unité foncière est située dans la zone {zone} du PLU "
                 f"({pct:.2f} % de la surface)."
             )
         else:
             parts = [f"{zone} ({pct:.2f} %)" for zone, pct in items]
-            texte = f"La parcelle est située dans les zones {', '.join(parts)} du PLU."
+            texte = f"L'unité foncière est située dans les zones {', '.join(parts)} du PLU."
         return zones, texte
 
     zones, seen = [], set()
@@ -141,7 +141,7 @@ def _format_intro(objets: list, min_zonage_pct: float) -> tuple[list[str], Optio
             zones.append(zone)
     if not zones:
         return [], None
-    return zones, f"La parcelle est située dans la zone {', '.join(zones)} du PLU."
+    return zones, f"L'unité foncière est située dans la zone {', '.join(zones)} du PLU."
 
 
 def _objets_significatifs(objets: list, min_zonage_pct: float) -> list:

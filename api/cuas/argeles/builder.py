@@ -608,7 +608,7 @@ def section_identite(doc, ctx):
     ]
     adresses_parcelles = _format_adresses_parcelles(ctx.rapport)
     if "adresses_parcelles" in ctx.rapport:
-        rows.append(("Adresse(s) de la parcelle", adresses_parcelles))
+        rows.append(("Adresse(s) de l'unité foncière", adresses_parcelles))
     rows.extend([
         ("Demande déposée le", d.get("date_depot") or datetime.now().strftime("%d/%m/%Y")),
         ("Superficie", f"{superficie} m²" if superficie else None),
