@@ -8,9 +8,11 @@ Fonction publique : analyser_raa(conn, raa_id, commune_slug, client=None)
 from __future__ import annotations
 
 import json
+import logging
 import os
 import pathlib
 import tempfile
+import time
 
 import requests
 from google import genai
@@ -23,9 +25,15 @@ from .raa_config import RaaCommuneConfig, get_raa_config, normalise_arrete_natur
 HEADERS = {"User-Agent": "Mozilla/5.0 (Kerelia veille RAA)"}
 DOWNLOAD_TIMEOUT = 120
 INLINE_PDF_MAX_BYTES = 50 * 1024 * 1024  # limite Gemini inline (Vertex + Developer)
+MAX_RETRIES = 3
+RETRY_PAUSE_SEC = 2.0
+RETRY_429_PAUSE_SEC = 30.0
+BATCH_PAUSE_SEC = 5.0
 
 PRIX_IN = 0.25
 PRIX_OUT = 1.50
+
+logger = logging.getLogger("raa_analyse")
 
 
 def get_client() -> genai.Client:
@@ -34,14 +42,91 @@ def get_client() -> genai.Client:
     return genai.Client(vertexai=True)
 
 
+def _format_raa_label(
+    raa_id: int,
+    titre: str | None,
+    date_publication,
+    *,
+    taille_mo: float | None = None,
+) -> str:
+    parts = [f"#{raa_id}"]
+    if date_publication:
+        parts.append(str(date_publication))
+    if titre:
+        short = titre if len(titre) <= 72 else f"{titre[:69]}…"
+        parts.append(f"«{short}»")
+    if taille_mo is not None:
+        parts.append(f"{taille_mo:.1f} Mo")
+    return " — ".join(parts)
+
+
+def _retryable_request_error(exc: BaseException) -> bool:
+    if isinstance(
+        exc,
+        (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+            requests.exceptions.ChunkedEncodingError,
+            ConnectionError,
+            TimeoutError,
+        ),
+    ):
+        return True
+    msg = str(exc).lower()
+    if any(
+        token in msg
+        for token in (
+            "remote end closed",
+            "connection aborted",
+            "connection reset",
+            "temporarily unavailable",
+            "resource_exhausted",
+            "429",
+            "503",
+            "502",
+            "504",
+        )
+    ):
+        return True
+    name = type(exc).__name__
+    return name in {
+        "RemoteDisconnected", "ProtocolError", "ReadTimeout", "ServiceUnavailable", "ClientError",
+    }
+
+
+def _retry_pause(exc: BaseException, attempt: int) -> float:
+    msg = str(exc).lower()
+    if "429" in msg or "resource_exhausted" in msg or "resource exhausted" in msg:
+        return RETRY_429_PAUSE_SEC * attempt
+    return RETRY_PAUSE_SEC * attempt
+
+
+def _with_retries(label: str, fn):
+    last: BaseException | None = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            return fn()
+        except Exception as e:
+            last = e
+            if attempt >= MAX_RETRIES or not _retryable_request_error(e):
+                raise RuntimeError(f"{label} : {type(e).__name__}: {e}") from e
+            pause = _retry_pause(e, attempt)
+            logger.warning("%s — nouvelle tentative %d/%d dans %.0fs (%s)", label, attempt + 1, MAX_RETRIES, pause, e)
+            time.sleep(pause)
+    raise RuntimeError(f"{label} : {last}")  # pragma: no cover
+
+
 def _download_pdf(url: str) -> pathlib.Path:
-    r = requests.get(url, headers=HEADERS, timeout=DOWNLOAD_TIMEOUT, stream=True)
-    r.raise_for_status()
-    fd, tmp = tempfile.mkstemp(suffix=".pdf")
-    with os.fdopen(fd, "wb") as f:
-        for chunk in r.iter_content(8192):
-            f.write(chunk)
-    return pathlib.Path(tmp)
+    def _do_download() -> pathlib.Path:
+        r = requests.get(url, headers=HEADERS, timeout=DOWNLOAD_TIMEOUT, stream=True)
+        r.raise_for_status()
+        fd, tmp = tempfile.mkstemp(suffix=".pdf")
+        with os.fdopen(fd, "wb") as f:
+            for chunk in r.iter_content(8192):
+                f.write(chunk)
+        return pathlib.Path(tmp)
+
+    return _with_retries("téléchargement PDF préfecture", _do_download)
 
 
 def _parse_gemini_json(raw: str) -> dict:
@@ -67,17 +152,20 @@ def _call_gemini(client: genai.Client, pdf_path: pathlib.Path, cfg: RaaCommuneCo
         mo = len(pdf_bytes) / (1024 * 1024)
         raise ValueError(f"PDF trop volumineux ({mo:.1f} Mo, max 50 Mo en inline)")
 
-    response = client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=[
-            types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
-            cfg.analyse_prompt,
-        ],
-        config=types.GenerateContentConfig(
-            system_instruction=cfg.system_prompt,
-            temperature=0.1,
-        ),
-    )
+    def _do_generate():
+        return client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=[
+                types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
+                cfg.analyse_prompt,
+            ],
+            config=types.GenerateContentConfig(
+                system_instruction=cfg.system_prompt,
+                temperature=0.1,
+            ),
+        )
+
+    response = _with_retries("appel Vertex/Gemini", _do_generate)
 
     usage = response.usage_metadata
     tokens_in = usage.prompt_token_count if usage else 0
@@ -201,18 +289,48 @@ def analyser_raa(
 
     with conn.cursor() as cur:
         cur.execute(
-            f"SELECT id, pdf_url, titre, date_publication FROM {schema}.raa WHERE id=%s;",
+            f"""
+            SELECT id, pdf_url, titre, date_publication, taille_mo
+            FROM {schema}.raa WHERE id=%s;
+            """,
             (raa_id,),
         )
         row = cur.fetchone()
     if not row:
         raise ValueError(f"RAA #{raa_id} introuvable ({schema}.raa)")
 
-    _, pdf_url, titre, date_publication = row
+    _, pdf_url, titre, date_publication, taille_mo = row
+    label = _format_raa_label(raa_id, titre, date_publication, taille_mo=taille_mo)
+    t0 = time.time()
+    logger.info("[%s] ▶ début analyse %s", commune_slug, label)
+
     pdf_path = None
     try:
+        logger.info("[%s]   téléchargement PDF… %s", commune_slug, label)
         pdf_path = _download_pdf(pdf_url)
+        mo = pdf_path.stat().st_size / (1024 * 1024)
+        logger.info("[%s]   téléchargement OK (%.1f Mo) %s", commune_slug, mo, label)
+    except Exception as e:
+        logger.error("[%s] ✗ échec téléchargement %s — %s", commune_slug, label, e)
+        result = _build_result(
+            raa_id=raa_id,
+            pdf_url=pdf_url,
+            titre=titre,
+            date_publication=date_publication,
+            analyse=None,
+            tokens_in=0,
+            tokens_out=0,
+            erreur=str(e),
+            statut="erreur",
+        )
+        if persist:
+            result = _enregistrer(conn, result, schema)
+        return result
+
+    try:
+        logger.info("[%s]   appel Vertex (%s)… %s", commune_slug, GEMINI_MODEL, label)
         res = _call_gemini(client, pdf_path, cfg)
+        elapsed = time.time() - t0
         result = _build_result(
             raa_id=raa_id,
             pdf_url=pdf_url,
@@ -226,8 +344,20 @@ def analyser_raa(
         )
         if persist:
             result = _enregistrer(conn, result, schema)
+        logger.info(
+            "[%s] ✓ terminé en %.0fs %s — %s, %s arrêtés (%s pertinents), $%.4f",
+            commune_slug,
+            elapsed,
+            label,
+            result.get("niveau_alerte") or "?",
+            result.get("nb_arretes_total") or 0,
+            result.get("nb_arretes_pertinents") or 0,
+            float(result.get("cout_estime") or 0),
+        )
         return result
     except Exception as e:
+        elapsed = time.time() - t0
+        logger.error("[%s] ✗ échec Vertex après %.0fs %s — %s", commune_slug, elapsed, label, e)
         result = _build_result(
             raa_id=raa_id,
             pdf_url=pdf_url,
@@ -236,7 +366,7 @@ def analyser_raa(
             analyse=None,
             tokens_in=0,
             tokens_out=0,
-            erreur=f"{type(e).__name__}: {e}",
+            erreur=str(e),
             statut="erreur",
         )
         if persist:

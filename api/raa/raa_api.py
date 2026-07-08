@@ -18,6 +18,7 @@ Communes supportées : voir raa_config.RAA_COMMUNES (argeles, latresne, …).
 
 import json
 import logging
+import time
 from datetime import date, datetime
 
 import psycopg2
@@ -27,7 +28,7 @@ from pydantic import BaseModel
 
 from .._env import DB_CONFIG
 from .raa_config import RaaCommuneConfig, get_raa_config
-from .service_analyse_raa import analyser_raa
+from .service_analyse_raa import BATCH_PAUSE_SEC, analyser_raa
 from .service_sync_raa import commune_a_scraper, sync_raa
 
 logger = logging.getLogger("raa_api")
@@ -212,14 +213,18 @@ def raa_list_en_attente(cfg: RaaCommuneConfig) -> list[int]:
     return ids
 
 
-def _run_analyse_bg(commune_slug: str, raa_id: int) -> None:
+def _run_analyse_bg(commune_slug: str, raa_id: int, *, batch_pos: int | None = None, batch_total: int | None = None) -> None:
+    prefix = ""
+    if batch_pos is not None and batch_total is not None:
+        prefix = f"[{batch_pos}/{batch_total}] "
+    logger.info("%sLancement analyse RAA #%s (%s)", prefix, raa_id, commune_slug)
     conn = _db_conn()
     try:
         analyser_raa(conn, raa_id, commune_slug)
     except Exception as e:
         logger.error(
-            "analyse RAA #%s (%s) échouée hors service : %s",
-            raa_id, commune_slug, e, exc_info=True,
+            "%sAnalyse RAA #%s (%s) échouée hors service : %s",
+            prefix, raa_id, commune_slug, e, exc_info=True,
         )
         try:
             cfg = get_raa_config(commune_slug)
@@ -233,8 +238,18 @@ def _run_analyse_bg(commune_slug: str, raa_id: int) -> None:
 
 def _run_analyses_sequentielles_bg(commune_slug: str, raa_ids: list[int]) -> None:
     """Analyse les RAA un par un (évite la saturation Gemini)."""
-    for raa_id in raa_ids:
-        _run_analyse_bg(commune_slug, raa_id)
+    n = len(raa_ids)
+    if n == 0:
+        return
+    logger.info(
+        "Batch RAA %s — %d recueil(s) en file séquentielle (un seul appel Vertex à la fois) : %s",
+        commune_slug, n, raa_ids,
+    )
+    for i, raa_id in enumerate(raa_ids, 1):
+        _run_analyse_bg(commune_slug, raa_id, batch_pos=i, batch_total=n)
+        if i < n and BATCH_PAUSE_SEC > 0:
+            time.sleep(BATCH_PAUSE_SEC)
+    logger.info("Batch RAA %s — file terminée (%d recueil(s))", commune_slug, n)
 
 
 class RaaListItem(BaseModel):
@@ -376,6 +391,7 @@ def sync_raa_endpoint(
     for raa_id in ids:
         raa_set_statut(cfg, raa_id, "en_cours")
     if ids:
+        logger.info("Sync RAA %s — %d nouveau(x) recueil(s) planifié(s) en file : %s", commune_slug, len(ids), ids)
         background.add_task(_run_analyses_sequentielles_bg, commune_slug, ids)
 
     nb = result["nb_nouveaux"]
@@ -419,6 +435,10 @@ def reinitialiser_bloques(
     if relancer and ids:
         for raa_id in ids:
             raa_set_statut(cfg, raa_id, "en_cours")
+        logger.info(
+            "Réinitialisation RAA %s — %d recueil(s) débloqué(s), file planifiée : %s",
+            commune_slug, len(ids), ids,
+        )
         background.add_task(_run_analyses_sequentielles_bg, commune_slug, ids)
         analyses_lancees = ids
 
@@ -455,6 +475,10 @@ def analyser_en_attente(commune_slug: str, background: BackgroundTasks):
     if ids:
         for raa_id in ids:
             raa_set_statut(cfg, raa_id, "en_cours")
+        logger.info(
+            "Analyser-en-attente %s — %d recueil(s) planifié(s) en file séquentielle : %s",
+            commune_slug, len(ids), ids,
+        )
         background.add_task(_run_analyses_sequentielles_bg, commune_slug, ids)
 
     nb = len(ids)
@@ -531,6 +555,7 @@ def lancer_analyse(commune_slug: str, raa_id: int, background: BackgroundTasks):
         )
 
     raa_set_statut(cfg, raa_id, "en_cours")
+    logger.info("Analyse unitaire planifiée — %s RAA #%s", commune_slug, raa_id)
     background.add_task(_run_analyse_bg, commune_slug, raa_id)
     return AnalyseLancee(
         commune_slug=commune_slug,
