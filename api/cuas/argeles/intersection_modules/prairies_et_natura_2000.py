@@ -26,6 +26,8 @@ except ImportError:
 
 
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+MIN_INTERSECTION_AREA_M2 = 0.01
+DEFAULT_MIN_PCT_SIG = 1.0
 
 _REGIME_LABELS = {
     "double_intersection_natura_et_prairie": "Natura 2000 et Prairie Sensible)",
@@ -99,30 +101,74 @@ def _format_reglementation(
     return texte
 
 
+def _intersect_surfacique_significatif(
+    engine,
+    schema: str,
+    table: str,
+    geom_col: str,
+    uf_wkt: str,
+    surface_sig: float,
+    min_pct_sig: float,
+    columns: list[str],
+) -> Optional[dict[str, Any]]:
+    schema = _safe_ident(schema)
+    table = _safe_ident(table)
+    geom_col = _safe_ident(geom_col)
+    select_inner = ", ".join(f"t.{_safe_ident(c)}" for c in columns)
+    select_outer = ", ".join(_safe_ident(c) for c in columns)
+    sql = text(
+        f"""
+        WITH uf AS (
+            SELECT ST_GeomFromText(:wkt, {SRID}) AS geom
+        ),
+        inter_raw AS (
+            SELECT {select_inner},
+                   ST_Intersection(ST_MakeValid(t.{geom_col}), uf.geom) AS inter_geom
+            FROM {schema}.{table} t, uf
+            WHERE ST_Intersects(ST_MakeValid(t.{geom_col}), uf.geom)
+        )
+        SELECT {select_outer}
+        FROM inter_raw
+        WHERE ST_Area(inter_geom) > {MIN_INTERSECTION_AREA_M2}
+          AND (
+              :min_pct_sig <= 0
+              OR :surface_sig <= 0
+              OR (ST_Area(inter_geom) / :surface_sig * 100) > :min_pct_sig
+          )
+        LIMIT 1
+        """
+    )
+    with engine.connect() as conn:
+        row = conn.execute(
+            sql,
+            {
+                "wkt": uf_wkt,
+                "surface_sig": float(surface_sig or 0),
+                "min_pct_sig": float(min_pct_sig),
+            },
+        ).mappings().first()
+    return dict(row) if row else None
+
+
 def _intersect_natura(
     engine,
     schema: str,
     table: str,
     geom_col: str,
     uf_wkt: str,
+    surface_sig: float,
+    min_pct_sig: float = DEFAULT_MIN_PCT_SIG,
 ) -> Optional[dict[str, Any]]:
-    schema = _safe_ident(schema)
-    table = _safe_ident(table)
-    geom_col = _safe_ident(geom_col)
-    sql = text(
-        f"""
-        SELECT id, c_site, n_site
-        FROM {schema}.{table}
-        WHERE ST_Intersects(
-            ST_MakeValid({geom_col}),
-            ST_GeomFromText(:wkt, {SRID})
-        )
-        LIMIT 1
-        """
+    return _intersect_surfacique_significatif(
+        engine,
+        schema,
+        table,
+        geom_col,
+        uf_wkt,
+        surface_sig,
+        min_pct_sig,
+        ["id", "c_site", "n_site"],
     )
-    with engine.connect() as conn:
-        row = conn.execute(sql, {"wkt": uf_wkt}).mappings().first()
-    return dict(row) if row else None
 
 
 def _intersect_prairie(
@@ -131,24 +177,19 @@ def _intersect_prairie(
     table: str,
     geom_col: str,
     uf_wkt: str,
+    surface_sig: float,
+    min_pct_sig: float = DEFAULT_MIN_PCT_SIG,
 ) -> Optional[dict[str, Any]]:
-    schema = _safe_ident(schema)
-    table = _safe_ident(table)
-    geom_col = _safe_ident(geom_col)
-    sql = text(
-        f"""
-        SELECT id
-        FROM {schema}.{table}
-        WHERE ST_Intersects(
-            ST_MakeValid({geom_col}),
-            ST_GeomFromText(:wkt, {SRID})
-        )
-        LIMIT 1
-        """
+    return _intersect_surfacique_significatif(
+        engine,
+        schema,
+        table,
+        geom_col,
+        uf_wkt,
+        surface_sig,
+        min_pct_sig,
+        ["id"],
     )
-    with engine.connect() as conn:
-        row = conn.execute(sql, {"wkt": uf_wkt}).mappings().first()
-    return dict(row) if row else None
 
 
 def _resolve_regime_code(has_natura: bool, has_prairie: bool) -> str:
@@ -184,6 +225,8 @@ def _build_bloc(
 def compute_prairies_natura_reglementation(
     uf_wkt: str,
     *,
+    surface_sig: float = 0.0,
+    min_pct_sig: float = DEFAULT_MIN_PCT_SIG,
     engine=None,
     schema: str = SCHEMA,
     natura_table: str = "natura_2000",
@@ -217,8 +260,12 @@ def compute_prairies_natura_reglementation(
         }
 
     reglements = _load_reglements(engine, schema, reglement_table)
-    natura_hit = _intersect_natura(engine, schema, natura_table, geom_col, uf_wkt)
-    prairie_hit = _intersect_prairie(engine, schema, prairie_table, geom_col, uf_wkt)
+    natura_hit = _intersect_natura(
+        engine, schema, natura_table, geom_col, uf_wkt, surface_sig, min_pct_sig,
+    )
+    prairie_hit = _intersect_prairie(
+        engine, schema, prairie_table, geom_col, uf_wkt, surface_sig, min_pct_sig,
+    )
 
     has_natura = natura_hit is not None
     has_prairie = prairie_hit is not None

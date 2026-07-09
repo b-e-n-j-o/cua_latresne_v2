@@ -1,0 +1,3554 @@
+{
+  "meta": {
+    "generated_at": "2026-07-09T10:19:14.956636+00:00",
+    "schema": "argeles",
+    "catalogue": "/Volumes/T7/Travaux_Freelance/KERELIA/CUAs/BACKEND_PRINCIPAL/LATRESNE/cua_latresne_v4/api/cuas/argeles/catalogue_cua_argeles.json",
+    "n_parcelles": 1000,
+    "mode": "batch",
+    "audit_mode": "raw_min_pct_sig_0",
+    "seed": null,
+    "elapsed_s": 93.92,
+    "buckets": {
+      "micro_le_1": "> 0 % et ≤ 1 %",
+      "entre_1_et_5": "> 1 % et ≤ 5 %",
+      "gt_5": "> 5 %"
+    }
+  },
+  "summary_by_layer": {
+    "alea_feu": {
+      "nom": "Risque d'incendie de forêt et de végétation (PAC)",
+      "geom_type": "surfacique",
+      "total_hits": 2357,
+      "buckets": {
+        "micro_le_1": 162,
+        "entre_1_et_5": 245,
+        "gt_5": 1950
+      },
+      "parcelles_avec_hit": 999,
+      "parcelles_avec_hit_1_5_pct": 213,
+      "pct_sig_min": 0.0001,
+      "pct_sig_max": 100.0,
+      "part_parcels_1_5_pct": 21.3
+    },
+    "hauteurs": {
+      "nom": "Hauteurs maximales (PLU)",
+      "geom_type": "surfacique",
+      "total_hits": 1235,
+      "buckets": {
+        "micro_le_1": 81,
+        "entre_1_et_5": 12,
+        "gt_5": 1142
+      },
+      "parcelles_avec_hit": 1000,
+      "parcelles_avec_hit_1_5_pct": 12,
+      "pct_sig_min": 0.0003,
+      "pct_sig_max": 100.0,
+      "part_parcels_1_5_pct": 1.2
+    },
+    "infos_surf": {
+      "nom": "Informations surfaciques",
+      "geom_type": "surfacique",
+      "total_hits": 1689,
+      "buckets": {
+        "micro_le_1": 89,
+        "entre_1_et_5": 53,
+        "gt_5": 1547
+      },
+      "parcelles_avec_hit": 1000,
+      "parcelles_avec_hit_1_5_pct": 52,
+      "pct_sig_min": 0.0003,
+      "pct_sig_max": 100.0,
+      "part_parcels_1_5_pct": 5.2
+    },
+    "natura_2000": {
+      "nom": "NATURA 2000",
+      "geom_type": "surfacique",
+      "total_hits": 214,
+      "buckets": {
+        "micro_le_1": 13,
+        "entre_1_et_5": 12,
+        "gt_5": 189
+      },
+      "parcelles_avec_hit": 214,
+      "parcelles_avec_hit_1_5_pct": 12,
+      "pct_sig_min": 0.0046,
+      "pct_sig_max": 100.0,
+      "part_parcels_1_5_pct": 1.2
+    },
+    "old": {
+      "nom": "Zones de debroussaillement (OLD)",
+      "geom_type": "surfacique",
+      "total_hits": 120,
+      "buckets": {
+        "micro_le_1": 2,
+        "entre_1_et_5": 3,
+        "gt_5": 115
+      },
+      "parcelles_avec_hit": 120,
+      "parcelles_avec_hit_1_5_pct": 3,
+      "pct_sig_min": 0.0164,
+      "pct_sig_max": 100.0,
+      "part_parcels_1_5_pct": 0.3
+    },
+    "ppr": {
+      "nom": "PPR (Plan de Prevention des Risques)",
+      "geom_type": "surfacique",
+      "total_hits": 1638,
+      "buckets": {
+        "micro_le_1": 108,
+        "entre_1_et_5": 64,
+        "gt_5": 1466
+      },
+      "parcelles_avec_hit": 1000,
+      "parcelles_avec_hit_1_5_pct": 64,
+      "pct_sig_min": 0.0003,
+      "pct_sig_max": 100.0,
+      "part_parcels_1_5_pct": 6.4
+    },
+    "prescriptions_surf": {
+      "nom": "Prescriptions surfaciques (PLU)",
+      "geom_type": "surfacique",
+      "total_hits": 113,
+      "buckets": {
+        "micro_le_1": 34,
+        "entre_1_et_5": 16,
+        "gt_5": 63
+      },
+      "parcelles_avec_hit": 108,
+      "parcelles_avec_hit_1_5_pct": 16,
+      "pct_sig_min": 0.0006,
+      "pct_sig_max": 100.0,
+      "part_parcels_1_5_pct": 1.6
+    },
+    "retrait_gonflement_argiles_2026": {
+      "nom": "Retrait-gonflement des argiles (2026)",
+      "geom_type": "surfacique",
+      "total_hits": 1998,
+      "buckets": {
+        "micro_le_1": 2,
+        "entre_1_et_5": 2,
+        "gt_5": 1994
+      },
+      "parcelles_avec_hit": 999,
+      "parcelles_avec_hit_1_5_pct": 1,
+      "pct_sig_min": 0.5149,
+      "pct_sig_max": 100.0,
+      "part_parcels_1_5_pct": 0.1
+    },
+    "servitudes": {
+      "nom": "Servitudes d'utilité publique (SUP)",
+      "geom_type": "surfacique",
+      "total_hits": 1109,
+      "buckets": {
+        "micro_le_1": 23,
+        "entre_1_et_5": 16,
+        "gt_5": 1070
+      },
+      "parcelles_avec_hit": 1000,
+      "parcelles_avec_hit_1_5_pct": 16,
+      "pct_sig_min": 0.0001,
+      "pct_sig_max": 100.0,
+      "part_parcels_1_5_pct": 1.6
+    },
+    "znieffs": {
+      "nom": "ZNIEFF",
+      "geom_type": "surfacique",
+      "total_hits": 327,
+      "buckets": {
+        "micro_le_1": 34,
+        "entre_1_et_5": 37,
+        "gt_5": 256
+      },
+      "parcelles_avec_hit": 175,
+      "parcelles_avec_hit_1_5_pct": 27,
+      "pct_sig_min": 0.0001,
+      "pct_sig_max": 100.0,
+      "part_parcels_1_5_pct": 2.7
+    },
+    "zonage_plu": {
+      "nom": "Zonage PLU",
+      "geom_type": "surfacique",
+      "total_hits": 1261,
+      "buckets": {
+        "micro_le_1": 100,
+        "entre_1_et_5": 21,
+        "gt_5": 1140
+      },
+      "parcelles_avec_hit": 999,
+      "parcelles_avec_hit_1_5_pct": 21,
+      "pct_sig_min": 0.0004,
+      "pct_sig_max": 100.0,
+      "part_parcels_1_5_pct": 2.1
+    }
+  },
+  "hits_entre_1_et_5_pct": [
+    {
+      "parcelle": "AB:7",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 3.4939,
+      "libelle": "N"
+    },
+    {
+      "parcelle": "AC:11",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 2.7678,
+      "libelle": "A"
+    },
+    {
+      "parcelle": "AC:13",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 2.0263,
+      "libelle": "A"
+    },
+    {
+      "parcelle": "AC:14",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 4.7279,
+      "libelle": "A"
+    },
+    {
+      "parcelle": "AC:205",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 1.1104,
+      "libelle": "A"
+    },
+    {
+      "parcelle": "AD:144",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 1.6389,
+      "libelle": "A"
+    },
+    {
+      "parcelle": "AD:145",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 1.5564,
+      "libelle": "A"
+    },
+    {
+      "parcelle": "AD:146",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 4.2796,
+      "libelle": "A"
+    },
+    {
+      "parcelle": "AD:33",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 2.696,
+      "libelle": "A"
+    },
+    {
+      "parcelle": "AD:52",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 2.9521,
+      "libelle": "A"
+    },
+    {
+      "parcelle": "AE:284",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 4.7911,
+      "libelle": "N"
+    },
+    {
+      "parcelle": "AH:76",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 2.3016,
+      "libelle": "N"
+    },
+    {
+      "parcelle": "AH:94",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 4.2273,
+      "libelle": "N"
+    },
+    {
+      "parcelle": "AI:103",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 1.7179,
+      "libelle": "N"
+    },
+    {
+      "parcelle": "AI:119",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 4.723,
+      "libelle": "N"
+    },
+    {
+      "parcelle": "AI:140",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 4.7718,
+      "libelle": "N"
+    },
+    {
+      "parcelle": "AI:141",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 3.0484,
+      "libelle": "N"
+    },
+    {
+      "parcelle": "AI:73",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 2.3685,
+      "libelle": "N"
+    },
+    {
+      "parcelle": "AI:76",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 1.2331,
+      "libelle": "A"
+    },
+    {
+      "parcelle": "AK:162",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 4.8339,
+      "libelle": "N"
+    },
+    {
+      "parcelle": "AL:164",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 2.4911,
+      "libelle": "N"
+    },
+    {
+      "parcelle": "AB:7",
+      "couche": "hauteurs",
+      "nom_couche": "Hauteurs maximales (PLU)",
+      "pct_sig": 3.4939,
+      "libelle": ""
+    },
+    {
+      "parcelle": "AE:284",
+      "couche": "hauteurs",
+      "nom_couche": "Hauteurs maximales (PLU)",
+      "pct_sig": 4.7912,
+      "libelle": ""
+    },
+    {
+      "parcelle": "AH:76",
+      "couche": "hauteurs",
+      "nom_couche": "Hauteurs maximales (PLU)",
+      "pct_sig": 2.3016,
+      "libelle": ""
+    },
+    {
+      "parcelle": "AH:94",
+      "couche": "hauteurs",
+      "nom_couche": "Hauteurs maximales (PLU)",
+      "pct_sig": 4.2273,
+      "libelle": ""
+    },
+    {
+      "parcelle": "AI:103",
+      "couche": "hauteurs",
+      "nom_couche": "Hauteurs maximales (PLU)",
+      "pct_sig": 1.7179,
+      "libelle": ""
+    },
+    {
+      "parcelle": "AI:119",
+      "couche": "hauteurs",
+      "nom_couche": "Hauteurs maximales (PLU)",
+      "pct_sig": 4.7226,
+      "libelle": ""
+    },
+    {
+      "parcelle": "AI:140",
+      "couche": "hauteurs",
+      "nom_couche": "Hauteurs maximales (PLU)",
+      "pct_sig": 4.7721,
+      "libelle": ""
+    },
+    {
+      "parcelle": "AI:141",
+      "couche": "hauteurs",
+      "nom_couche": "Hauteurs maximales (PLU)",
+      "pct_sig": 3.0483,
+      "libelle": ""
+    },
+    {
+      "parcelle": "AI:73",
+      "couche": "hauteurs",
+      "nom_couche": "Hauteurs maximales (PLU)",
+      "pct_sig": 2.3685,
+      "libelle": ""
+    },
+    {
+      "parcelle": "AI:76",
+      "couche": "hauteurs",
+      "nom_couche": "Hauteurs maximales (PLU)",
+      "pct_sig": 1.2333,
+      "libelle": ""
+    },
+    {
+      "parcelle": "AK:162",
+      "couche": "hauteurs",
+      "nom_couche": "Hauteurs maximales (PLU)",
+      "pct_sig": 4.8337,
+      "libelle": ""
+    },
+    {
+      "parcelle": "AL:164",
+      "couche": "hauteurs",
+      "nom_couche": "Hauteurs maximales (PLU)",
+      "pct_sig": 2.4911,
+      "libelle": ""
+    },
+    {
+      "parcelle": "AB:13",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.3813,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AB:14",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.2493,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AB:15",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 4.5452,
+      "libelle": "submersion marine"
+    },
+    {
+      "parcelle": "AB:17",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 4.5069,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AC:11",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 3.1269,
+      "libelle": ""
+    },
+    {
+      "parcelle": "AC:13",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 2.0336,
+      "libelle": ""
+    },
+    {
+      "parcelle": "AC:205",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.1481,
+      "libelle": ""
+    },
+    {
+      "parcelle": "AC:266",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.4721,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AC:267",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 4.0205,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AC:270",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 2.8627,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AD:119",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 4.6703,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AD:120",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 3.5265,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AD:121",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 2.4856,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AD:144",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.6682,
+      "libelle": ""
+    },
+    {
+      "parcelle": "AD:145",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.5488,
+      "libelle": ""
+    },
+    {
+      "parcelle": "AD:146",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 4.8975,
+      "libelle": ""
+    },
+    {
+      "parcelle": "AD:20",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.3345,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AD:33",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 2.8595,
+      "libelle": ""
+    },
+    {
+      "parcelle": "AD:57",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.2774,
+      "libelle": ""
+    },
+    {
+      "parcelle": "AE:163",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.7785,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AE:178",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 4.3752,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AE:180",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 4.796,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AE:28",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.517,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AE:281",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.0996,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AE:30",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 4.6673,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AE:31",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.1111,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AE:338",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 3.1089,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AE:364",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 2.2184,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AE:54",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 2.2592,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AE:55",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 2.6483,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AE:56",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 2.6889,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AE:66",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.3909,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AE:67",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.0228,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AH:1",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 3.1,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AH:23",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.3993,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AH:37",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 2.8115,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AH:44",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 3.0953,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AH:46",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 2.4423,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AH:5",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 3.2451,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AH:98",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.3839,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AI:115",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.7764,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AI:118",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 3.9122,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AI:12",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 2.2198,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AI:120",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 2.5621,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AI:13",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.1809,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AI:146",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.1996,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AI:148",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.3035,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AI:149",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.0032,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AI:156",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 3.7323,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AI:159",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.2388,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AI:180",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.0848,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AI:4",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 3.8095,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AI:72",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.6164,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AK:112",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 4.6882,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AK:156",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.7306,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AK:165",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 3.6148,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AK:175",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.3312,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AK:189",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 4.6015,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AK:192",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 3.3194,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AK:219",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 2.8077,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AL:112",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 3.2029,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AL:148",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.2657,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AL:158",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 3.8527,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AL:209",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 4.5097,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AC:181",
+      "couche": "prescriptions_surf",
+      "nom_couche": "Prescriptions surfaciques (PLU)",
+      "pct_sig": 1.9651,
+      "libelle": "Emplacement réservé"
+    },
+    {
+      "parcelle": "AC:256",
+      "couche": "prescriptions_surf",
+      "nom_couche": "Prescriptions surfaciques (PLU)",
+      "pct_sig": 2.5705,
+      "libelle": "Emplacement réservé"
+    },
+    {
+      "parcelle": "AC:262",
+      "couche": "prescriptions_surf",
+      "nom_couche": "Prescriptions surfaciques (PLU)",
+      "pct_sig": 3.3304,
+      "libelle": "Emplacement réservé"
+    },
+    {
+      "parcelle": "AC:92",
+      "couche": "prescriptions_surf",
+      "nom_couche": "Prescriptions surfaciques (PLU)",
+      "pct_sig": 3.6021,
+      "libelle": "Emplacement réservé"
+    },
+    {
+      "parcelle": "AD:90",
+      "couche": "prescriptions_surf",
+      "nom_couche": "Prescriptions surfaciques (PLU)",
+      "pct_sig": 2.7933,
+      "libelle": "Espace boisé classé"
+    },
+    {
+      "parcelle": "AE:312",
+      "couche": "prescriptions_surf",
+      "nom_couche": "Prescriptions surfaciques (PLU)",
+      "pct_sig": 1.7545,
+      "libelle": "Emplacement réservé"
+    },
+    {
+      "parcelle": "AE:328",
+      "couche": "prescriptions_surf",
+      "nom_couche": "Prescriptions surfaciques (PLU)",
+      "pct_sig": 1.2802,
+      "libelle": "Emplacement réservé"
+    },
+    {
+      "parcelle": "AE:98",
+      "couche": "prescriptions_surf",
+      "nom_couche": "Prescriptions surfaciques (PLU)",
+      "pct_sig": 1.5592,
+      "libelle": "Emplacement réservé"
+    },
+    {
+      "parcelle": "AK:14",
+      "couche": "prescriptions_surf",
+      "nom_couche": "Prescriptions surfaciques (PLU)",
+      "pct_sig": 1.3193,
+      "libelle": "Espace boisé classé"
+    },
+    {
+      "parcelle": "AK:16",
+      "couche": "prescriptions_surf",
+      "nom_couche": "Prescriptions surfaciques (PLU)",
+      "pct_sig": 2.6662,
+      "libelle": "Espace boisé classé"
+    },
+    {
+      "parcelle": "AK:34",
+      "couche": "prescriptions_surf",
+      "nom_couche": "Prescriptions surfaciques (PLU)",
+      "pct_sig": 2.3457,
+      "libelle": "Espace boisé classé"
+    },
+    {
+      "parcelle": "AL:179",
+      "couche": "prescriptions_surf",
+      "nom_couche": "Prescriptions surfaciques (PLU)",
+      "pct_sig": 1.1337,
+      "libelle": "Espace boisé classé"
+    },
+    {
+      "parcelle": "AL:182",
+      "couche": "prescriptions_surf",
+      "nom_couche": "Prescriptions surfaciques (PLU)",
+      "pct_sig": 1.3057,
+      "libelle": "Espace boisé classé"
+    },
+    {
+      "parcelle": "AL:183",
+      "couche": "prescriptions_surf",
+      "nom_couche": "Prescriptions surfaciques (PLU)",
+      "pct_sig": 2.5633,
+      "libelle": "Espace boisé classé"
+    },
+    {
+      "parcelle": "AL:184",
+      "couche": "prescriptions_surf",
+      "nom_couche": "Prescriptions surfaciques (PLU)",
+      "pct_sig": 4.0092,
+      "libelle": "Espace boisé classé"
+    },
+    {
+      "parcelle": "AL:185",
+      "couche": "prescriptions_surf",
+      "nom_couche": "Prescriptions surfaciques (PLU)",
+      "pct_sig": 4.5696,
+      "libelle": "Espace boisé classé"
+    },
+    {
+      "parcelle": "AB:13",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.3815,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AB:14",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.2493,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AB:15",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 4.5452,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AC:112",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 3.2555,
+      "libelle": "Périmètre de voisinage d'infrastructures de transport terrestre"
+    },
+    {
+      "parcelle": "AC:149",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 2.4781,
+      "libelle": "Espaces proches du rivage"
+    },
+    {
+      "parcelle": "AC:16",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 2.517,
+      "libelle": "Périmètre de voisinage d'infrastructures de transport terrestre"
+    },
+    {
+      "parcelle": "AC:168",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.9632,
+      "libelle": "Espaces proches du rivage"
+    },
+    {
+      "parcelle": "AC:266",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.4716,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AC:267",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 4.0224,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AC:270",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 2.862,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AC:48",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 3.0456,
+      "libelle": "Périmètre de voisinage d'infrastructures de transport terrestre"
+    },
+    {
+      "parcelle": "AD:119",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 4.6714,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AD:120",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 3.5265,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AD:121",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 2.4844,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AD:20",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.3341,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AE:163",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.7787,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AE:178",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 4.3741,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AE:180",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 4.7944,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AE:19",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 3.2533,
+      "libelle": "Périmètre de voisinage d'infrastructures de transport terrestre"
+    },
+    {
+      "parcelle": "AE:28",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.5169,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AE:281",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.0997,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AE:30",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 4.6665,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AE:31",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.1113,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AE:356",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.7069,
+      "libelle": "Périmètre de voisinage d'infrastructures de transport terrestre"
+    },
+    {
+      "parcelle": "AE:54",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 2.2595,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AE:55",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 2.648,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AE:56",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 2.6875,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AE:66",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.3906,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AE:67",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.0224,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AE:79",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.7815,
+      "libelle": "Périmètre de voisinage d'infrastructures de transport terrestre"
+    },
+    {
+      "parcelle": "AE:93",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 4.1852,
+      "libelle": "Périmètre de voisinage d'infrastructures de transport terrestre"
+    },
+    {
+      "parcelle": "AH:1",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 3.1033,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AH:23",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.3994,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AH:44",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 3.0948,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AI:115",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.7763,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AI:118",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 3.9118,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AI:12",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 2.2177,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AI:120",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 2.5639,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AI:13",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.1805,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AI:148",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.3049,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AI:149",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.0026,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AI:156",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 3.7282,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AI:180",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.0848,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AI:4",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 3.8091,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AI:4",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 3.6167,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AI:72",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.6137,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AK:112",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 4.6934,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AK:156",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.7292,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AK:165",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 3.6191,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AK:216",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 4.9724,
+      "libelle": "Périmètre de voisinage d'infrastructures de transport terrestre"
+    },
+    {
+      "parcelle": "AL:112",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 3.2032,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AL:117",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.8272,
+      "libelle": "Périmètre de voisinage d'infrastructures de transport terrestre"
+    },
+    {
+      "parcelle": "AL:148",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.2652,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AD:52",
+      "couche": "retrait_gonflement_argiles_2026",
+      "nom_couche": "Retrait-gonflement des argiles (2026)",
+      "pct_sig": 2.9521,
+      "libelle": "1"
+    },
+    {
+      "parcelle": "AD:52",
+      "couche": "retrait_gonflement_argiles_2026",
+      "nom_couche": "Retrait-gonflement des argiles (2026)",
+      "pct_sig": 2.9521,
+      "libelle": "1"
+    },
+    {
+      "parcelle": "AH:109",
+      "couche": "old",
+      "nom_couche": "Zones de debroussaillement (OLD)",
+      "pct_sig": 2.2618,
+      "libelle": "2"
+    },
+    {
+      "parcelle": "AI:127",
+      "couche": "old",
+      "nom_couche": "Zones de debroussaillement (OLD)",
+      "pct_sig": 2.0969,
+      "libelle": "2"
+    },
+    {
+      "parcelle": "AK:101",
+      "couche": "old",
+      "nom_couche": "Zones de debroussaillement (OLD)",
+      "pct_sig": 3.8814,
+      "libelle": "2"
+    },
+    {
+      "parcelle": "AB:1",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.0152,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AB:1",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.9735,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AB:12",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.4502,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AB:13",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.2475,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AB:14",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.2141,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AB:14",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.9585,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AB:16",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.6242,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AB:16",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.8681,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AB:19",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.2286,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AB:19",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.2461,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AB:4",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.3509,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AB:7",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.8283,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AB:7",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.9906,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AB:9",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.6372,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AC:105",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.8868,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AC:11",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.7619,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AC:112",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.7634,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AC:13",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.0261,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AC:133",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.8317,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AC:139",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.368,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AC:14",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.7261,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AC:140",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.0419,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AC:140",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.4924,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AC:145",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.5515,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AC:149",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.9831,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AC:153",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.7388,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AC:179",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.3477,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AC:18",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.5678,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AC:185",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.6414,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AC:200",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.9717,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AC:203",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.3624,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AC:205",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.1082,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AC:21",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.0918,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AC:220",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.6113,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AC:227",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.9844,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AC:23",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.2596,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AC:23",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.8744,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AC:232",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.7879,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AC:241",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.6725,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AC:241",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.3098,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AC:241",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.1484,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AC:246",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.7475,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AC:266",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.9116,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AC:269",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.5655,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AC:272",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.7127,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AC:276",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.242,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AC:28",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.6379,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AC:41",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.2658,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AC:41",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.4901,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AC:42",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.4381,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AC:42",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.9477,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AC:43",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.1395,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AC:72",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.4992,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AC:8",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.8601,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AC:84",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.7079,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AC:9",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.1405,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AC:91",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.2317,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AC:92",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.6644,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AC:92",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.8303,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AC:99",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.4636,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AD:105",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.9888,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AD:117",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.2418,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AD:12",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.0324,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AD:139",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.7775,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AD:144",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.6385,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AD:145",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.5565,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AD:146",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.2798,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AD:147",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.031,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AD:159",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.7013,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AD:24",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.4969,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AD:28",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.4079,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AD:30",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.9441,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AD:33",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.6959,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AD:4",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.7557,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AD:47",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.9559,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AD:48",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.7317,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AD:52",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.9521,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AD:54",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.368,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AD:6",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.9225,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AD:61",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.6351,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AD:61",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.1151,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AD:68",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.0047,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AD:69",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.7839,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AD:7",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.4385,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AD:70",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.2254,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AD:77",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.0394,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AD:77",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.2976,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AD:80",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.9807,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AD:81",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.6307,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AD:84",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.6624,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AD:89",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.9121,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AD:9",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.8157,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AD:90",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.0967,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AD:92",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.9046,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AD:92",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.6866,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AD:94",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.836,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AE:139",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.8739,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AE:143",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.2571,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AE:145",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.8524,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AE:146",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.1816,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AE:154",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.8127,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AE:155",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.0556,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AE:157",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.7224,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AE:157",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.1363,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AE:177",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.7506,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AE:178",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.4058,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AE:180",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.293,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AE:23",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.9336,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AE:25",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.4536,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AE:261",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.3754,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AE:282",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.0204,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AE:284",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.9065,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AE:319",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.4364,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AE:321",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.0921,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AE:336",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.2718,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AE:338",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.4769,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AE:343",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.7343,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AE:345",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.1539,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AE:347",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.4038,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AE:352",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.939,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AE:352",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.1504,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AE:354",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.0879,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AE:368",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.059,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AE:378",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.2135,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AE:379",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.8784,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AE:394",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.3268,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AE:409",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.4061,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AE:42",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.5124,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AE:42",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.2524,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AE:46",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.706,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AE:48",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.5814,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AE:50",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.3823,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AE:64",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.9292,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AE:73",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.4137,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AE:78",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.3752,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AE:96",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.258,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AE:98",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.0598,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AH:107",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.9661,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AH:20",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.5095,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AH:21",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.8297,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AH:22",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.3124,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AH:23",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.0505,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AH:25",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.5942,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AH:34",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.3949,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AH:37",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.4005,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AH:40",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.8264,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AH:46",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.5221,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AH:46",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.1384,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AH:5",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.641,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AH:52",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.2548,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AH:57",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.5162,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AH:86",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.4108,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AH:86",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.1882,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AH:88",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.0733,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AH:95",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.5905,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AH:96",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.1533,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AH:98",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.6877,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AH:98",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.3892,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AH:99",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.4114,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AI:102",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.601,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AI:111",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.9897,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AI:119",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.3576,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AI:119",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.3081,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AI:13",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.8346,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AI:130",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.2721,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AI:135",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.9181,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AI:138",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.7142,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AI:150",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.4928,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AI:153",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.7666,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AI:165",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.7418,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AI:165",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.4702,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AI:17",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.2872,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AI:170",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.8747,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AI:176",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.0134,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AI:178",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.4465,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AI:178",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.1403,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AI:18",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.8688,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AI:18",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.5096,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AI:181",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.4489,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AI:182",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.209,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AI:183",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.3337,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AI:186",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.6072,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AI:27",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.0999,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AI:31",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.6743,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AI:48",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.9818,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AI:49",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.6629,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AI:54",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.4009,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AI:71",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.2591,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AI:71",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.5109,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AI:73",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.0358,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AI:76",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.4847,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AI:81",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.4646,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AK:106",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.0462,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AK:11",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.0845,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AK:123",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.7505,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AK:124",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.4397,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AK:124",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.4584,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AK:124",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.4875,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AK:131",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.4527,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AK:133",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.9811,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AK:136",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.2508,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AK:137",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.2711,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AK:137",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.437,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AK:138",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.3816,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AK:151",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.2395,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AK:162",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.7129,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AK:168",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.2501,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AK:174",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.7167,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AK:175",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.8431,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AK:180",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.6937,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AK:190",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.1453,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AK:199",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.955,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AK:207",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.2646,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AK:209",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.7616,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AK:221",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.5035,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AK:222",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.0018,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AK:222",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.898,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AK:24",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.8607,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AK:33",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.5279,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AK:36",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.4364,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AK:40",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.9883,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AK:41",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.1068,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AK:48",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.5085,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AK:61",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.9134,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AK:78",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.1838,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AK:79",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.124,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AK:87",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.6118,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AK:87",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.3042,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AK:89",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.6091,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AK:9",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.0685,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AL:109",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.9553,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AL:111",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.8949,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AL:111",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.8543,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AL:117",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.1278,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AL:118",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.3401,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AL:148",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.4591,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AL:150",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.6156,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AL:158",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.3444,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AL:189",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.2378,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AL:19",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 3.5488,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AL:192",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.1071,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AL:2",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.6443,
+      "libelle": "Nul à très faible"
+    },
+    {
+      "parcelle": "AL:206",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.8331,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "AL:216",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.1277,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AL:22",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.8967,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "AB:2",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 2.0867,
+      "libelle": "Mas Larrieu"
+    },
+    {
+      "parcelle": "AB:2",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 2.2235,
+      "libelle": "Embouchure du Tech et grau de la Massane"
+    },
+    {
+      "parcelle": "AC:140",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 1.1817,
+      "libelle": "Embouchure du Tech et grau de la Massane"
+    },
+    {
+      "parcelle": "AC:181",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 2.2455,
+      "libelle": "Mas Larrieu"
+    },
+    {
+      "parcelle": "AC:181",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 2.2455,
+      "libelle": "Embouchure du Tech et grau de la Massane"
+    },
+    {
+      "parcelle": "AC:249",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 4.408,
+      "libelle": "Mas Larrieu"
+    },
+    {
+      "parcelle": "AC:249",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 4.408,
+      "libelle": "Embouchure du Tech et grau de la Massane"
+    },
+    {
+      "parcelle": "AC:264",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 2.496,
+      "libelle": "Mas Larrieu"
+    },
+    {
+      "parcelle": "AC:264",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 2.496,
+      "libelle": "Embouchure du Tech et grau de la Massane"
+    },
+    {
+      "parcelle": "AC:276",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 2.7135,
+      "libelle": "Mas Larrieu"
+    },
+    {
+      "parcelle": "AC:276",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 2.7135,
+      "libelle": "Embouchure du Tech et grau de la Massane"
+    },
+    {
+      "parcelle": "AC:83",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 3.7057,
+      "libelle": "Mas Larrieu"
+    },
+    {
+      "parcelle": "AC:83",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 3.7057,
+      "libelle": "Embouchure du Tech et grau de la Massane"
+    },
+    {
+      "parcelle": "AC:91",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 2.0994,
+      "libelle": "Mas Larrieu"
+    },
+    {
+      "parcelle": "AC:91",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 2.0994,
+      "libelle": "Embouchure du Tech et grau de la Massane"
+    },
+    {
+      "parcelle": "AD:2",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 3.1956,
+      "libelle": "Rivière Le Tech"
+    },
+    {
+      "parcelle": "AD:4",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 4.5699,
+      "libelle": "Rivière Le Tech"
+    },
+    {
+      "parcelle": "AD:43",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 4.9398,
+      "libelle": "Cours du Tech de Palau-del-Vidre à son embouchure"
+    },
+    {
+      "parcelle": "AD:7",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 2.6497,
+      "libelle": "Rivière Le Tech"
+    },
+    {
+      "parcelle": "AD:7",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 1.1625,
+      "libelle": "Cours du Tech de Palau-del-Vidre à son embouchure"
+    },
+    {
+      "parcelle": "AD:88",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 1.2849,
+      "libelle": "Rivière Le Tech"
+    },
+    {
+      "parcelle": "AD:92",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 1.5562,
+      "libelle": "Rivière Le Tech"
+    },
+    {
+      "parcelle": "AE:139",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 2.5491,
+      "libelle": "Cours du Tech de Palau-del-Vidre à son embouchure"
+    },
+    {
+      "parcelle": "AE:143",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 2.7471,
+      "libelle": "Cours du Tech de Palau-del-Vidre à son embouchure"
+    },
+    {
+      "parcelle": "AE:152",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 2.4523,
+      "libelle": "Rivière Le Tech"
+    },
+    {
+      "parcelle": "AE:152",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 2.4321,
+      "libelle": "Cours du Tech de Palau-del-Vidre à son embouchure"
+    },
+    {
+      "parcelle": "AE:157",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 2.2766,
+      "libelle": "Cours du Tech de Palau-del-Vidre à son embouchure"
+    },
+    {
+      "parcelle": "AE:267",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 1.6841,
+      "libelle": "Rivière Le Tech"
+    },
+    {
+      "parcelle": "AE:358",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 1.4749,
+      "libelle": "Rivière Le Tech"
+    },
+    {
+      "parcelle": "AE:360",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 1.3211,
+      "libelle": "Rivière Le Tech"
+    },
+    {
+      "parcelle": "AI:88",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 4.7193,
+      "libelle": "Cours du Tech de Palau-del-Vidre à son embouchure"
+    },
+    {
+      "parcelle": "AI:93",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 2.7919,
+      "libelle": "Cours du Tech de Palau-del-Vidre à son embouchure"
+    },
+    {
+      "parcelle": "AI:95",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 2.013,
+      "libelle": "Rivière Le Tech"
+    },
+    {
+      "parcelle": "AI:95",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 1.578,
+      "libelle": "Cours du Tech de Palau-del-Vidre à son embouchure"
+    },
+    {
+      "parcelle": "AK:34",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 2.1241,
+      "libelle": "Rivière Le Tech"
+    },
+    {
+      "parcelle": "AK:7",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 2.1327,
+      "libelle": "Rivière Le Tech"
+    },
+    {
+      "parcelle": "AL:189",
+      "couche": "znieffs",
+      "nom_couche": "ZNIEFF",
+      "pct_sig": 3.1261,
+      "libelle": "Rivière Le Tech"
+    },
+    {
+      "parcelle": "AB:5",
+      "couche": "natura_2000",
+      "nom_couche": "NATURA 2000",
+      "pct_sig": 4.9586,
+      "libelle": "habitat_FR9101493"
+    },
+    {
+      "parcelle": "AC:149",
+      "couche": "natura_2000",
+      "nom_couche": "NATURA 2000",
+      "pct_sig": 1.0426,
+      "libelle": "habitat_FR9101478"
+    },
+    {
+      "parcelle": "AC:23",
+      "couche": "natura_2000",
+      "nom_couche": "NATURA 2000",
+      "pct_sig": 4.66,
+      "libelle": "habitat_FR9101478"
+    },
+    {
+      "parcelle": "AC:86",
+      "couche": "natura_2000",
+      "nom_couche": "NATURA 2000",
+      "pct_sig": 4.489,
+      "libelle": "habitat_FR9101493"
+    },
+    {
+      "parcelle": "AE:157",
+      "couche": "natura_2000",
+      "nom_couche": "NATURA 2000",
+      "pct_sig": 4.3013,
+      "libelle": "habitat_FR9101478"
+    },
+    {
+      "parcelle": "AI:104",
+      "couche": "natura_2000",
+      "nom_couche": "NATURA 2000",
+      "pct_sig": 2.9161,
+      "libelle": "habitat_FR9101478"
+    },
+    {
+      "parcelle": "AK:16",
+      "couche": "natura_2000",
+      "nom_couche": "NATURA 2000",
+      "pct_sig": 4.9135,
+      "libelle": "habitat_FR9101478"
+    },
+    {
+      "parcelle": "AK:180",
+      "couche": "natura_2000",
+      "nom_couche": "NATURA 2000",
+      "pct_sig": 1.8509,
+      "libelle": "habitat_FR9101478"
+    },
+    {
+      "parcelle": "AK:35",
+      "couche": "natura_2000",
+      "nom_couche": "NATURA 2000",
+      "pct_sig": 2.178,
+      "libelle": "habitat_FR9101478"
+    },
+    {
+      "parcelle": "AK:36",
+      "couche": "natura_2000",
+      "nom_couche": "NATURA 2000",
+      "pct_sig": 1.1727,
+      "libelle": "habitat_FR9101478"
+    },
+    {
+      "parcelle": "AK:7",
+      "couche": "natura_2000",
+      "nom_couche": "NATURA 2000",
+      "pct_sig": 4.3104,
+      "libelle": "habitat_FR9101478"
+    },
+    {
+      "parcelle": "AL:200",
+      "couche": "natura_2000",
+      "nom_couche": "NATURA 2000",
+      "pct_sig": 2.9135,
+      "libelle": "habitat_FR9101478"
+    },
+    {
+      "parcelle": "AC:10",
+      "couche": "servitudes",
+      "nom_couche": "Servitudes d'utilité publique (SUP)",
+      "pct_sig": 1.8633,
+      "libelle": "PM1"
+    },
+    {
+      "parcelle": "AC:110",
+      "couche": "servitudes",
+      "nom_couche": "Servitudes d'utilité publique (SUP)",
+      "pct_sig": 3.5641,
+      "libelle": "AC3"
+    },
+    {
+      "parcelle": "AC:13",
+      "couche": "servitudes",
+      "nom_couche": "Servitudes d'utilité publique (SUP)",
+      "pct_sig": 2.0326,
+      "libelle": "PM1"
+    },
+    {
+      "parcelle": "AC:14",
+      "couche": "servitudes",
+      "nom_couche": "Servitudes d'utilité publique (SUP)",
+      "pct_sig": 4.7266,
+      "libelle": "PM1"
+    },
+    {
+      "parcelle": "AC:141",
+      "couche": "servitudes",
+      "nom_couche": "Servitudes d'utilité publique (SUP)",
+      "pct_sig": 1.9405,
+      "libelle": "AC3"
+    },
+    {
+      "parcelle": "AC:205",
+      "couche": "servitudes",
+      "nom_couche": "Servitudes d'utilité publique (SUP)",
+      "pct_sig": 1.1088,
+      "libelle": "PM1"
+    },
+    {
+      "parcelle": "AD:123",
+      "couche": "servitudes",
+      "nom_couche": "Servitudes d'utilité publique (SUP)",
+      "pct_sig": 4.3955,
+      "libelle": "PM1"
+    },
+    {
+      "parcelle": "AD:144",
+      "couche": "servitudes",
+      "nom_couche": "Servitudes d'utilité publique (SUP)",
+      "pct_sig": 1.6385,
+      "libelle": "PM1"
+    },
+    {
+      "parcelle": "AD:145",
+      "couche": "servitudes",
+      "nom_couche": "Servitudes d'utilité publique (SUP)",
+      "pct_sig": 1.5563,
+      "libelle": "PM1"
+    },
+    {
+      "parcelle": "AD:146",
+      "couche": "servitudes",
+      "nom_couche": "Servitudes d'utilité publique (SUP)",
+      "pct_sig": 4.2793,
+      "libelle": "PM1"
+    },
+    {
+      "parcelle": "AD:162",
+      "couche": "servitudes",
+      "nom_couche": "Servitudes d'utilité publique (SUP)",
+      "pct_sig": 1.2025,
+      "libelle": "PM1"
+    },
+    {
+      "parcelle": "AD:33",
+      "couche": "servitudes",
+      "nom_couche": "Servitudes d'utilité publique (SUP)",
+      "pct_sig": 2.7461,
+      "libelle": "PM1"
+    },
+    {
+      "parcelle": "AD:56",
+      "couche": "servitudes",
+      "nom_couche": "Servitudes d'utilité publique (SUP)",
+      "pct_sig": 1.5225,
+      "libelle": "PM1"
+    },
+    {
+      "parcelle": "AD:57",
+      "couche": "servitudes",
+      "nom_couche": "Servitudes d'utilité publique (SUP)",
+      "pct_sig": 1.9816,
+      "libelle": "PM1"
+    },
+    {
+      "parcelle": "AD:62",
+      "couche": "servitudes",
+      "nom_couche": "Servitudes d'utilité publique (SUP)",
+      "pct_sig": 1.677,
+      "libelle": "PM1"
+    },
+    {
+      "parcelle": "AD:64",
+      "couche": "servitudes",
+      "nom_couche": "Servitudes d'utilité publique (SUP)",
+      "pct_sig": 1.9468,
+      "libelle": "PM1"
+    }
+  ],
+  "errors": []
+}

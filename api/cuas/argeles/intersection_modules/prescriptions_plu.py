@@ -35,6 +35,13 @@ except ImportError:
         intersect_couche_parcelle,
     )
 
+try:
+    from api.modules_communs.intersection_partielle import catalogue_affiche_pct_partiel
+except ImportError:
+    def catalogue_affiche_pct_partiel(cfg: dict | None) -> bool:
+        return bool((cfg or {}).get("afficher_pct_sig_partiel"))
+
+
 COUCHE_SURF = "prescriptions_surf"
 COUCHE_LIN = "prescriptions_lineaires"
 COUCHE_PONCT = "prescriptions_ponctuelles"
@@ -110,6 +117,7 @@ def _build_items(objets: list[dict]) -> list[dict[str, Any]]:
                     "libelle": libelle or None,
                     "typepsc": (obj.get("typepsc") or "").strip() or None,
                     "reglementation": regl,
+                    "pct_sig": _pct_sig(obj),
                 }
             )
             continue
@@ -119,7 +127,7 @@ def _build_items(objets: list[dict]) -> list[dict[str, Any]]:
             if key in seen_libelles_sans_regl:
                 continue
             seen_libelles_sans_regl.add(key)
-            items.append({"kind": "bullet", "texte": libelle})
+            items.append({"kind": "bullet", "texte": libelle, "pct_sig": _pct_sig(obj)})
 
     return items
 
@@ -128,6 +136,7 @@ def _build_couche(
     key: str,
     nom: str,
     objets: list[dict],
+    cfg: dict | None = None,
 ) -> Optional[dict[str, Any]]:
     items = _build_items(objets)
     if not items:
@@ -136,6 +145,8 @@ def _build_couche(
         "key": key,
         "nom": nom,
         "items": items,
+        "nb_objets": len(objets),
+        "afficher_pct_sig_partiel": catalogue_affiche_pct_partiel(cfg),
     }
 
 
@@ -273,7 +284,7 @@ def compute_prescriptions_plu_reglementation(
 
     couches: list[dict[str, Any]] = []
     for key, nom in COUCHES:
-        couche = _build_couche(key, nom, objets_par_couche[key])
+        couche = _build_couche(key, nom, objets_par_couche[key], configs.get(key))
         if couche:
             couches.append(couche)
 

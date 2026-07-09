@@ -167,19 +167,19 @@ def compute_enedis_raccordement(
             ) AS parcelles_voisines_sur_trajet,
             CASE
                 WHEN sp.dist_brute > :seuil_proximite_m
-                    THEN 'Câble BT le plus proche à environ '
+                    THEN 'Câble Basse Tension (BT) le plus proche à environ '
                         || ROUND(sp.dist_brute::numeric, 0)
                         || ' m du terrain (au-delà de '
                         || ROUND(CAST(:seuil_proximite_m AS numeric), 0)
                         || ' m). Proximité à confirmer sur le terrain et auprès d''ENEDIS.'
                 WHEN COALESCE(db.nb_voisins_traverses, 0) > 0
-                    THEN 'Câble BT le plus proche à environ '
+                    THEN 'Câble Basse Tension (BT) le plus proche à environ '
                         || ROUND(sp.dist_brute::numeric, 0)
                         || ' m — le trajet direct vers le câble croise une ou plusieurs parcelle(s) voisine(s) ('
                         || db.liste_voisins
                         || ') → servitude ou cheminement à étudier.'
                 WHEN sp.longueur_dans_zone_rue >= :seuil_lineaire_buffer_m
-                    THEN 'Câble BT le plus proche à environ '
+                    THEN 'Câble Basse Tension (BT) le plus proche à environ '
                         || ROUND(sp.dist_brute::numeric, 0)
                         || ' m — environ '
                         || ROUND(sp.longueur_dans_zone_rue::numeric, 0)
@@ -187,12 +187,12 @@ def compute_enedis_raccordement(
                         || ROUND(CAST(:zone_rue_buffer_m AS numeric), 0)
                         || ' m autour du terrain.'
                 WHEN sp.longueur_dans_zone_rue > 0
-                    THEN 'Câble BT le plus proche à environ '
+                    THEN 'Câble Basse Tension (BT) le plus proche à environ '
                         || ROUND(sp.dist_brute::numeric, 0)
                         || ' m — faible linéaire dans le rayon de proximité ('
                         || ROUND(sp.longueur_dans_zone_rue::numeric, 0)
                         || ' m).'
-                ELSE 'Câble BT le plus proche à environ '
+                ELSE 'Câble Basse Tension (BT) le plus proche à environ '
                     || ROUND(sp.dist_brute::numeric, 0)
                     || ' m du terrain — situation à confirmer sur le terrain et auprès d''ENEDIS.'
             END AS diagnostic_expert_raccordement
@@ -235,12 +235,12 @@ def compute_enedis_raccordement(
     if not analyses:
         return {
             "status": "non_concernee",
-            "diagnostic_metier": "RAS : aucun réseau BT ENEDIS recensé à proximité immédiate du terrain",
+            "diagnostic_metier": "RAS : aucun réseau Basse Tension (BT) ENEDIS recensé à proximité immédiate du terrain",
             "analyses": [],
         }
 
     return {
         "status": "concernee",
-        "diagnostic_metier": "Proximité des réseaux BT ENEDIS (indication SIG, hors étude de raccordement)",
+        "diagnostic_metier": "Proximité des réseaux Basse Tension (BT) ENEDIS (indication SIG, hors étude de raccordement)",
         "analyses": analyses,
     }

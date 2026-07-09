@@ -37,6 +37,8 @@ def compute_servitudes_reglementation(
     *,
     engine=None,
     schema: str = SCHEMA,
+    surface_sig: float = 0.0,
+    min_pct_sig: float | None = None,
     reglements_schema: str = REGLEMENTS_SCHEMA,
     reglement_table: str = REGLEMENTS_TABLE,
     i4_table: str = I4_VARIANTES_TABLE,
@@ -47,8 +49,11 @@ def compute_servitudes_reglementation(
     """
     del schema, reglements_schema, reglement_table, i4_table  # API stable, config centralisée
     engine = engine or get_engine()
-    return _compute_servitudes_reglementation(
-        uf_wkt,
-        engine=engine,
-        config=ARGELES_SERVITUDES_CONFIG,
-    )
+    kwargs: dict = {
+        "engine": engine,
+        "config": ARGELES_SERVITUDES_CONFIG,
+        "surface_sig": surface_sig,
+    }
+    if min_pct_sig is not None:
+        kwargs["min_pct_sig"] = min_pct_sig
+    return _compute_servitudes_reglementation(uf_wkt, **kwargs)

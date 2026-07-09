@@ -7,6 +7,7 @@ Pour chaque couche du catalogue, on récupère les entités qui intersectent l'U
 et on mesure l'intersection selon geom_type :
   - surfacique : ST_Area(ST_Intersection) par objet + ST_Area(ST_Union) pour le total couche
                  → élimine le double-comptage quand les géométries sources se superposent.
+                 Seuil catalogue min_pct_sig (défaut 1 %) : exclut les micro-recouvrements frontaliers.
   - lineaire   : ST_Length(ST_Intersection) par objet, somme pour le total.
   - ponctuel   : présence seule (pas de mesure).
 
@@ -116,18 +117,55 @@ except ImportError:
         sys.path.insert(0, str(_ARGELES_DIR))
     from intersection_modules.adresses_parcelles import compute_adresses_parcelles
 
-_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+try:
+    from api.modules_communs.intersection_partielle import catalogue_affiche_pct_partiel
+except ImportError:
+    def catalogue_affiche_pct_partiel(cfg: dict | None) -> bool:
+        return bool((cfg or {}).get("afficher_pct_sig_partiel"))
+
+
+def _layer_catalogue_meta(cfg: dict, table: str) -> dict:
+    """Champs communs issus du catalogue (nom, type, options d'affichage)."""
+    return {
+        "nom": cfg.get("nom", table),
+        "type": cfg.get("type"),
+        "geom_type": cfg.get("geom_type", "surfacique"),
+        "afficher_pct_sig_partiel": catalogue_affiche_pct_partiel(cfg),
+    }
+
+
 
 # Seuil minimal d'intersection : exclut les contacts en bordure (aire/longueur nulle)
 # et les micro-artefacts numériques.
 MIN_INTERSECTION_AREA_M2 = 0.01
 MIN_INTERSECTION_LENGTH_M = 0.01
+# Part minimale de l'emprise (UF ou parcelle) pour retenir une intersection surfacique.
+DEFAULT_MIN_PCT_SIG = 1.0
+
+_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def _safe_ident(name: str) -> str:
     if not _IDENT_RE.match(name or ""):
         raise ValueError(f"Identifiant SQL invalide : {name!r}")
     return name
+
+
+def resolve_min_pct_sig(cfg: dict) -> float:
+    """
+    Seuil % de surface pour les couches surfaciques (catalogue min_pct_sig).
+
+    Défaut 1.0 ; 0 désactive le filtre pourcentage (seul le seuil géométrique 0,01 m² s'applique).
+    """
+    geom_type = cfg.get("geom_type", "surfacique")
+    if geom_type != "surfacique":
+        return 0.0
+    if "min_pct_sig" in cfg:
+        try:
+            return float(cfg["min_pct_sig"])
+        except (TypeError, ValueError):
+            return DEFAULT_MIN_PCT_SIG
+    return DEFAULT_MIN_PCT_SIG
 
 
 def _table_exists(engine, schema: str, table: str) -> bool:
@@ -166,10 +204,16 @@ def calculate_intersection(uf_wkt, table, cfg, surface_sig, engine, schema=SCHEM
     geom_col  = _safe_ident(cfg.get("geom_col", GEOM_COL))
     keep      = [_safe_ident(k) for k in cfg.get("keep", [])]
     geom_type = cfg.get("geom_type", "surfacique")
+    min_pct_sig = resolve_min_pct_sig(cfg)
 
     t_cols     = "".join(f"t.{k}, " for k in keep)   # SELECT depuis la table   → t.col,
     raw_cols   = "".join(f"{k}, "   for k in keep)   # SELECT depuis un CTE      → col,
     dedup_cols = "".join(f", {k}"   for k in keep)   # clés DISTINCT ON (avec virgule de tête)
+    sql_params: dict = {
+        "wkt": uf_wkt,
+        "surface_sig": float(surface_sig or 0),
+        "min_pct_sig": min_pct_sig,
+    }
 
     if geom_type == "surfacique":
         sql = text(f"""
@@ -181,13 +225,21 @@ def calculate_intersection(uf_wkt, table, cfg, surface_sig, engine, schema=SCHEM
                        ST_Intersection(ST_MakeValid(t.{geom_col}), uf.geom) AS inter_geom
                 FROM {schema}.{table} t, uf
                 WHERE ST_Intersects(t.{geom_col}, uf.geom)
-                  AND ST_Area(ST_Intersection(ST_MakeValid(t.{geom_col}), uf.geom))
-                      > {MIN_INTERSECTION_AREA_M2}
+            ),
+            inter_filtered AS (
+                SELECT {raw_cols} inter_geom
+                FROM inter_raw
+                WHERE ST_Area(inter_geom) > {MIN_INTERSECTION_AREA_M2}
+                  AND (
+                      :min_pct_sig <= 0
+                      OR :surface_sig <= 0
+                      OR (ST_Area(inter_geom) / :surface_sig * 100) > :min_pct_sig
+                  )
             ),
             inter AS (
                 SELECT DISTINCT ON (ST_AsBinary(inter_geom){dedup_cols})
                        {raw_cols} inter_geom
-                FROM inter_raw
+                FROM inter_filtered
             ),
             union_area AS (
                 SELECT COALESCE(ST_Area(ST_Union(inter_geom)), 0.0) AS uarea
@@ -230,7 +282,7 @@ def calculate_intersection(uf_wkt, table, cfg, surface_sig, engine, schema=SCHEM
         metric_label = None
 
     with engine.connect() as conn:
-        rows = conn.execute(sql, {"wkt": uf_wkt}).mappings().all()
+        rows = conn.execute(sql, sql_params).mappings().all()
 
     objets = []
     total  = 0.0
@@ -285,9 +337,7 @@ def run_intersections(uf, catalogue, engine=None, schema=SCHEMA) -> dict:
                     schema=schema,
                 )
                 rapport["intersections"][table] = {
-                    "nom": cfg.get("nom", table),
-                    "type": cfg.get("type"),
-                    "geom_type": geom_type_cfg,
+                    **_layer_catalogue_meta(cfg, table),
                     "pct_sig": 0.0,
                     "objets": [],
                     **special,
@@ -295,9 +345,7 @@ def run_intersections(uf, catalogue, engine=None, schema=SCHEMA) -> dict:
             except Exception as exc:
                 logger.warning(f"  ⚠  {table:<35} {exc}")
                 rapport["intersections"][table] = {
-                    "nom": cfg.get("nom", table),
-                    "type": cfg.get("type"),
-                    "geom_type": geom_type_cfg,
+                    **_layer_catalogue_meta(cfg, table),
                     "pct_sig": 0.0,
                     "objets": [],
                     "status": "erreur",
@@ -305,12 +353,42 @@ def run_intersections(uf, catalogue, engine=None, schema=SCHEMA) -> dict:
                 }
             continue
 
+        if cfg.get("handler") == "servitudes":
+            try:
+                special = compute_servitudes_reglementation(
+                    uf.wkt,
+                    engine=engine,
+                    schema=schema,
+                    surface_sig=uf.surface_sig,
+                    min_pct_sig=resolve_min_pct_sig(cfg),
+                )
+                rapport["intersections"][table] = {
+                    **_layer_catalogue_meta(cfg, table),
+                    "pct_sig": 0.0,
+                    "objets": [],
+                    **special,
+                }
+                n = len(special.get("servitudes") or [])
+                if n:
+                    logger.info(f"  ✅ {table:<35} {n:>3} servitude(s)")
+                else:
+                    logger.info(f"  ·  {table:<35}   —")
+            except Exception as exc:
+                logger.warning(f"  ⚠  {table:<35} {exc}")
+                rapport["intersections"][table] = {
+                    **_layer_catalogue_meta(cfg, table),
+                    "pct_sig": 0.0,
+                    "objets": [],
+                    "status": "erreur",
+                    "error": str(exc),
+                    "servitudes": [],
+                }
+            continue
+
         if not _table_exists(engine, schema, table):
             logger.warning(f"  ⏭  {table:<35} table absente en base")
             rapport["intersections"][table] = {
-                "nom": cfg.get("nom", table),
-                "type": cfg.get("type"),
-                "geom_type": geom_type_cfg,
+                **_layer_catalogue_meta(cfg, table),
                 "pct_sig": 0.0,
                 "objets": [],
                 "status": "table_absente",
@@ -324,9 +402,7 @@ def run_intersections(uf, catalogue, engine=None, schema=SCHEMA) -> dict:
         except Exception as exc:
             logger.warning(f"  ⚠  {table:<35} {exc}")
             rapport["intersections"][table] = {
-                "nom": cfg.get("nom", table),
-                "type": cfg.get("type"),
-                "geom_type": geom_type_cfg,
+                **_layer_catalogue_meta(cfg, table),
                 "pct_sig": 0.0,
                 "objets": [],
                 "status": "erreur",
@@ -340,9 +416,7 @@ def run_intersections(uf, catalogue, engine=None, schema=SCHEMA) -> dict:
             pct = 0.0
 
         rapport["intersections"][table] = {
-            "nom":      cfg.get("nom", table),
-            "type":     cfg.get("type"),
-            "geom_type": geom_type,
+            **_layer_catalogue_meta(cfg, table),
             "pct_sig":  pct,
             "objets":   objets,
             "status":   "concernee" if objets else "non_concernee",
@@ -357,6 +431,7 @@ def run_intersections(uf, catalogue, engine=None, schema=SCHEMA) -> dict:
     try:
         special = compute_prairies_natura_reglementation(
             uf.wkt,
+            surface_sig=uf.surface_sig,
             engine=engine,
             schema=schema,
         )
@@ -373,38 +448,6 @@ def run_intersections(uf, catalogue, engine=None, schema=SCHEMA) -> dict:
         rapport["intersections"]["prairies_et_natura_2000"] = {
             "nom": "Réglementation croisée Natura 2000 / Prairies sensibles",
             "type": "information",
-            "geom_type": "surfacique",
-            "pct_sig": 0.0,
-            "objets": [],
-            "status": "erreur",
-            "error": str(exc),
-        }
-
-    # Bloc métier dédié SUP (réglementations depuis public.servitudes_reglements)
-    try:
-        special = compute_servitudes_reglementation(
-            uf.wkt,
-            engine=engine,
-            schema=schema,
-        )
-        rapport["intersections"]["servitudes_reglementees"] = {
-            "nom": "Servitudes d'utilité publique (réglementation)",
-            "type": "servitude",
-            "geom_type": "surfacique",
-            "pct_sig": 0.0,
-            "objets": [],
-            **special,
-        }
-        n = len(special.get("servitudes") or [])
-        if n:
-            logger.info(f"  ✅ servitudes_reglementees              {n:>3} servitude(s)")
-        else:
-            logger.info("  ·  servitudes_reglementees                —")
-    except Exception as exc:
-        logger.warning(f"  ⚠  servitudes_reglementees          {exc}")
-        rapport["intersections"]["servitudes_reglementees"] = {
-            "nom": "Servitudes d'utilité publique (réglementation)",
-            "type": "servitude",
             "geom_type": "surfacique",
             "pct_sig": 0.0,
             "objets": [],

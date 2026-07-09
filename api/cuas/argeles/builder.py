@@ -33,6 +33,26 @@ try:
 except ImportError:
     from docx_utils import add_markdown_block, add_para_with_link, parse_markdown_inline
 
+try:
+    from api.modules_communs.intersection_partielle import (
+        est_multi_entites,
+        note_pour_objet,
+        note_pour_servitude,
+        texte_note_intersection_partielle,
+    )
+except ImportError:
+    def est_multi_entites(objets):
+        return len(objets or []) > 1
+
+    def texte_note_intersection_partielle(pct, *, multi_entites=False, enabled=True):
+        return None
+
+    def note_pour_objet(obj, *, multi_entites=False, enabled=True):
+        return None
+
+    def note_pour_servitude(servitude, *, multi_entites_couche=False, enabled=True, surface_sig=0.0):
+        return None
+
 _ARGELES_DIR = Path(__file__).resolve().parent
 LOGO_COMMUNE_PATH = _ARGELES_DIR / "logos" / "argeles.png"
 
@@ -81,16 +101,16 @@ class CommuneConfig:
 # Routage couche → section. Tout ce qui n'est pas listé tombe en "prescriptions".
 # Couverture catalogue Argelès (catalogue_cua_argeles.json) :
 #   dispositions → zonage_plu (via module zonage_plu), hauteurs (art. 3)
-#   sup          → servitudes_reglementees (art. 4, module partagé api.modules_communs)
+#   sup          → servitudes (art. 4, handler catalogue + module partagé)
 #   risques      → ppr, pprif (via module ppr_et_pprif), alea_feu (via module alea_feu),
 #                  retrait_gonflement_argiles_2026, old (art. 5)
 #   prescriptions→ aoc, prescriptions_* (via module prescriptions_plu), infos_surf (hors DPU),
 #                  haies_bocages, znieffs, zaer, batiments (art. 5/7)
 #   métier       → reseaux_enedis_lineaires, prairies_et_natura_2000 (+ natura_2000,
-#                  prairies_sensibles via module dédié), servitudes_reglementees
+#                  prairies_sensibles via module dédié), servitudes
 LAYER_TO_SECTION = {
     # DPU : c'est une info de infos_surf filtrée, géré séparément (voir section_dpu)
-    # SUP : réglementation via module servitudes_reglementees (voir section_sup)
+    # SUP : réglementation via handler catalogue servitudes (voir section_sup)
     "ppr":                   "risques",
     "pprif":                 "risques",
     "retrait_gonflement_argiles_2026": "risques",
@@ -105,7 +125,7 @@ LAYERS_METIER = {
     "prairies_et_natura_2000",
     "natura_2000",
     "prairies_sensibles",
-    "servitudes_reglementees",
+    "servitudes",
     "ppr",
     "pprif",
     "ppr_et_pprif",
@@ -264,9 +284,9 @@ def _add_parcelles_concernées_para(doc, parcelles: list[dict], *, size: int = 9
 
 def _write_ppr_sous_zone(doc, bloc: dict) -> None:
     """Paragraphes intitulés pour une sous-zone PPR (sans tableau)."""
-    _add_labeled_para(doc, "Sous-zone", bloc.get("label") or "")
-    _add_labeled_para(doc, "Degré", bloc.get("degre") or "")
+    _add_labeled_para(doc, "Sous-zone", bloc.get("label") or "", size=10)
     _add_labeled_para(doc, "Risque", bloc.get("risque") or "")
+    _add_labeled_para(doc, "Degré", bloc.get("degre") or "")
     _add_labeled_para(doc, "Coefficient d'emprise au sol (CES)", bloc.get("ces") or "")
     _add_labeled_para(doc, "Mise hors d'eau obligatoire", bloc.get("mise_hors_d_eau") or "")
 
@@ -412,11 +432,25 @@ def couches_par_section(rapport: dict):
     return groupes
 
 
+def _write_note_intersection_partielle(
+    doc,
+    obj: dict,
+    *,
+    multi_entites: bool,
+    enabled: bool,
+) -> None:
+    note = note_pour_objet(obj, multi_entites=multi_entites, enabled=enabled)
+    if note:
+        add_para(doc, note, italic=True, size=9, space_after=3)
+
+
 def _bloc_couche(doc, layer, prefix_nom=True, objets=None):
     """Écrit le nom de couche en gras + une puce par objet (texte réglementaire)."""
     rows = objets if objets is not None else layer.get("objets") or []
     if not rows:
         return
+    enabled = bool(layer.get("afficher_pct_sig_partiel"))
+    multi = est_multi_entites(layer.get("objets") or rows)
     if prefix_nom:
         add_para(doc, layer.get("nom") or "", bold=True, space_after=2)
     seen_regl: set[str] = set()
@@ -427,11 +461,17 @@ def _bloc_couche(doc, layer, prefix_nom=True, objets=None):
                 continue
             seen_regl.add(regl)
             add_markdown_block(doc, regl, size=9)
+            _write_note_intersection_partielle(
+                doc, obj, multi_entites=multi, enabled=enabled
+            )
             continue
         txt = texte_objet(obj, skip_reglementation=True)
         if not txt:
             continue
         add_para(doc, "• " + txt, size=9, space_after=3)
+        _write_note_intersection_partielle(
+            doc, obj, multi_entites=multi, enabled=enabled
+        )
 
 
 def _pct_sig(obj: dict) -> float:
@@ -537,8 +577,7 @@ def _format_hauteurs_intro(objets: list) -> tuple[list[str], Optional[str]]:
 
 
 def _objets_significatifs(objets: list) -> list:
-    significatifs = [obj for obj in objets if _pct_sig(obj) > MIN_ZONAGE_PCT]
-    return significatifs or list(objets)
+    return [obj for obj in objets if _pct_sig(obj) > MIN_ZONAGE_PCT]
 
 
 def _titre_hauteur_obj(obj: dict) -> Optional[str]:
@@ -754,10 +793,14 @@ def _write_i4_variantes(doc, servitude: dict) -> None:
 
 
 def section_sup(doc, ctx):
-    serv = ctx.rapport.get("intersections", {}).get("servitudes_reglementees", {})
-    servitudes = _dedupe_servitudes(serv.get("servitudes") or [])
+    inter = ctx.rapport.get("intersections", {})
+    serv_layer = inter.get("servitudes") or inter.get("servitudes_reglementees", {})
+    servitudes = _dedupe_servitudes(serv_layer.get("servitudes") or [])
     if not servitudes:
         return
+    enabled_partiel = bool(serv_layer.get("afficher_pct_sig_partiel"))
+    multi_couche = len(servitudes) > 1
+    surface_sig = float(ctx.rapport.get("surface_m2") or 0)
     add_title_bar(doc, "Servitudes d'utilité publique")
     for i, s in enumerate(servitudes):
         if i > 0:
@@ -772,22 +815,30 @@ def section_sup(doc, ctx):
             regl = (s.get("reglementation") or "").strip()
             if regl:
                 add_markdown_block(doc, regl, size=9)
-        url_gpu = (s.get("url_fiche_gpu") or "").strip()
-        if url_gpu:
-            add_para_with_link(
-                doc,
-                "Fiche GPU : ",
-                "consulter la fiche réglementaire",
-                url_gpu,
-                size=9,
-                space_after=4,
-            )
+        note = note_pour_servitude(
+            s,
+            multi_entites_couche=multi_couche,
+            enabled=enabled_partiel,
+            surface_sig=surface_sig,
+        )
+        if note:
+            add_para(doc, note, italic=True, size=9, space_after=4)
         base = (s.get("base_legale") or "").strip()
         if base:
             p = doc.add_paragraph()
             p.paragraph_format.space_before = Pt(4)
             p.paragraph_format.space_after = Pt(8)
             parse_markdown_inline(p, f"Base légale : {base}", size=9, italic_base=True)
+        url_gpu = (s.get("url_fiche_gpu") or "").strip()
+        if url_gpu:
+            add_para_with_link(
+                doc,
+                "Fiche GPU : ",
+                url_gpu,
+                url_gpu,
+                size=9,
+                space_after=4,
+            )
     doc.add_paragraph()
 
 
@@ -825,13 +876,6 @@ def _write_ppr_pprif_details(doc, module: dict, config: CommuneConfig) -> bool:
 
     if ppr_blocs:
         add_para(doc, ppr_data.get("nom") or "PPR (Plan de Prévention des Risques)", bold=True, space_after=2)
-        add_para_with_link(
-            doc,
-            "Règlement PPRN consultable sur : ",
-            "règlement PPRN (PDF)",
-            config.ppr_url,
-            space_after=6,
-        )
         add_para(
             doc,
             "L'unité foncière est concernée par une ou plusieurs zones du Plan de Prévention des Risques :",
@@ -851,16 +895,16 @@ def _write_ppr_pprif_details(doc, module: dict, config: CommuneConfig) -> bool:
             if code:
                 seen_note_codes.add(code)
             add_markdown_block(doc, note_regl, size=9)
+        add_para_with_link(
+            doc,
+            "Règlement PPRN consultable sur : ",
+            config.ppr_url,
+            config.ppr_url,
+            space_after=6,
+        )
 
     if pprif_blocs:
         add_para(doc, pprif_data.get("nom") or "PPRIF (Risque Incendie de Forêt)", bold=True, space_after=2)
-        add_para_with_link(
-            doc,
-            "Règlement PPRIF consultable sur : ",
-            "règlement PPRIF (PDF)",
-            config.pprif_url,
-            space_after=6,
-        )
         for bloc in pprif_blocs:
             rows = []
             if bloc.get("risque"):
@@ -873,6 +917,13 @@ def _write_ppr_pprif_details(doc, module: dict, config: CommuneConfig) -> bool:
             if regl:
                 add_markdown_block(doc, regl, size=9)
             _add_parcelles_concernées_para(doc, bloc.get("parcelles") or [])
+        add_para_with_link(
+            doc,
+            "Règlement PPRIF consultable sur : ",
+            config.pprif_url,
+            config.pprif_url,
+            space_after=6,
+        )
 
     return True
 
@@ -889,6 +940,9 @@ def _write_alea_feu_details(doc, module: dict) -> bool:
         bold=True,
         space_after=2,
     )
+    intro = (module.get("intro") or "").strip()
+    if intro:
+        add_para(doc, intro, size=9, space_after=6)
     for bloc in blocs:
         libelle = (bloc.get("libelle") or "").strip()
         if not libelle:
@@ -900,13 +954,15 @@ def _write_alea_feu_details(doc, module: dict) -> bool:
             size=9,
             space_after=3,
         )
-    add_para_with_link(
-        doc,
-        "Porté à connaissance consultable sur : ",
-        "Plan d'Aléa Feu (PAC)",
-        module.get("pac_url") or "",
-        space_after=6,
-    )
+    pac_url = (module.get("pac_url") or "").strip()
+    if pac_url:
+        add_para_with_link(
+            doc,
+            "Porté à connaissance consultable sur : ",
+            pac_url,
+            pac_url,
+            space_after=6,
+        )
     return True
 
 
@@ -948,8 +1004,22 @@ def _write_prescriptions_plu_detail_parcelles(doc, module: dict) -> bool:
     return True
 
 
+def _write_prescriptions_plu_item_note(doc, item: dict, *, multi_entites: bool, enabled: bool) -> None:
+    if not enabled:
+        return
+    try:
+        pct = float(item.get("pct_sig") or 0)
+    except (TypeError, ValueError):
+        return
+    note = texte_note_intersection_partielle(
+        pct, multi_entites=multi_entites, enabled=True
+    )
+    if note:
+        add_para(doc, note, italic=True, size=9, space_after=3)
+
+
 def _write_prescriptions_plu_details(doc, module: dict) -> bool:
-    """Prescriptions PLU : libellé + réglementation, sans pourcentage."""
+    """Prescriptions PLU : libellé + réglementation ; note partielle si catalogue activé."""
     couches = module.get("couches") or []
     has_detail = bool(module.get("detail_parcelles"))
     if not couches and not has_detail:
@@ -962,6 +1032,8 @@ def _write_prescriptions_plu_details(doc, module: dict) -> bool:
         items = couche.get("items") or []
         if not items:
             continue
+        enabled_partiel = bool(couche.get("afficher_pct_sig_partiel"))
+        multi = (couche.get("nb_objets") or 0) > 1
         if nom:
             add_para(doc, nom, bold=True, space_after=2)
         for item in items:
@@ -973,11 +1045,17 @@ def _write_prescriptions_plu_details(doc, module: dict) -> bool:
                 regl = (item.get("reglementation") or "").strip()
                 if regl:
                     add_markdown_block(doc, regl, size=9)
+                _write_prescriptions_plu_item_note(
+                    doc, item, multi_entites=multi, enabled=enabled_partiel
+                )
                 continue
             if kind == "bullet":
                 texte = (item.get("texte") or "").strip()
                 if texte:
                     add_para(doc, f"• {texte}", size=9, space_after=3)
+                _write_prescriptions_plu_item_note(
+                    doc, item, multi_entites=multi, enabled=enabled_partiel
+                )
     return True
 
 
@@ -1000,6 +1078,25 @@ def section_prescriptions(doc, ctx):
     for key, layer in layers:
         _bloc_couche(doc, layer, objets=_objets_affichables(key, layer))
     doc.add_paragraph()
+
+
+def _write_natura_partielles(doc, natura_layer: dict) -> None:
+    """Notes d'intersection partielle Natura 2000 (couche catalogue, section métier)."""
+    if not natura_layer or not natura_layer.get("afficher_pct_sig_partiel"):
+        return
+    objets = natura_layer.get("objets") or []
+    if not objets:
+        return
+    multi = est_multi_entites(objets)
+    for obj in objets:
+        note = note_pour_objet(obj, multi_entites=multi, enabled=True)
+        if not note:
+            continue
+        site = _label_obj(obj, "n_site", "c_site", "id")
+        if site:
+            add_para(doc, f"• {site} — {note}", italic=True, size=9, space_after=3)
+        else:
+            add_para(doc, note, italic=True, size=9, space_after=3)
 
 
 def _write_prairies_natura_details(doc, pn: dict):
@@ -1065,6 +1162,7 @@ def section_metier(doc, ctx):
 
     pn = inter.get("prairies_et_natura_2000", {})
     _write_prairies_natura_details(doc, pn)
+    _write_natura_partielles(doc, inter.get("natura_2000", {}))
 
 
 def section_dispositions(doc, ctx):
@@ -1087,19 +1185,19 @@ def section_dispositions(doc, ctx):
     intro_zonage = zonage.get("intro")
 
     add_title_bar(doc, "Zonage du PLU")
-    add_para_with_link(
-        doc,
-        "Règlement PLU consultable sur : ",
-        "règlement PLU (PDF)",
-        c.geoportail_url,
-        space_after=6,
-    )
     _write_zonage_plu_detail_parcelles(doc, zonage)
     if intro_zonage:
         add_para(doc, intro_zonage, bold=True, space_after=6)
     else:
         add_para(doc, "Zonage PLU non déterminé pour ce terrain.", italic=True, space_after=6)
     _write_zonage_plu_details(doc, zonage)
+    add_para_with_link(
+        doc,
+        "Règlement PLU consultable sur : ",
+        c.geoportail_url,
+        c.geoportail_url,
+        space_after=6,
+    )
 
     # ── Hauteurs PLU ──
     groupes = couches_par_section(ctx.rapport)
@@ -1112,13 +1210,6 @@ def section_dispositions(doc, ctx):
         secteurs, intro_hauteurs = _format_hauteurs_intro(objets_hauteurs)
         doc.add_paragraph()
         add_title_bar(doc, "Réglementation liée aux hauteurs")
-        add_para_with_link(
-            doc,
-            "Carte des hauteurs consultable sur : ",
-            "plan des hauteurs (PDF)",
-            c.hauteurs_url,
-            space_after=6,
-        )
         if intro_hauteurs:
             add_para(doc, intro_hauteurs, bold=True, space_after=6)
         _write_hauteurs_details(
@@ -1126,6 +1217,13 @@ def section_dispositions(doc, ctx):
             layer_hauteurs,
             show_layer_title=False,
             secteurs=secteurs,
+        )
+        add_para_with_link(
+            doc,
+            "Carte des hauteurs consultable sur : ",
+            c.hauteurs_url,
+            c.hauteurs_url,
+            space_after=6,
         )
 
     # Autres couches art. 3 éventuelles

@@ -26,6 +26,7 @@ except ImportError:
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 TAXES_TABLE = "taxes"
 MIN_INTERSECTION_AREA_M2 = 0.01
+DEFAULT_MIN_PCT_SIG = 1.0
 
 
 def _safe_ident(name: str) -> str:
@@ -57,6 +58,7 @@ def compute_taxes(
     uf_wkt: str,
     *,
     surface_sig: float = 0.0,
+    min_pct_sig: float = DEFAULT_MIN_PCT_SIG,
     engine=None,
     schema: str = SCHEMA,
 ) -> dict[str, Any]:
@@ -80,20 +82,31 @@ def compute_taxes(
             CROSS JOIN uf
             WHERE t.{geom_col} IS NOT NULL
               AND ST_Intersects(ST_MakeValid(t.{geom_col}), uf.geom)
-              AND ST_Area(ST_Intersection(ST_MakeValid(t.{geom_col}), uf.geom))
-                  > {MIN_INTERSECTION_AREA_M2}
         )
         SELECT id,
                libelle,
                taux,
                ST_Area(inter_geom) AS surface_inter_m2
         FROM inter_raw
+        WHERE ST_Area(inter_geom) > {MIN_INTERSECTION_AREA_M2}
+          AND (
+              :min_pct_sig <= 0
+              OR :surface_sig <= 0
+              OR (ST_Area(inter_geom) / :surface_sig * 100) > :min_pct_sig
+          )
         ORDER BY ST_Area(inter_geom) DESC
         """
     )
 
     with engine.connect() as conn:
-        rows = conn.execute(sql, {"wkt": uf_wkt}).mappings().all()
+        rows = conn.execute(
+            sql,
+            {
+                "wkt": uf_wkt,
+                "surface_sig": float(surface_sig or 0),
+                "min_pct_sig": float(min_pct_sig),
+            },
+        ).mappings().all()
 
     if not rows:
         return {"status": "non_concernee", "objets": []}

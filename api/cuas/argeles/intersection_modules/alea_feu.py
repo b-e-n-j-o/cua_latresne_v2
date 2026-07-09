@@ -17,6 +17,13 @@ PAC_URL = (
     "Le-risque-Incendie-de-Foret-et-de-Vegetation/Le-PAC"
 )
 NOM = "Risque d'incendie de forêt et de végétation"
+INTRO = (
+    "Selon le niveau de risque identifié, un projet de construction ou d'aménagement "
+    "peut nécessiter des prescriptions particulières, voire être limité ou refusé afin "
+    "de garantir la sécurité des personnes et des biens. Cette information s'inscrit "
+    "dans une démarche de prévention et de réduction de la vulnérabilité face au "
+    "risque d'incendie."
+)
 
 
 def _pct_sig(obj: dict) -> float:
@@ -41,6 +48,7 @@ def compute_alea_feu_reglementation(
                 "RAS : aucun aléa incendie de forêt et de végétation sur l'UF"
             ),
             "nom": NOM,
+            "intro": INTRO,
             "blocs": [],
             "pac_url": PAC_URL,
         }
@@ -66,6 +74,7 @@ def compute_alea_feu_reglementation(
             else "RAS : aucun aléa incendie de forêt et de végétation sur l'UF"
         ),
         "nom": NOM,
+        "intro": INTRO,
         "blocs": blocs,
         "pac_url": PAC_URL,
     }

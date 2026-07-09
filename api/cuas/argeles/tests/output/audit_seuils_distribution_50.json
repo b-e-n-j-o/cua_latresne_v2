@@ -1,0 +1,385 @@
+{
+  "meta": {
+    "generated_at": "2026-07-09T09:51:07.473381+00:00",
+    "schema": "argeles",
+    "catalogue": "/Volumes/T7/Travaux_Freelance/KERELIA/CUAs/BACKEND_PRINCIPAL/LATRESNE/cua_latresne_v4/api/cuas/argeles/catalogue_cua_argeles.json",
+    "n_parcelles": 50,
+    "audit_mode": "raw_min_pct_sig_0",
+    "seed": null,
+    "buckets": {
+      "micro_le_1": "> 0 % et ≤ 1 %",
+      "entre_1_et_5": "> 1 % et ≤ 5 %",
+      "gt_5": "> 5 %"
+    }
+  },
+  "summary_by_layer": {
+    "alea_feu": {
+      "nom": "Risque d'incendie de forêt et de végétation (PAC)",
+      "geom_type": "surfacique",
+      "total_hits": 79,
+      "buckets": {
+        "micro_le_1": 3,
+        "entre_1_et_5": 8,
+        "gt_5": 68
+      },
+      "parcelles_avec_hit": 50,
+      "parcelles_avec_hit_1_5_pct": 8,
+      "pct_sig_min": 0.1486,
+      "pct_sig_max": 100.0128,
+      "part_parcels_1_5_pct": 16.0
+    },
+    "aoc": {
+      "nom": "AOC viticoles",
+      "geom_type": "surfacique",
+      "total_hits": 21,
+      "buckets": {
+        "micro_le_1": 1,
+        "entre_1_et_5": 0,
+        "gt_5": 20
+      },
+      "parcelles_avec_hit": 20,
+      "parcelles_avec_hit_1_5_pct": 0,
+      "pct_sig_min": 0.0016,
+      "pct_sig_max": 100.0003,
+      "part_parcels_1_5_pct": 0.0
+    },
+    "batiments": {
+      "nom": "Batiments",
+      "geom_type": "surfacique",
+      "total_hits": 0,
+      "buckets": {
+        "micro_le_1": 0,
+        "entre_1_et_5": 0,
+        "gt_5": 0
+      },
+      "parcelles_avec_hit": 0,
+      "parcelles_avec_hit_1_5_pct": 0,
+      "pct_sig_min": null,
+      "pct_sig_max": null,
+      "part_parcels_1_5_pct": 0.0
+    },
+    "hauteurs": {
+      "nom": "Hauteurs maximales (PLU)",
+      "geom_type": "surfacique",
+      "total_hits": 59,
+      "buckets": {
+        "micro_le_1": 8,
+        "entre_1_et_5": 0,
+        "gt_5": 51
+      },
+      "parcelles_avec_hit": 50,
+      "parcelles_avec_hit_1_5_pct": 0,
+      "pct_sig_min": 0.0013,
+      "pct_sig_max": 100.0128,
+      "part_parcels_1_5_pct": 0.0
+    },
+    "infos_surf": {
+      "nom": "Informations surfaciques",
+      "geom_type": "surfacique",
+      "total_hits": 69,
+      "buckets": {
+        "micro_le_1": 7,
+        "entre_1_et_5": 4,
+        "gt_5": 58
+      },
+      "parcelles_avec_hit": 38,
+      "parcelles_avec_hit_1_5_pct": 4,
+      "pct_sig_min": 0.0002,
+      "pct_sig_max": 100.0128,
+      "part_parcels_1_5_pct": 8.0
+    },
+    "natura_2000": {
+      "nom": "NATURA 2000",
+      "geom_type": "surfacique",
+      "total_hits": 14,
+      "buckets": {
+        "micro_le_1": 0,
+        "entre_1_et_5": 0,
+        "gt_5": 14
+      },
+      "parcelles_avec_hit": 8,
+      "parcelles_avec_hit_1_5_pct": 0,
+      "pct_sig_min": 99.981,
+      "pct_sig_max": 100.0128,
+      "part_parcels_1_5_pct": 0.0
+    },
+    "old": {
+      "nom": "Zones de debroussaillement (OLD)",
+      "geom_type": "surfacique",
+      "total_hits": 23,
+      "buckets": {
+        "micro_le_1": 0,
+        "entre_1_et_5": 1,
+        "gt_5": 22
+      },
+      "parcelles_avec_hit": 23,
+      "parcelles_avec_hit_1_5_pct": 1,
+      "pct_sig_min": 3.9358,
+      "pct_sig_max": 100.0018,
+      "part_parcels_1_5_pct": 2.0
+    },
+    "ppr": {
+      "nom": "PPR (Plan de Prevention des Risques)",
+      "geom_type": "surfacique",
+      "total_hits": 73,
+      "buckets": {
+        "micro_le_1": 3,
+        "entre_1_et_5": 5,
+        "gt_5": 65
+      },
+      "parcelles_avec_hit": 50,
+      "parcelles_avec_hit_1_5_pct": 5,
+      "pct_sig_min": 0.1268,
+      "pct_sig_max": 100.0128,
+      "part_parcels_1_5_pct": 10.0
+    },
+    "pprif": {
+      "nom": "PPRIF (Risque Incendie de Foret)",
+      "geom_type": "surfacique",
+      "total_hits": 17,
+      "buckets": {
+        "micro_le_1": 1,
+        "entre_1_et_5": 0,
+        "gt_5": 16
+      },
+      "parcelles_avec_hit": 15,
+      "parcelles_avec_hit_1_5_pct": 0,
+      "pct_sig_min": 0.7576,
+      "pct_sig_max": 100.0018,
+      "part_parcels_1_5_pct": 0.0
+    },
+    "prairies_sensibles": {
+      "nom": "Prairies permanentes",
+      "geom_type": "surfacique",
+      "total_hits": 2,
+      "buckets": {
+        "micro_le_1": 0,
+        "entre_1_et_5": 0,
+        "gt_5": 2
+      },
+      "parcelles_avec_hit": 2,
+      "parcelles_avec_hit_1_5_pct": 0,
+      "pct_sig_min": 73.762,
+      "pct_sig_max": 100.0,
+      "part_parcels_1_5_pct": 0.0
+    },
+    "prescriptions_surf": {
+      "nom": "Prescriptions surfaciques (PLU)",
+      "geom_type": "surfacique",
+      "total_hits": 18,
+      "buckets": {
+        "micro_le_1": 6,
+        "entre_1_et_5": 2,
+        "gt_5": 10
+      },
+      "parcelles_avec_hit": 12,
+      "parcelles_avec_hit_1_5_pct": 2,
+      "pct_sig_min": 0.0064,
+      "pct_sig_max": 99.9657,
+      "part_parcels_1_5_pct": 4.0
+    },
+    "retrait_gonflement_argiles_2026": {
+      "nom": "Retrait-gonflement des argiles (2026)",
+      "geom_type": "surfacique",
+      "total_hits": 43,
+      "buckets": {
+        "micro_le_1": 0,
+        "entre_1_et_5": 0,
+        "gt_5": 43
+      },
+      "parcelles_avec_hit": 43,
+      "parcelles_avec_hit_1_5_pct": 0,
+      "pct_sig_min": 44.5534,
+      "pct_sig_max": 100.0128,
+      "part_parcels_1_5_pct": 0.0
+    },
+    "zaer": {
+      "nom": "ZAER (Zones d'Accélération des Energies Renouvelables)",
+      "geom_type": "surfacique",
+      "total_hits": 1,
+      "buckets": {
+        "micro_le_1": 1,
+        "entre_1_et_5": 0,
+        "gt_5": 0
+      },
+      "parcelles_avec_hit": 1,
+      "parcelles_avec_hit_1_5_pct": 0,
+      "pct_sig_min": 0.0056,
+      "pct_sig_max": 0.0056,
+      "part_parcels_1_5_pct": 0.0
+    },
+    "znieffs": {
+      "nom": "ZNIEFF",
+      "geom_type": "surfacique",
+      "total_hits": 14,
+      "buckets": {
+        "micro_le_1": 0,
+        "entre_1_et_5": 0,
+        "gt_5": 14
+      },
+      "parcelles_avec_hit": 12,
+      "parcelles_avec_hit_1_5_pct": 0,
+      "pct_sig_min": 11.3111,
+      "pct_sig_max": 100.0004,
+      "part_parcels_1_5_pct": 0.0
+    },
+    "zonage_plu": {
+      "nom": "Zonage PLU",
+      "geom_type": "surfacique",
+      "total_hits": 59,
+      "buckets": {
+        "micro_le_1": 8,
+        "entre_1_et_5": 0,
+        "gt_5": 51
+      },
+      "parcelles_avec_hit": 50,
+      "parcelles_avec_hit_1_5_pct": 0,
+      "pct_sig_min": 0.0011,
+      "pct_sig_max": 100.0128,
+      "part_parcels_1_5_pct": 0.0
+    }
+  },
+  "hits_entre_1_et_5_pct": [
+    {
+      "parcelle": "CI:104",
+      "couche": "prescriptions_surf",
+      "nom_couche": "Prescriptions surfaciques (PLU)",
+      "pct_sig": 2.0117,
+      "libelle": "Espace boisé classé"
+    },
+    {
+      "parcelle": "CI:104",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.5647,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "BN:426",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.7288,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "BN:426",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 1.7291,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "BN:37",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.4584,
+      "libelle": "Très élevé"
+    },
+    {
+      "parcelle": "AO:312",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 1.7021,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AO:312",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.8977,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AP:138",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.0974,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "BS:740",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 4.7302,
+      "libelle": "Elevé"
+    },
+    {
+      "parcelle": "BH:757",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 3.0403,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "BH:757",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 3.0407,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "AH:44",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 3.0953,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AH:44",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 3.0948,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "CH:226",
+      "couche": "prescriptions_surf",
+      "nom_couche": "Prescriptions surfaciques (PLU)",
+      "pct_sig": 2.6841,
+      "libelle": "Espace boisé classé"
+    },
+    {
+      "parcelle": "AY:395",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 1.7321,
+      "libelle": "Faible"
+    },
+    {
+      "parcelle": "BK:16",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.7415,
+      "libelle": "Moyen"
+    },
+    {
+      "parcelle": "AT:348",
+      "couche": "old",
+      "nom_couche": "Zones de debroussaillement (OLD)",
+      "pct_sig": 3.9358,
+      "libelle": "2"
+    },
+    {
+      "parcelle": "AK:112",
+      "couche": "ppr",
+      "nom_couche": "PPR (Plan de Prevention des Risques)",
+      "pct_sig": 4.6883,
+      "libelle": "inondation"
+    },
+    {
+      "parcelle": "AK:112",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 4.6936,
+      "libelle": "Plan de Prévention des Risques Naturels"
+    },
+    {
+      "parcelle": "BC:399",
+      "couche": "alea_feu",
+      "nom_couche": "Risque d'incendie de forêt et de végétation (PAC)",
+      "pct_sig": 2.0941,
+      "libelle": "Moyen"
+    }
+  ],
+  "errors": []
+}

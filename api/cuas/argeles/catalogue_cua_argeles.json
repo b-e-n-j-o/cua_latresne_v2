@@ -13,7 +13,8 @@
     "group_by": [
       "zonage_reglement"
     ],
-    "geom_type": "surfacique"
+    "geom_type": "surfacique",
+    "min_pct_sig": 1.0
   },
   "hauteurs": {
     "nom": "Hauteurs maximales (PLU)",
@@ -25,7 +26,8 @@
     ],
     "origine": "plu",
     "article": "3",
-    "geom_type": "surfacique"
+    "geom_type": "surfacique",
+    "min_pct_sig": 1.0
   },
   "ppr": {
     "nom": "PPR (Plan de Prevention des Risques)",
@@ -41,7 +43,8 @@
     ],
     "origine": "georisques",
     "article": "5",
-    "geom_type": "surfacique"
+    "geom_type": "surfacique",
+    "min_pct_sig": 1.0
   },
   "pprif": {
     "nom": "PPRIF (Risque Incendie de Foret)",
@@ -53,7 +56,8 @@
     ],
     "origine": "georisques",
     "article": "5",
-    "geom_type": "surfacique"
+    "geom_type": "surfacique",
+    "min_pct_sig": 1.0
   },
   "aoc": {
     "nom": "AOC viticoles",
@@ -65,7 +69,8 @@
     ],
     "origine": "inao",
     "article": "5",
-    "geom_type": "surfacique"
+    "geom_type": "surfacique",
+    "min_pct_sig": 1.0
   },
   "prescriptions_surf": {
     "nom": "Prescriptions surfaciques (PLU)",
@@ -77,7 +82,9 @@
     ],
     "origine": "plu",
     "article": "5",
-    "geom_type": "surfacique"
+    "geom_type": "surfacique",
+    "min_pct_sig": 1.0,
+    "afficher_pct_sig_partiel": true
   },
   "prescriptions_lineaires": {
     "nom": "Prescriptions lineaires (PLU)",
@@ -113,7 +120,9 @@
     ],
     "origine": "plu",
     "article": "7",
-    "geom_type": "surfacique"
+    "geom_type": "surfacique",
+    "min_pct_sig": 1.0,
+    "afficher_pct_sig_partiel": true
   },
   "retrait_gonflement_argiles_2026": {
     "nom": "Retrait-gonflement des argiles (2026)",
@@ -125,7 +134,9 @@
     ],
     "origine": "shp",
     "article": "5",
-    "geom_type": "surfacique"
+    "geom_type": "surfacique",
+    "min_pct_sig": 1.0,
+    "afficher_pct_sig_partiel": true
   },
   "old": {
     "nom": "Zones de debroussaillement (OLD)",
@@ -137,7 +148,9 @@
     ],
     "origine": "shp",
     "article": "5",
-    "geom_type": "surfacique"
+    "geom_type": "surfacique",
+    "min_pct_sig": 1.0,
+    "afficher_pct_sig_partiel": true
   },
   "alea_feu": {
     "nom": "Risque d'incendie de forêt et de végétation (PAC)",
@@ -147,7 +160,8 @@
     ],
     "origine": "shp",
     "article": "5",
-    "geom_type": "surfacique"
+    "geom_type": "surfacique",
+    "min_pct_sig": 1.0
   },
   "haies_bocages": {
     "nom": "Haies et bocages",
@@ -170,7 +184,9 @@
     ],
     "origine": "wfs",
     "article": "5",
-    "geom_type": "surfacique"
+    "geom_type": "surfacique",
+    "min_pct_sig": 1.0,
+    "afficher_pct_sig_partiel": true
   },
   "prairies_sensibles": {
     "nom": "Prairies permanentes",
@@ -180,7 +196,8 @@
     ],
     "origine": "wfs",
     "article": "5",
-    "geom_type": "surfacique"
+    "geom_type": "surfacique",
+    "min_pct_sig": 1.0
   },
   "natura_2000": {
     "nom": "NATURA 2000",
@@ -193,7 +210,9 @@
     ],
     "origine": "wfs",
     "article": "5",
-    "geom_type": "surfacique"
+    "geom_type": "surfacique",
+    "min_pct_sig": 1.0,
+    "afficher_pct_sig_partiel": true
   },
   "reseaux_enedis_lineaires": {
     "nom": "Réseaux ENEDIS linéaires",
@@ -216,7 +235,8 @@
     ],
     "origine": "wfs",
     "article": "5",
-    "geom_type": "surfacique"
+    "geom_type": "surfacique",
+    "min_pct_sig": 1.0
   },
   "batiments": {
     "nom": "Batiments",
@@ -226,6 +246,23 @@
     ],
     "origine": "cadastre",
     "article": "5",
-    "geom_type": "surfacique"
+    "geom_type": "surfacique",
+    "min_pct_sig": 1.0
+  },
+  "servitudes": {
+    "nom": "Servitudes d'utilité publique (SUP)",
+    "type": "servitude",
+    "handler": "servitudes",
+    "keep": [
+      "suptype",
+      "nomsuplitt",
+      "nom_sup",
+      "type"
+    ],
+    "origine": "gpu",
+    "article": "4",
+    "geom_type": "surfacique",
+    "min_pct_sig": 1.0,
+    "afficher_pct_sig_partiel": true
   }
 }

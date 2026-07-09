@@ -145,8 +145,7 @@ def _format_intro(objets: list, min_zonage_pct: float) -> tuple[list[str], Optio
 
 
 def _objets_significatifs(objets: list, min_zonage_pct: float) -> list:
-    significatifs = [obj for obj in objets if _pct_sig(obj) > min_zonage_pct]
-    return significatifs or list(objets)
+    return [obj for obj in objets if _pct_sig(obj) > min_zonage_pct]
 
 
 def _build_items(

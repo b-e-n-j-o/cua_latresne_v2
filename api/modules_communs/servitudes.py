@@ -23,6 +23,7 @@ REGLEMENTS_TABLE = "servitudes_reglements"
 I4_VARIANTES_TABLE = "servitudes_reglements_i4"
 SRID = 2154
 MIN_INTERSECTION_AREA_M2 = 0.01
+DEFAULT_MIN_PCT_SIG = 1.0
 
 AGGREGATE_SUM_METRIC_SUPTYPES = frozenset({"EL3", "I6"})
 
@@ -220,7 +221,14 @@ def _excluded_suptypes_sql(excluded: frozenset[str]) -> str:
     return f"AND UPPER(TRIM(s.suptype)) NOT IN ({quoted})"
 
 
-def _intersect_servitudes(engine: Engine, uf_wkt: str, config: ServitudesConfig) -> list[dict]:
+def _intersect_servitudes(
+    engine: Engine,
+    uf_wkt: str,
+    config: ServitudesConfig,
+    *,
+    surface_sig: float = 0.0,
+    min_pct_sig: float = DEFAULT_MIN_PCT_SIG,
+) -> list[dict]:
     schema = _safe_ident(config.geo_schema)
     table = _safe_ident(config.servitudes_table)
     geom_col = _safe_ident(config.geom_column)
@@ -264,11 +272,26 @@ def _intersect_servitudes(engine: Engine, uf_wkt: str, config: ServitudesConfig)
           AND ST_Intersects(ST_MakeValid(s.{geom_col}), uf.geom)
           AND ST_Area(ST_Intersection(ST_MakeValid(s.{geom_col}), uf.geom))
               > {MIN_INTERSECTION_AREA_M2}
+          AND (
+              :min_pct_sig <= 0
+              OR :surface_sig <= 0
+              OR (
+                  ST_Area(ST_Intersection(ST_MakeValid(s.{geom_col}), uf.geom))
+                  / :surface_sig * 100
+              ) > :min_pct_sig
+          )
         """
     )
 
     with engine.connect() as conn:
-        rows = conn.execute(sql, {"wkt": uf_wkt}).mappings().all()
+        rows = conn.execute(
+            sql,
+            {
+                "wkt": uf_wkt,
+                "surface_sig": float(surface_sig or 0),
+                "min_pct_sig": float(min_pct_sig),
+            },
+        ).mappings().all()
 
     out = []
     for row in rows:
@@ -277,6 +300,8 @@ def _intersect_servitudes(engine: Engine, uf_wkt: str, config: ServitudesConfig)
         area = obj.pop("area_m2", None)
         if area is not None:
             obj["metric"] = round(float(area), 2)
+            if surface_sig > 0:
+                obj["pct_sig"] = round(float(area) / surface_sig * 100, 4)
         dist = obj.get("distance_m")
         if dist is not None:
             obj["distance_m"] = round(float(dist), 1)
@@ -331,6 +356,8 @@ def _resolve_servitude_entry(
     }
     if entity.get("metric") is not None:
         entry["metric"] = entity["metric"]
+    if entity.get("pct_sig") is not None:
+        entry["pct_sig"] = entity["pct_sig"]
     if entity.get("distance_m") is not None:
         entry["distance_m"] = entity["distance_m"]
 
@@ -353,6 +380,19 @@ def _resolve_servitude_entry(
                 entry["i4_non_resolu"] = True
 
     return entry
+
+
+def _max_pct_sig(entries: list[dict]) -> Optional[float]:
+    vals = []
+    for entry in entries:
+        pct = entry.get("pct_sig")
+        if pct is None:
+            continue
+        try:
+            vals.append(float(pct))
+        except (TypeError, ValueError):
+            continue
+    return max(vals) if vals else None
 
 
 def _aggregate_ac1_entries(entries: list[dict]) -> Optional[dict]:
@@ -387,6 +427,9 @@ def _aggregate_ac1_entries(entries: list[dict]) -> Optional[dict]:
     aggregated["libelle"] = base.get("libelle") or "Servitude AC1 — Monuments historiques"
     aggregated["monuments"] = monuments
     aggregated["nb_fragments"] = len(entries)
+    pct_max = _max_pct_sig(entries)
+    if pct_max is not None:
+        aggregated["pct_sig"] = pct_max
     return aggregated
 
 
@@ -400,6 +443,9 @@ def _aggregate_sum_metric_entries(entries: list[dict]) -> dict:
     }
     aggregated["metric"] = total_metric
     aggregated["nb_fragments"] = len(entries)
+    pct_max = _max_pct_sig(entries)
+    if pct_max is not None:
+        aggregated["pct_sig"] = pct_max
     return aggregated
 
 
@@ -458,6 +504,9 @@ def _aggregate_i4_entries(entries: list[dict]) -> Optional[dict]:
     )
     aggregated["nb_fragments"] = len(entries)
     aggregated["metric"] = round(sum(float(e.get("metric") or 0) for e in entries), 2)
+    pct_max = _max_pct_sig(entries)
+    if pct_max is not None:
+        aggregated["pct_sig"] = pct_max
     if nb_non_resolus:
         aggregated["i4_non_resolu"] = True
         aggregated["nb_non_resolus"] = nb_non_resolus
@@ -498,6 +547,8 @@ def compute_servitudes_reglementation(
     *,
     engine: Engine,
     config: ServitudesConfig,
+    surface_sig: float = 0.0,
+    min_pct_sig: float = DEFAULT_MIN_PCT_SIG,
 ) -> dict:
     """Retourne les servitudes intersectées enrichies de leur réglementation textuelle."""
     geo_schema = _safe_ident(config.geo_schema)
@@ -519,7 +570,13 @@ def compute_servitudes_reglementation(
 
     reglements = _load_reglements(engine)
     i4_variantes = _load_i4_variantes(engine)
-    entities = _intersect_servitudes(engine, uf_wkt, config)
+    entities = _intersect_servitudes(
+        engine,
+        uf_wkt,
+        config,
+        surface_sig=surface_sig,
+        min_pct_sig=min_pct_sig,
+    )
 
     servitudes: list[dict] = []
     seen_keys: set[tuple] = set()
