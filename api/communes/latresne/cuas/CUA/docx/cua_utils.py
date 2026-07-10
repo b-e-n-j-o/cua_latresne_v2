@@ -389,11 +389,9 @@ def filter_intersections(
     min_pct: float = 1.0
 ) -> Dict[str, Any]:
     """
-    Filtrage robuste des couches par géométrie.
-    
-    - surfacique  → filtrage par pourcentage (>= min_pct)
-    - lineaire    → toujours conserver (pct toujours 0)
-    - ponctuelle  → toujours conserver
+    Filtrage des couches pour le builder DOCX.
+    Le seuil surfacique (1 %) est appliqué en amont dans intersections.py ;
+    min_pct sert ici uniquement de garde-fou optionnel.
     
     ✅ CORRECTION : Les objets sont TOUJOURS préservés, même si la couche est filtrée
     """
@@ -401,7 +399,7 @@ def filter_intersections(
 
     for key, layer in intersections_raw.items():
         pct = float(layer.get("pct_sig", 0))
-        geom_type = catalogue.get(key, {}).get("geom_type")
+        geom_type = layer.get("geom_type") or catalogue.get(key, {}).get("geom_type")
         
         # ✅ TOUJOURS préserver les objets bruts
         objets_originaux = list(layer.get("objets", []))
@@ -410,7 +408,8 @@ def filter_intersections(
         # 1) Surfacique → filtrage
         # --------------------------
         if geom_type == "surfacique":
-            # ✅ On conserve la couche si pct >= min_pct
+            if not objets_originaux:
+                continue
             if pct >= min_pct:
                 new_layer = {
                     "nom": layer.get("nom"),
@@ -442,7 +441,7 @@ def filter_intersections(
         # --------------------------
         # 3) Ponctuel → toujours garder
         # --------------------------
-        if geom_type == "ponctuelle":
+        if geom_type in ("ponctuel", "ponctuelle"):
             new_layer = {
                 "nom": layer.get("nom"),
                 "type": layer.get("type"),
@@ -540,8 +539,8 @@ def equilibrer_pourcentages(layers, layer_keys=None, catalogue=None):
         # Filtrer les couches non-surfaciques
         surfaciques = []
         for i, (layer, key) in enumerate(zip(layers, layer_keys)):
-            geom_type = catalogue.get(key, {}).get("geom_type")
-            if geom_type in ("lineaire", "ponctuelle"):
+            geom_type = layer.get("geom_type") or catalogue.get(key, {}).get("geom_type")
+            if geom_type in ("lineaire", "ponctuel", "ponctuelle"):
                 # Garder le pourcentage tel quel pour les couches non-surfaciques
                 continue
             # Pour les surfaciques ou si geom_type non défini, inclure dans l'équilibrage

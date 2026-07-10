@@ -209,7 +209,7 @@ def render_layer_content(
         # ✅ Vérifier le type de géométrie depuis le catalogue
         geom_type = catalogue.get(layer_key, {}).get("geom_type")
         
-        if geom_type in ("lineaire", "ponctuelle"):
+        if geom_type in ("lineaire", "ponctuel", "ponctuelle"):
             add_paragraph(
                 doc,
                 f"Part de l'unité foncière concernée : entités {geom_type}s (pas de surface mesurable).",
@@ -402,7 +402,7 @@ def build_cua_docx(
         intersections_catalogue,
         catalogue_json,
         surface_indicative,
-        min_pct=0.0  # ✅ Garder toutes les couches, filtrer après sur objets
+        min_pct=0.0  # Filtrage surfacique (1 %) centralisé dans intersections.py
     )
 
     print(f"\n🔍 DEBUG: Couches après filtrage:")
@@ -651,8 +651,9 @@ def build_cua_docx(
     ensure_page_space_for_article(doc)
     add_article_title(doc, "Article NEUF – Droit de préemption")
     
-    has_dpu = bool(layers_by_article.get("9"))
-    
+    layers_art9 = layers_by_article.get("9") or []
+    has_dpu = any(layer_data.get("objets") for _, layer_data in layers_art9)
+
     if has_dpu:
         add_paragraph(doc,
             "Le bien est situé dans un périmètre de DPU (Droit de Préemption Urbain) délimité "
@@ -662,8 +663,9 @@ def build_cua_docx(
             "pièces/visite (C. urb. L213-2). Silence = renonciation (C. urb. R213-4 s.). "
             "En cas de désaccord sur le prix, saisine du juge de l'expropriation (C. urb. L213-4)."
         )
-        for layer_key, layer_data in layers_by_article["9"]:
-            render_layer_content(doc, layer_data, layer_key, catalogue_json)
+        for layer_key, layer_data in layers_art9:
+            if layer_data.get("objets"):
+                render_layer_content(doc, layer_data, layer_key, catalogue_json)
     else:
         add_paragraph(doc,
             "Le terrain n'est pas situé dans une zone de droit de préemption. Aucune DIA "

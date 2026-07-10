@@ -27,7 +27,11 @@ from api.communes.latresne.cuas.CERFA_ANALYSE.auth_utils import is_authorized_fo
 # ✨ Nouveau : imports directs des modules internes
 from api.communes.latresne.cuas.CERFA_ANALYSE.mistral_analyse_cerfa_complet import analyser_cerfa_complet
 from api.communes.latresne.cuas.CERFA_ANALYSE.verification_unite_fonciere import verifier_unite_fonciere
-from api.communes.latresne.cuas.INTERSECTIONS.intersections import CATALOGUE, calculate_intersection
+from api.communes.latresne.cuas.INTERSECTIONS.intersections import (
+    CATALOGUE,
+    calculate_intersection,
+    format_intersection_layer,
+)
 from api.communes.latresne.cuas.INTERSECTIONS.intersection_modules.enrichment import enrich_intersections_rapport
 from api.communes.latresne.cuas.CUA.sub_orchestrator_cua import generer_visualisations_et_cua_depuis_wkt
 from sqlalchemy import create_engine, text
@@ -149,30 +153,15 @@ def _analyse_intersections_depuis_wkt(wkt_path: str, out_dir: Path):
     for table, config in CATALOGUE.items():
         logger.info(f"→ {table}")
         # Nouveau format intersections v10
-        objets, surface_totale_sig, metadata = calculate_intersection(parcelle_wkt, table, area_parcelle_sig)
-        
+        objets, total_metric, metadata = calculate_intersection(parcelle_wkt, table, area_parcelle_sig)
+        layer = format_intersection_layer(config, objets, total_metric, area_parcelle_sig)
+
         if objets:
-            logger.info(f"  ✅ {len(objets)} objet(s) | {surface_totale_sig:.2f} m²")
-            # Calcul du pourcentage SIG
-            pct_sig = 0.0
-            if area_parcelle_sig > 0:
-                pct_sig = round(surface_totale_sig / area_parcelle_sig * 100, 4)
-            
-            # Nouveau JSON conforme à intersections v10
-            rapport["intersections"][table] = {
-                "nom": config["nom"],
-                "type": config["type"],
-                "pct_sig": pct_sig,
-                "objets": objets
-            }
+            logger.info(f"  ✅ {len(objets)} objet(s) | {layer['pct_sig']:.4f} %")
         else:
-            logger.info(f"  ❌ Aucune intersection")
-            rapport["intersections"][table] = {
-                "nom": config["nom"],
-                "type": config["type"],
-                "pct_sig": 0.0,
-                "objets": []
-            }
+            logger.info("  ❌ Aucune intersection")
+
+        rapport["intersections"][table] = layer
 
     enrich_intersections_rapport(rapport, parcelle_wkt, engine)
 

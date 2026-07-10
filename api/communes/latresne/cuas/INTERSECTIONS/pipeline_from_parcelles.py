@@ -29,6 +29,7 @@ from api.communes.latresne.cuas.INTERSECTIONS.intersections import (
     CATALOGUE,
     calculate_intersection,
     fetch_superficie_indicative,
+    format_intersection_layer,
 )
 from api.communes.latresne.cuas.INTERSECTIONS.intersection_modules.enrichment import enrich_intersections_rapport
 from api.communes.latresne.cuas.CUA.sub_orchestrator_cua import generer_visualisations_et_cua_depuis_wkt
@@ -334,27 +335,15 @@ def run_pipeline_from_parcelles(
     n_tables = len(CATALOGUE)
     for i, (table, config) in enumerate(CATALOGUE.items()):
         logger.info(f"→ {table}")
-        objets, surface_totale_sig, metadata = calculate_intersection(parcelle_wkt, table, area_parcelle_sig)
+        objets, total_metric, metadata = calculate_intersection(parcelle_wkt, table, area_parcelle_sig)
+        layer = format_intersection_layer(config, objets, total_metric, area_parcelle_sig)
         if objets:
-            logger.info(f"  ✅ {len(objets)} objet(s) | {surface_totale_sig:.2f} m²")
-            pct_sig = 0.0
-            if area_parcelle_sig > 0:
-                pct_sig = round(surface_totale_sig / area_parcelle_sig * 100, 4)
-            rapport["intersections"][table] = {
-                "nom": config["nom"],
-                "type": config["type"],
-                "pct_sig": pct_sig,
-                "objets": objets
-            }
+            logger.info(f"  ✅ {len(objets)} objet(s) | {layer['pct_sig']:.4f} %")
+            rapport["intersections"][table] = layer
         else:
-            logger.info(f"  ❌ Aucune intersection")
-            rapport["intersections"][table] = {
-                "nom": config["nom"],
-                "type": config["type"],
-                "pct_sig": 0.0,
-                "objets": []
-            }
-        del objets, surface_totale_sig, metadata
+            logger.info("  ❌ Aucune intersection")
+            rapport["intersections"][table] = layer
+        del objets, total_metric, metadata
         if i % 5 == 0:
             log_memory(f"INTERSECTIONS_{i}/{n_tables}")
             gc.collect()

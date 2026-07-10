@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-intersections.py - intersections_v10
+intersections.py - intersections_v11
 ----------------------------------------------------
 Analyse les intersections entre une parcelle et les couches du catalogue.
+
+Filtrage centralisé :
+  - surfacique : aire > 0,01 m² ET part UF > 1 % (min_pct_sig, surchargeable dans le catalogue)
+  - lineaire   : longueur d'intersection > 0,01 m
+  - ponctuel   : ST_Within (entité dans l'UF)
 """
 
 import os
+import re
 import json
 import logging
 from datetime import datetime
@@ -37,6 +43,15 @@ engine = create_engine(
 )
 
 SCHEMA = "latresne"
+SRID = 2154
+GEOM_COL = "geom_2154"
+
+# Seuils d'intersection : micro-artefacts numériques et recouvrements frontaliers.
+MIN_INTERSECTION_AREA_M2 = 0.01
+MIN_INTERSECTION_LENGTH_M = 0.01
+DEFAULT_MIN_PCT_SIG = 1.0
+
+_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 # Détermination du chemin absolu du fichier catalogue
 PROJECT_ROOT = Path(__file__).resolve().parents[1]   # remonte d’un niveau
@@ -46,6 +61,73 @@ with open(CATALOGUE_PATH, 'r', encoding='utf-8') as f:
     CATALOGUE = json.load(f)
 
 from api.communes.latresne.cuas.INTERSECTIONS.intersection_modules.enrichment import enrich_intersections_rapport
+
+
+def _safe_ident(name: str) -> str:
+    if not _IDENT_RE.match(name or ""):
+        raise ValueError(f"Identifiant SQL invalide : {name!r}")
+    return name
+
+
+def _normalize_geom_type(raw: str | None) -> str:
+    geom_type = (raw or "surfacique").strip().lower()
+    if geom_type in ("ponctuel", "ponctuelle"):
+        return "ponctuel"
+    if geom_type == "lineaire":
+        return "lineaire"
+    return "surfacique"
+
+
+def resolve_min_pct_sig(cfg: dict) -> float:
+    """Seuil % UF pour les couches surfaciques (catalogue min_pct_sig, défaut 1 %)."""
+    if _normalize_geom_type(cfg.get("geom_type")) != "surfacique":
+        return 0.0
+    if "min_pct_sig" in cfg:
+        try:
+            return float(cfg["min_pct_sig"])
+        except (TypeError, ValueError):
+            return DEFAULT_MIN_PCT_SIG
+    return DEFAULT_MIN_PCT_SIG
+
+
+def _convert_row_types(obj: dict) -> dict:
+    for k, v in obj.items():
+        cls = getattr(v, "__class__", None)
+        name = getattr(cls, "__name__", "")
+        if name == "Decimal":
+            obj[k] = float(v)
+        elif name == "datetime":
+            obj[k] = v.isoformat()
+    return obj
+
+
+def _pct_from_area(area: float, surface_sig: float) -> float:
+    if surface_sig <= 0:
+        return 0.0
+    return round(area / surface_sig * 100, 4)
+
+
+def format_intersection_layer(
+    config: dict,
+    objets: list,
+    total_metric: float,
+    area_parcelle_sig: float,
+) -> dict:
+    """Assemble l'entrée rapport JSON pour une couche du catalogue."""
+    geom_type = _normalize_geom_type(config.get("geom_type"))
+    pct_sig = 0.0
+    if geom_type == "surfacique" and objets and area_parcelle_sig > 0:
+        pct_sig = _pct_from_area(total_metric, area_parcelle_sig)
+        if pct_sig > 100:
+            pct_sig = 100.0
+    return {
+        "nom": config["nom"],
+        "type": config["type"],
+        "geom_type": geom_type,
+        "pct_sig": pct_sig,
+        "objets": objets,
+    }
+
 
 def fetch_superficie_indicative(parcelles: list, code_insee: str) -> float:
     """Récupère la superficie indicative (contenance) depuis la base locale."""
@@ -108,204 +190,368 @@ def get_parcelle_geometry(section, numero):
 
 def calculate_intersection(parcelle_wkt, table_name, area_parcelle_sig):
     """
-    Version alignée EXACTEMENT sur test_intersections_standalone.py
-    - Dissolve par group_by (ST_UnaryUnion + ST_Collect)
-    - Surfaces brutes + surfaces après union
-    - Détection chevauchements
-    - Calcule pct_uf et supprime les surfaces des objets
-    """
+    Intersection UF × couche catalogue selon geom_type :
+      - surfacique : aire d'intersection, seuil 0,01 m² + 1 % UF (min_pct_sig)
+      - lineaire   : longueur d'intersection, seuil 0,01 m
+      - ponctuel   : ST_Within (présence dans l'UF)
 
+    Retourne (objets, total_metric, metadata).
+    total_metric = aire union (surfacique) | longueur totale (lineaire) | 0 (ponctuel).
+    """
     config = CATALOGUE.get(table_name)
     if not config:
         logger.warning(f"⚠️ {table_name}: non catalogué")
         return [], 0.0, {"nb_raw": 0, "nb_grouped": 0, "items": []}
 
-    keep_cols = config.get("keep") or []
-    group_by_cfg = config.get("group_by")
-
-    # --- Toujours transformer group_by en LISTE ----
-    if not group_by_cfg:
-        group_by = []
-    elif isinstance(group_by_cfg, str):
-        group_by = [group_by_cfg]
-    else:
-        group_by = list(group_by_cfg)
-
+    keep_cols = [_safe_ident(c) for c in (config.get("keep") or [])]
     if not keep_cols:
         return [], 0.0, {"nb_raw": 0, "nb_grouped": 0, "items": []}
 
+    geom_type = _normalize_geom_type(config.get("geom_type"))
+    table_sql = _safe_ident(table_name)
+    geom_col = _safe_ident(config.get("geom_col", GEOM_COL))
+    min_pct_sig = resolve_min_pct_sig(config)
+
+    group_by_cfg = config.get("group_by")
+    if not group_by_cfg:
+        group_by = []
+    elif isinstance(group_by_cfg, str):
+        group_by = [_safe_ident(group_by_cfg)]
+    else:
+        group_by = [_safe_ident(c) for c in group_by_cfg]
+
     logger.info(f"\n────────────────────────────────────────")
-    logger.info(f"🧩 CALCUL INTERSECTION : {table_name}")
+    logger.info(f"🧩 CALCUL INTERSECTION : {table_name} ({geom_type})")
     logger.info(f"→ group_by = {group_by or 'Aucun'}")
+
+    sql_params = {
+        "wkt": parcelle_wkt,
+        "surface_sig": float(area_parcelle_sig or 0),
+        "min_pct_sig": min_pct_sig,
+    }
 
     with engine.connect() as conn:
         try:
-
-            # --------------------------------------------------------------------
-            # 1️⃣ MODE SANS GROUP BY (simple)
-            # --------------------------------------------------------------------
-            if not group_by:
-                select_cols = ", ".join([f"t.{c}" for c in keep_cols])
-
-                q = f"""
-                    WITH p AS (
-                        SELECT ST_MakeValid(ST_GeomFromText(:wkt, 2154)) AS g
-                    )
-                    SELECT
-                        {select_cols},
-                        ROUND(CAST(ST_Area(
-                            ST_Intersection(ST_MakeValid(t.geom_2154), p.g)
-                        ) AS numeric), 2) AS surface_inter_m2
-                    FROM {SCHEMA}.{table_name} t, p
-                    WHERE t.geom_2154 IS NOT NULL
-                      AND ST_Intersects(ST_MakeValid(t.geom_2154), p.g)
-                """
-
-                rs = conn.execute(text(q), {"wkt": parcelle_wkt})
-                cols = [c[0] for c in rs.cursor.description]
-                rows = rs.fetchall()
-
-                objects = []
-                total_surface = 0.0
-
-                for row in rows:
-                    d = dict(zip(cols, row))
-                    surf = float(d.get("surface_inter_m2", 0) or 0)
-                    # Calculer pct_uf et supprimer la surface
-                    pct_uf = round((surf / area_parcelle_sig * 100), 4) if area_parcelle_sig > 0 else 0
-                    d["pct_uf"] = pct_uf
-                    d.pop("surface_inter_m2", None)  # Retirer la surface
-                    total_surface += surf
-                    objects.append(d)
-
-                # Conversions types non JSON
-                for obj in objects:
-                    for k, v in obj.items():
-                        cls = getattr(v, "__class__", None)
-                        name = getattr(cls, "__name__", "")
-                        if name == "Decimal":
-                            obj[k] = float(v)
-                        elif name == "datetime":
-                            obj[k] = v.isoformat()
-
-                return objects, total_surface, {
-                    "nb_raw": len(rows),
-                    "nb_grouped": len(rows),
-                    "items": [{"label": "N/A", "count": 1, "surface": total_surface}]
-                }
-
-            # --------------------------------------------------------------------
-            # 2️⃣ MODE GROUP BY → DISSOLVE (une seule requête : raw_inter + stats)
-            # --------------------------------------------------------------------
-
-            gb_cols_sql = ", ".join([f"t.{c}" for c in group_by])
-            non_group_kept = [c for c in keep_cols if c not in group_by]
-
-            # raw_inter : une ligne par entité intersectée (group_by + geom_inter + attrs)
-            raw_inter_attrs = ""
-            if non_group_kept:
-                raw_inter_attrs = ", " + ", ".join([f"t.{c}" for c in non_group_kept])
-
-            # stats : agrégation par groupe (nb_entites, somme_brute, union_area + attrs)
-            stats_agg_attrs = ""
-            if non_group_kept:
-                stats_agg_attrs = ", " + ", ".join(
-                    f"(array_agg({c}) FILTER (WHERE {c} IS NOT NULL))[1] AS {c}"
-                    for c in non_group_kept
+            if geom_type == "lineaire":
+                return _calculate_lineaire(conn, table_sql, geom_col, keep_cols, sql_params)
+            if geom_type == "ponctuel":
+                return _calculate_ponctuel(conn, table_sql, geom_col, keep_cols, sql_params)
+            if group_by:
+                return _calculate_surfacique_group_by(
+                    conn, table_sql, geom_col, keep_cols, group_by, sql_params
                 )
-
-            gb_cols_list = ", ".join(group_by)
-
-            q = f"""
-                WITH p AS (
-                    SELECT ST_MakeValid(ST_GeomFromText(:wkt, 2154)) AS g
-                ),
-                raw_inter AS (
-                    SELECT
-                        {gb_cols_sql},
-                        ST_Intersection(ST_MakeValid(t.geom_2154), p.g) AS geom_inter
-                        {raw_inter_attrs}
-                    FROM {SCHEMA}.{table_name} t, p
-                    WHERE t.geom_2154 IS NOT NULL
-                      AND ST_Intersects(ST_MakeValid(t.geom_2154), p.g)
-                ),
-                stats AS (
-                    SELECT
-                        {gb_cols_list},
-                        COUNT(*) AS nb_entites,
-                        ROUND(CAST(SUM(ST_Area(geom_inter)) AS numeric), 2) AS somme_brute,
-                        ROUND(CAST(ST_Area(ST_UnaryUnion(ST_Collect(geom_inter))) AS numeric), 2) AS union_area
-                        {stats_agg_attrs}
-                    FROM raw_inter
-                    GROUP BY {gb_cols_list}
-                )
-                SELECT * FROM stats
-                WHERE union_area > 0
-            """
-
-            rs = conn.execute(text(q), {"wkt": parcelle_wkt})
-            cols = [c[0] for c in rs.cursor.description]
-            rows = rs.fetchall()
-
-            logger.info("   📊 Une requête : surfaces brutes + union (dissolve)")
-
-            objects = []
-            surfaces = []
-            metadata_items = []
-            nb_raw = 0
-
-            for row in rows:
-                d = dict(zip(cols, row))
-                surf_union = float(d.pop("union_area", 0) or 0)
-                somme_brute = float(d.pop("somme_brute", 0) or 0)
-                nb_entites = int(d.pop("nb_entites", 0))
-                nb_raw += nb_entites
-
-                pct_uf = round((surf_union / area_parcelle_sig * 100), 4) if area_parcelle_sig > 0 else 0
-                d["pct_uf"] = pct_uf
-
-                key = tuple(d[c] for c in group_by)
-                label = " / ".join(str(v) for v in key)
-                chev = max(somme_brute - surf_union, 0)
-                pct_chev = (chev / somme_brute * 100) if somme_brute > 0 else 0
-
-                logger.info(f"      • Groupe '{label}': {nb_entites} entités, "
-                            f"brute={somme_brute:.2f} m², union={surf_union:.2f} m², "
-                            f"chev={chev:.2f} m² ({pct_chev:.1f}%)")
-
-                metadata_items.append({
-                    "label": label,
-                    "count": nb_entites,
-                    "surface": surf_union,
-                    "surface_avant_union": somme_brute,
-                    "chevauchement_m2": round(chev, 2),
-                    "pct_chevauchement": round(pct_chev, 2)
-                })
-                objects.append(d)
-                surfaces.append(surf_union)
-
-            # Conversions types non JSON
-            for obj in objects:
-                for k, v in obj.items():
-                    cls = getattr(v, "__class__", None)
-                    name = getattr(cls, "__name__", "")
-                    if name == "Decimal":
-                        obj[k] = float(v)
-                    elif name == "datetime":
-                        obj[k] = v.isoformat()
-
-            logger.info(f"   📦 Entités brutes : {nb_raw}, groupes après union : {len(objects)}")
-
-            metadata = {
-                "nb_raw": nb_raw,
-                "nb_grouped": len(objects),
-                "items": metadata_items
-            }
-            return objects, sum(surfaces), metadata
-
+            return _calculate_surfacique_simple(
+                conn, table_sql, geom_col, keep_cols, sql_params, area_parcelle_sig
+            )
         except Exception as e:
             logger.error(f"💥 {table_name}: {e}")
             return [], 0.0, {"nb_raw": 0, "nb_grouped": 0, "items": []}
+
+
+def _calculate_surfacique_simple(conn, table_sql, geom_col, keep_cols, sql_params, area_parcelle_sig):
+    t_cols = "".join(f"t.{c}, " for c in keep_cols)
+    raw_cols = "".join(f"{c}, " for c in keep_cols)
+    dedup_cols = "".join(f", {c}" for c in keep_cols)
+
+    q = f"""
+        WITH p AS (
+            SELECT ST_MakeValid(ST_GeomFromText(:wkt, {SRID})) AS g
+        ),
+        inter_raw AS (
+            SELECT {t_cols}
+                   ST_Intersection(ST_MakeValid(t.{geom_col}), p.g) AS inter_geom
+            FROM {SCHEMA}.{table_sql} t, p
+            WHERE t.{geom_col} IS NOT NULL
+              AND ST_Intersects(ST_MakeValid(t.{geom_col}), p.g)
+        ),
+        inter_filtered AS (
+            SELECT {raw_cols} inter_geom
+            FROM inter_raw
+            WHERE ST_Area(inter_geom) > {MIN_INTERSECTION_AREA_M2}
+              AND (
+                  :min_pct_sig <= 0
+                  OR :surface_sig <= 0
+                  OR (ST_Area(inter_geom) / :surface_sig * 100) > :min_pct_sig
+              )
+        ),
+        inter AS (
+            SELECT DISTINCT ON (ST_AsBinary(inter_geom){dedup_cols})
+                   {raw_cols} inter_geom
+            FROM inter_filtered
+        ),
+        union_area AS (
+            SELECT COALESCE(ST_Area(ST_Union(inter_geom)), 0.0) AS uarea
+            FROM inter
+        )
+        SELECT {raw_cols}
+               ST_Area(inter_geom) AS metric,
+               union_area.uarea    AS total_area
+        FROM inter, union_area
+    """
+
+    rs = conn.execute(text(q), sql_params)
+    cols = [c[0] for c in rs.cursor.description]
+    rows = rs.fetchall()
+
+    objects = []
+    total_surface = 0.0
+    for i, row in enumerate(rows):
+        d = dict(zip(cols, row))
+        surf = float(d.pop("metric", 0) or 0)
+        if i == 0:
+            total_surface = float(d.pop("total_area", 0) or 0)
+        else:
+            d.pop("total_area", None)
+
+        pct = _pct_from_area(surf, area_parcelle_sig)
+        d["pct_uf"] = pct
+        d["pct_sig"] = pct
+        objects.append(_convert_row_types(d))
+
+    return objects, total_surface, {
+        "nb_raw": len(rows),
+        "nb_grouped": len(rows),
+        "items": [{"label": "N/A", "count": len(rows), "surface": total_surface}],
+    }
+
+
+def _calculate_surfacique_group_by(conn, table_sql, geom_col, keep_cols, group_by, sql_params):
+    gb_cols_sql = ", ".join(f"t.{c}" for c in group_by)
+    non_group_kept = [c for c in keep_cols if c not in group_by]
+    gb_cols_list = ", ".join(group_by)
+
+    raw_inter_attrs = ""
+    if non_group_kept:
+        raw_inter_attrs = ", " + ", ".join(f"t.{c}" for c in non_group_kept)
+
+    stats_agg_attrs = ""
+    if non_group_kept:
+        stats_agg_attrs = ", " + ", ".join(
+            f"(array_agg({c}) FILTER (WHERE {c} IS NOT NULL))[1] AS {c}"
+            for c in non_group_kept
+        )
+
+    q = f"""
+        WITH p AS (
+            SELECT ST_MakeValid(ST_GeomFromText(:wkt, {SRID})) AS g
+        ),
+        raw_inter AS (
+            SELECT
+                {gb_cols_sql},
+                ST_Intersection(ST_MakeValid(t.{geom_col}), p.g) AS geom_inter
+                {raw_inter_attrs}
+            FROM {SCHEMA}.{table_sql} t, p
+            WHERE t.{geom_col} IS NOT NULL
+              AND ST_Intersects(ST_MakeValid(t.{geom_col}), p.g)
+        ),
+        filtered_inter AS (
+            SELECT *
+            FROM raw_inter
+            WHERE ST_Area(geom_inter) > {MIN_INTERSECTION_AREA_M2}
+              AND (
+                  :min_pct_sig <= 0
+                  OR :surface_sig <= 0
+                  OR (ST_Area(geom_inter) / :surface_sig * 100) > :min_pct_sig
+              )
+        ),
+        stats AS (
+            SELECT
+                {gb_cols_list},
+                COUNT(*) AS nb_entites,
+                ROUND(CAST(SUM(ST_Area(geom_inter)) AS numeric), 2) AS somme_brute,
+                ROUND(CAST(ST_Area(ST_UnaryUnion(ST_Collect(geom_inter))) AS numeric), 2) AS union_area
+                {stats_agg_attrs}
+            FROM filtered_inter
+            GROUP BY {gb_cols_list}
+        )
+        SELECT * FROM stats
+        WHERE union_area > 0
+    """
+
+    rs = conn.execute(text(q), sql_params)
+    cols = [c[0] for c in rs.cursor.description]
+    rows = rs.fetchall()
+
+    logger.info("   📊 Surfacique group_by : filtrage 1 % + union (dissolve)")
+
+    objects = []
+    surfaces = []
+    metadata_items = []
+    nb_raw = 0
+    surface_sig = float(sql_params.get("surface_sig") or 0)
+
+    for row in rows:
+        d = dict(zip(cols, row))
+        surf_union = float(d.pop("union_area", 0) or 0)
+        somme_brute = float(d.pop("somme_brute", 0) or 0)
+        nb_entites = int(d.pop("nb_entites", 0))
+        nb_raw += nb_entites
+
+        pct = _pct_from_area(surf_union, surface_sig)
+        d["pct_uf"] = pct
+        d["pct_sig"] = pct
+
+        key = tuple(d[c] for c in group_by)
+        label = " / ".join(str(v) for v in key)
+        chev = max(somme_brute - surf_union, 0)
+        pct_chev = (chev / somme_brute * 100) if somme_brute > 0 else 0
+
+        logger.info(
+            f"      • Groupe '{label}': {nb_entites} entités, "
+            f"brute={somme_brute:.2f} m², union={surf_union:.2f} m², "
+            f"chev={chev:.2f} m² ({pct_chev:.1f}%)"
+        )
+
+        metadata_items.append({
+            "label": label,
+            "count": nb_entites,
+            "surface": surf_union,
+            "surface_avant_union": somme_brute,
+            "chevauchement_m2": round(chev, 2),
+            "pct_chevauchement": round(pct_chev, 2),
+        })
+        objects.append(_convert_row_types(d))
+        surfaces.append(surf_union)
+
+    logger.info(f"   📦 Entités brutes : {nb_raw}, groupes après union : {len(objects)}")
+
+    return objects, sum(surfaces), {
+        "nb_raw": nb_raw,
+        "nb_grouped": len(objects),
+        "items": metadata_items,
+    }
+
+
+def _calculate_lineaire(conn, table_sql, geom_col, keep_cols, sql_params):
+    t_cols = "".join(f"t.{c}, " for c in keep_cols)
+    raw_cols = "".join(f"{c}, " for c in keep_cols)
+    dedup_cols = "".join(f", {c}" for c in keep_cols)
+
+    q = f"""
+        WITH p AS (
+            SELECT ST_MakeValid(ST_GeomFromText(:wkt, {SRID})) AS g
+        ),
+        inter_raw AS (
+            SELECT {t_cols}
+                   ST_Intersection(ST_MakeValid(t.{geom_col}), p.g) AS inter_geom
+            FROM {SCHEMA}.{table_sql} t, p
+            WHERE t.{geom_col} IS NOT NULL
+              AND ST_Intersects(ST_MakeValid(t.{geom_col}), p.g)
+              AND ST_Length(ST_Intersection(ST_MakeValid(t.{geom_col}), p.g))
+                  > {MIN_INTERSECTION_LENGTH_M}
+        )
+        SELECT DISTINCT ON (ST_AsBinary(inter_geom){dedup_cols})
+               {raw_cols} ST_Length(inter_geom) AS metric
+        FROM inter_raw
+    """
+
+    rs = conn.execute(text(q), sql_params)
+    cols = [c[0] for c in rs.cursor.description]
+    rows = rs.fetchall()
+
+    objects = []
+    total_length = 0.0
+    for row in rows:
+        d = dict(zip(cols, row))
+        length = float(d.pop("metric", 0) or 0)
+        d["longueur_inter_m"] = round(length, 2)
+        total_length += length
+        objects.append(_convert_row_types(d))
+
+    return objects, total_length, {
+        "nb_raw": len(rows),
+        "nb_grouped": len(rows),
+        "items": [{"label": "N/A", "count": len(rows), "longueur": total_length}],
+    }
+
+
+def _calculate_ponctuel(conn, table_sql, geom_col, keep_cols, sql_params):
+    t_cols = "".join(f"t.{c}, " for c in keep_cols)
+    raw_cols = "".join(f"{c}, " for c in keep_cols)
+    dedup_cols = "".join(f", {c}" for c in keep_cols)
+
+    q = f"""
+        WITH p AS (
+            SELECT ST_MakeValid(ST_GeomFromText(:wkt, {SRID})) AS g
+        )
+        SELECT DISTINCT ON (ST_AsBinary(t.{geom_col}){dedup_cols})
+               {raw_cols} NULL::float AS metric
+        FROM {SCHEMA}.{table_sql} t, p
+        WHERE t.{geom_col} IS NOT NULL
+          AND ST_Within(t.{geom_col}, p.g)
+    """
+
+    rs = conn.execute(text(q), sql_params)
+    cols = [c[0] for c in rs.cursor.description]
+    rows = rs.fetchall()
+
+    objects = []
+    for row in rows:
+        d = dict(zip(cols, row))
+        d.pop("metric", None)
+        objects.append(_convert_row_types(d))
+
+    return objects, 0.0, {
+        "nb_raw": len(rows),
+        "nb_grouped": len(rows),
+        "items": [{"label": "N/A", "count": len(rows)}],
+    }
+
+
+def _log_intersection_metadata(metadata: dict) -> None:
+    """Logs détaillés regroupement / chevauchements (mode group_by surfacique)."""
+    if metadata["nb_raw"] > metadata["nb_grouped"]:
+        logger.info("   🔧 REGROUPEMENT DÉTECTÉ :")
+        logger.info(f"      → {metadata['nb_raw']} entités initiales")
+        logger.info(f"      → {metadata['nb_grouped']} groupe(s) après unification")
+        logger.info("      ──────────────────────────────────────────")
+
+        for item in metadata["items"]:
+            if item.get("count", 0) > 1:
+                label = item["label"]
+                nb_entites = item.get("count", 0)
+                surface_union = item.get("surface", 0)
+                surface_avant = item.get("surface_avant_union", 0)
+                chevauchement = item.get("chevauchement_m2", 0)
+                pct_chev = item.get("pct_chevauchement", 0)
+
+                logger.info(f"      📦 Groupe '{label}' :")
+                logger.info(f"         • {nb_entites} entités regroupées")
+                logger.info(f"         • Surface avant union (somme) : {surface_avant:.2f} m²")
+                logger.info(f"         • Surface après union : {surface_union:.2f} m²")
+
+                if chevauchement > MIN_INTERSECTION_AREA_M2:
+                    logger.info(
+                        f"         • ⚠️ Chevauchement détecté : {chevauchement:.2f} m² ({pct_chev:.1f}%)"
+                    )
+                else:
+                    reduction = surface_avant - surface_union
+                    if reduction > MIN_INTERSECTION_AREA_M2:
+                        logger.info(f"         • ℹ️ Réduction de {reduction:.2f} m² (arrondis/artefacts)")
+                    else:
+                        logger.info("         • ✅ Pas de chevauchement (géométries adjacentes ou disjointes)")
+
+                if nb_entites > 0:
+                    surface_moyenne = surface_union / nb_entites
+                    logger.info(
+                        f"         • Surface moyenne d'intersection par entité : {surface_moyenne:.2f} m²"
+                    )
+                logger.info("         ──────────────────────────────────────────")
+
+        logger.info("   🔧 Résumé regroupement :")
+        for item in metadata["items"]:
+            logger.info(
+                f"      -> {item['label']}: "
+                f"{item['count']} entités → {item.get('surface', 0)} m² "
+                f"(avant union: {item.get('surface_avant_union', 0)} m², "
+                f"chevauchement: {item.get('chevauchement_m2', 0)} m²)"
+            )
+    elif any(item.get("count", 0) > 1 for item in metadata["items"]):
+        logger.info("   ➕ Plusieurs entités détectées (sans regroupement) :")
+        for item in metadata["items"]:
+            if item.get("count", 0) > 1:
+                logger.info(f"      • Zone '{item['label']}' : {item['count']} entités distinctes")
+
 
 def analyse_parcelle(section, numero):
     logger.info(f"🚀 Analyse parcelle {section} {numero}")
@@ -327,89 +573,24 @@ def analyse_parcelle(section, numero):
     for table, config in CATALOGUE.items():
         logger.info(f"→ {table}")
         
-        objets, surface_totale_sig, metadata = calculate_intersection(parcelle_wkt, table, area_parcelle_sig)
-        
+        objets, total_metric, metadata = calculate_intersection(parcelle_wkt, table, area_parcelle_sig)
+        layer = format_intersection_layer(config, objets, total_metric, area_parcelle_sig)
+
         if objets:
-            logger.info(f"  ✅ {len(objets)} objet(s) | {surface_totale_sig:.2f} m²")
-            
-            # === LOGS détaillés d'unification / agrégation =========================
-            if metadata["nb_raw"] > metadata["nb_grouped"]:
-                logger.info(f"   🔧 REGROUPEMENT DÉTECTÉ :")
-                logger.info(f"      → {metadata['nb_raw']} entités initiales")
-                logger.info(f"      → {metadata['nb_grouped']} groupe(s) après unification")
-                logger.info(f"      ──────────────────────────────────────────")
-                
-                # Détails par groupe
-                for item in metadata["items"]:
-                    if item.get("count", 0) > 1:
-                        label = item["label"]
-                        nb_entites = item.get("count", 0)
-                        surface_union = item.get("surface", 0)
-                        surface_avant = item.get("surface_avant_union", 0)
-                        chevauchement = item.get("chevauchement_m2", 0)
-                        pct_chev = item.get("pct_chevauchement", 0)
-                        
-                        logger.info(f"      📦 Groupe '{label}' :")
-                        logger.info(f"         • {nb_entites} entités regroupées")
-                        logger.info(f"         • Surface avant union (somme) : {surface_avant:.2f} m²")
-                        logger.info(f"         • Surface après union : {surface_union:.2f} m²")
-                        
-                        if chevauchement > 0.01:  # Seuil de 0.01 m² pour éviter les erreurs d'arrondi
-                            logger.info(f"         • ⚠️ Chevauchement détecté : {chevauchement:.2f} m² ({pct_chev:.1f}%)")
-                            logger.info(f"           → Les géométries se chevauchent partiellement")
-                        else:
-                            reduction = surface_avant - surface_union
-                            if reduction > 0.01:
-                                logger.info(f"         • ℹ️ Réduction de {reduction:.2f} m² (arrondis/artefacts)")
-                            else:
-                                logger.info(f"         • ✅ Pas de chevauchement (géométries adjacentes ou disjointes)")
-                        
-                        # Calculer la surface moyenne par entité (basée sur la surface réelle après union)
-                        if nb_entites > 0:
-                            surface_moyenne = surface_union / nb_entites
-                            logger.info(f"         • Surface moyenne d'intersection par entité : {surface_moyenne:.2f} m²")
-                        
-                        logger.info(f"         ──────────────────────────────────────────")
-            
-            # Résumé regroupement
-            if metadata["nb_raw"] > metadata["nb_grouped"]:
-                logger.info("   🔧 Résumé regroupement :")
-                for item in metadata["items"]:
-                    logger.info(f"      -> {item['label']}: "
-                                f"{item['count']} entités → {item['surface']} m² "
-                                f"(avant union: {item['surface_avant_union']} m², "
-                                f"chevauchement: {item['chevauchement_m2']} m²)")
-            
-            # Cas où on additionne plusieurs morceaux d'une même zone (sans regroupement)
-            elif any(item.get("count", 0) > 1 for item in metadata["items"]):
-                logger.info(f"   ➕ Plusieurs entités détectées (sans regroupement) :")
-                for item in metadata["items"]:
-                    if item.get("count", 0) > 1:
-                        logger.info(f"      • Zone '{item['label']}' : {item['count']} entités distinctes")
-            
-            pct_sig = round(surface_totale_sig / area_parcelle_sig * 100, 4)
-            pct_real = pct_sig  # Pourcentage réel avant clamp
-            
-            # Cas où le % dépasse 100 mais a été clampé
-            if pct_sig > 100:
-                logger.info(f"   ⚠️ Pourcentage réel {pct_real:.2f}% > 100% "
-                            f"→ corrigé à 100%.")
-                pct_sig = 100.0
-            
-            rapport["intersections"][table] = {
-                "nom": config['nom'],
-                "type": config['type'],
-                "pct_sig": pct_sig,
-                "objets": objets
-            }
+            geom_type = layer["geom_type"]
+            if geom_type == "lineaire":
+                logger.info(f"  ✅ {len(objets)} objet(s) | {total_metric:.2f} m")
+            elif geom_type == "ponctuel":
+                logger.info(f"  ✅ {len(objets)} objet(s) ponctuel(s)")
+            else:
+                logger.info(
+                    f"  ✅ {len(objets)} objet(s) | {total_metric:.2f} m² ({layer['pct_sig']:.4f} %)"
+                )
+            _log_intersection_metadata(metadata)
         else:
-            logger.info(f"  ⚠️ Aucune intersection")
-            rapport["intersections"][table] = {
-                "nom": config['nom'],
-                "type": config['type'],
-                "pct_sig": 0.0,
-                "objets": []
-            }
+            logger.info("  ⚠️ Aucune intersection")
+
+        rapport["intersections"][table] = layer
 
     enrich_intersections_rapport(rapport, parcelle_wkt, engine)
     return rapport
@@ -539,89 +720,24 @@ if __name__ == "__main__":
     # Lancer l'analyse
     for table, config in CATALOGUE.items():
         logger.info(f"→ {table}")
-        objets, surface_totale_sig, metadata = calculate_intersection(parcelle_wkt, table, area_parcelle_sig)
+        objets, total_metric, metadata = calculate_intersection(parcelle_wkt, table, area_parcelle_sig)
+        layer = format_intersection_layer(config, objets, total_metric, area_parcelle_sig)
 
         if objets:
-            logger.info(f"  ✅ {len(objets)} objet(s) | {surface_totale_sig:.2f} m²")
-            
-            # === LOGS détaillés d'unification / agrégation =========================
-            if metadata["nb_raw"] > metadata["nb_grouped"]:
-                logger.info(f"   🔧 REGROUPEMENT DÉTECTÉ :")
-                logger.info(f"      → {metadata['nb_raw']} entités initiales")
-                logger.info(f"      → {metadata['nb_grouped']} groupe(s) après unification")
-                logger.info(f"      ──────────────────────────────────────────")
-                
-                # Détails par groupe
-                for item in metadata["items"]:
-                    if item.get("count", 0) > 1:
-                        label = item["label"]
-                        nb_entites = item.get("count", 0)
-                        surface_union = item.get("surface", 0)
-                        surface_avant = item.get("surface_avant_union", 0)
-                        chevauchement = item.get("chevauchement_m2", 0)
-                        pct_chev = item.get("pct_chevauchement", 0)
-                        
-                        logger.info(f"      📦 Groupe '{label}' :")
-                        logger.info(f"         • {nb_entites} entités regroupées")
-                        logger.info(f"         • Surface avant union (somme) : {surface_avant:.2f} m²")
-                        logger.info(f"         • Surface après union : {surface_union:.2f} m²")
-                        
-                        if chevauchement > 0.01:  # Seuil de 0.01 m² pour éviter les erreurs d'arrondi
-                            logger.info(f"         • ⚠️ Chevauchement détecté : {chevauchement:.2f} m² ({pct_chev:.1f}%)")
-                            logger.info(f"           → Les géométries se chevauchent partiellement")
-                        else:
-                            reduction = surface_avant - surface_union
-                            if reduction > 0.01:
-                                logger.info(f"         • ℹ️ Réduction de {reduction:.2f} m² (arrondis/artefacts)")
-                            else:
-                                logger.info(f"         • ✅ Pas de chevauchement (géométries adjacentes ou disjointes)")
-                        
-                        # Calculer la surface moyenne par entité (basée sur la surface réelle après union)
-                        if nb_entites > 0:
-                            surface_moyenne = surface_union / nb_entites
-                            logger.info(f"         • Surface moyenne d'intersection par entité : {surface_moyenne:.2f} m²")
-                        
-                        logger.info(f"         ──────────────────────────────────────────")
-            
-            # Résumé regroupement
-            if metadata["nb_raw"] > metadata["nb_grouped"]:
-                logger.info("   🔧 Résumé regroupement :")
-                for item in metadata["items"]:
-                    logger.info(f"      -> {item['label']}: "
-                                f"{item['count']} entités → {item['surface']} m² "
-                                f"(avant union: {item['surface_avant_union']} m², "
-                                f"chevauchement: {item['chevauchement_m2']} m²)")
-            
-            # Cas où on additionne plusieurs morceaux d'une même zone (sans regroupement)
-            elif any(item.get("count", 0) > 1 for item in metadata["items"]):
-                logger.info(f"   ➕ Plusieurs entités détectées (sans regroupement) :")
-                for item in metadata["items"]:
-                    if item.get("count", 0) > 1:
-                        logger.info(f"      • Zone '{item['label']}' : {item['count']} entités distinctes")
-            
-            pct_sig = round(surface_totale_sig / area_parcelle_sig * 100, 4)
-            pct_real = pct_sig  # Pourcentage réel avant clamp
-            
-            # Cas où le % dépasse 100 mais a été clampé
-            if pct_sig > 100:
-                logger.info(f"   ⚠️ Pourcentage réel {pct_real:.2f}% > 100% "
-                            f"→ corrigé à 100%.")
-                pct_sig = 100.0
-            
-            rapport["intersections"][table] = {
-                "nom": config['nom'],
-                "type": config['type'],
-                "pct_sig": pct_sig,
-                "objets": objets
-            }
+            geom_type = layer["geom_type"]
+            if geom_type == "lineaire":
+                logger.info(f"  ✅ {len(objets)} objet(s) | {total_metric:.2f} m")
+            elif geom_type == "ponctuel":
+                logger.info(f"  ✅ {len(objets)} objet(s) ponctuel(s)")
+            else:
+                logger.info(
+                    f"  ✅ {len(objets)} objet(s) | {total_metric:.2f} m² ({layer['pct_sig']:.4f} %)"
+                )
+            _log_intersection_metadata(metadata)
         else:
-            logger.info(f"  ⚠️ Aucune intersection")
-            rapport["intersections"][table] = {
-                "nom": config['nom'],
-                "type": config['type'],
-                "pct_sig": 0.0,
-                "objets": []
-            }
+            logger.info("  ⚠️ Aucune intersection")
+
+        rapport["intersections"][table] = layer
 
     # Nettoyage final : retirer toutes les surfaces en m2
     for layer_key, layer in rapport["intersections"].items():
