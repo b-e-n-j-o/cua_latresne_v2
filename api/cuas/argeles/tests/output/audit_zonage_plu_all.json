@@ -1,0 +1,108 @@
+{
+  "meta": {
+    "generated_at": "2026-07-13T09:54:01.919145+00:00",
+    "schema": "argeles",
+    "catalogue": "/Volumes/T7/Travaux_Freelance/KERELIA/CUAs/BACKEND_PRINCIPAL/LATRESNE/cua_latresne_v4/api/cuas/argeles/catalogue_cua_argeles.json",
+    "n_parcelles": 15585,
+    "mode": "batch",
+    "audit_mode": "raw_min_pct_sig_0",
+    "seed": null,
+    "elapsed_s": 15.74,
+    "distribution": "fine",
+    "comptage": "parcelle",
+    "buckets": {
+      "zero": "0 %",
+      "gt_0_le_1": "0-1 %",
+      "entre_1_et_5": "1-5 %",
+      "entre_5_et_10": "5-10 %",
+      "entre_10_et_20": "10-20 %",
+      "entre_20_et_50": "20-50 %",
+      "entre_50_et_60": "50-60 %",
+      "entre_60_et_70": "60-70 %",
+      "entre_70_et_80": "70-80 %",
+      "entre_80_et_90": "80-90 %",
+      "entre_90_et_100": "90-100 %",
+      "gt_100": "> 100 %"
+    },
+    "couche": "zonage_plu",
+    "plot": "api/cuas/argeles/tests/output/audit_zonage_plu_all.png",
+    "geojson": "api/cuas/argeles/tests/output/audit_zonage_plu_all.geojson"
+  },
+  "summary_by_layer": {
+    "zonage_plu": {
+      "nom": "Zonage PLU",
+      "geom_type": "surfacique",
+      "total_hits": 0,
+      "buckets": {
+        "zero": 2,
+        "gt_0_le_1": 1,
+        "entre_1_et_5": 1,
+        "entre_5_et_10": 0,
+        "entre_10_et_20": 2,
+        "entre_20_et_50": 7,
+        "entre_50_et_60": 2,
+        "entre_60_et_70": 5,
+        "entre_70_et_80": 10,
+        "entre_80_et_90": 18,
+        "entre_90_et_100": 15537,
+        "gt_100": 0
+      },
+      "bucket_labels": {
+        "zero": "0 %",
+        "gt_0_le_1": "0-1 %",
+        "entre_1_et_5": "1-5 %",
+        "entre_5_et_10": "5-10 %",
+        "entre_10_et_20": "10-20 %",
+        "entre_20_et_50": "20-50 %",
+        "entre_50_et_60": "50-60 %",
+        "entre_60_et_70": "60-70 %",
+        "entre_70_et_80": "70-80 %",
+        "entre_80_et_90": "80-90 %",
+        "entre_90_et_100": "90-100 %",
+        "gt_100": "> 100 %"
+      },
+      "parcelles_avec_hit": 15583,
+      "parcelles_avec_hit_1_5_pct": 1,
+      "pct_sig_min": 0.5149,
+      "pct_sig_max": 100.0,
+      "part_parcels_1_5_pct": 0.0,
+      "parcelles_sans_intersection": 2,
+      "part_parcels_concernees": 100.0
+    }
+  },
+  "hits_detail": [
+    {
+      "parcelle": "AD:52",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 2.9521,
+      "libelle": "Zonage PLU",
+      "bucket": "entre_1_et_5"
+    },
+    {
+      "parcelle": "AE:146",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 16.097,
+      "libelle": "Zonage PLU",
+      "bucket": "entre_10_et_20"
+    },
+    {
+      "parcelle": "AE:150",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 18.3176,
+      "libelle": "Zonage PLU",
+      "bucket": "entre_10_et_20"
+    },
+    {
+      "parcelle": "AE:176",
+      "couche": "zonage_plu",
+      "nom_couche": "Zonage PLU",
+      "pct_sig": 0.5149,
+      "libelle": "Zonage PLU",
+      "bucket": "gt_0_le_1"
+    }
+  ],
+  "errors": []
+}

@@ -12,15 +12,18 @@ from datetime import date
 from typing import Callable
 
 from .raa_config import RaaCommuneConfig, get_raa_config
-from .scraper_raa_po import insert_nouveaux_raa, scrape_raa_po
+from .scraper_raa_po import insert_nouveaux_raa as insert_raa_po, scrape_raa_po
+from .scraper_raa_gironde import insert_nouveaux_raa as insert_raa_gironde, scrape_raa_gironde
 
 logger = logging.getLogger("raa_sync")
 
 ScrapeFn = Callable[[int], list[dict]]
+InsertFn = Callable  # (conn, cfg, items) -> list[dict]
 
 # Registre des scrapers par slug communal
-RAA_SCRAPERS: dict[str, ScrapeFn] = {
-    "argeles": scrape_raa_po,
+RAA_SCRAPERS: dict[str, tuple[ScrapeFn, InsertFn]] = {
+    "argeles": (scrape_raa_po, insert_raa_po),
+    "latresne": (scrape_raa_gironde, insert_raa_gironde),
 }
 
 
@@ -43,17 +46,18 @@ def sync_raa(
     if not cfg:
         raise ValueError(f"Commune RAA inconnue : {commune_slug}")
 
-    scrape_fn = RAA_SCRAPERS.get(commune_slug)
-    if not scrape_fn:
+    entry = RAA_SCRAPERS.get(commune_slug)
+    if not entry:
         raise ValueError(
             f"Aucun scraper RAA configuré pour « {commune_slug} »."
         )
+    scrape_fn, insert_fn = entry
 
     year = annee or date.today().year
     logger.info("Sync RAA %s — année %s", commune_slug, year)
 
     items = scrape_fn(year)
-    nouveaux = insert_nouveaux_raa(conn, cfg, items)
+    nouveaux = insert_fn(conn, cfg, items)
 
     logger.info(
         "Sync RAA %s — %d trouvé(s) en ligne, %d nouveau(x) inséré(s)",

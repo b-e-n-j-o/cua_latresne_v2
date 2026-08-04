@@ -1,0 +1,1216 @@
+{
+  "meta": {
+    "generated_at": "2026-07-13T09:10:20.922237+00:00",
+    "schema": "argeles",
+    "catalogue": "/Volumes/T7/Travaux_Freelance/KERELIA/CUAs/BACKEND_PRINCIPAL/LATRESNE/cua_latresne_v4/api/cuas/argeles/catalogue_cua_argeles.json",
+    "n_parcelles": 15585,
+    "mode": "batch",
+    "audit_mode": "raw_min_pct_sig_0",
+    "seed": null,
+    "elapsed_s": 5.49,
+    "distribution": "fine",
+    "buckets": {
+      "zero": "0 %",
+      "gt_0_le_1": "0-1 %",
+      "entre_1_et_5": "1-5 %",
+      "entre_5_et_10": "5-10 %",
+      "entre_10_et_20": "10-20 %",
+      "entre_20_et_50": "20-50 %",
+      "entre_50_et_60": "50-60 %",
+      "entre_60_et_70": "60-70 %",
+      "entre_70_et_80": "70-80 %",
+      "entre_80_et_90": "80-90 %",
+      "entre_90_et_100": "90-100 %",
+      "gt_100": "> 100 %"
+    },
+    "couche": "infos_surf",
+    "filtre": {
+      "colonne": "libelle",
+      "value": "préemption",
+      "mode": "contains"
+    },
+    "plot": "api/cuas/argeles/tests/output/audit_dpu_argeles_all.png",
+    "geojson": "api/cuas/argeles/tests/output/audit_dpu_argeles_all.geojson"
+  },
+  "summary_by_layer": {
+    "infos_surf": {
+      "nom": "Informations surfaciques",
+      "geom_type": "surfacique",
+      "total_hits": 0,
+      "buckets": {
+        "zero": 13464,
+        "gt_0_le_1": 139,
+        "entre_1_et_5": 1,
+        "entre_5_et_10": 2,
+        "entre_10_et_20": 0,
+        "entre_20_et_50": 6,
+        "entre_50_et_60": 1,
+        "entre_60_et_70": 3,
+        "entre_70_et_80": 3,
+        "entre_80_et_90": 0,
+        "entre_90_et_100": 1966,
+        "gt_100": 0
+      },
+      "bucket_labels": {
+        "zero": "0 %",
+        "gt_0_le_1": "0-1 %",
+        "entre_1_et_5": "1-5 %",
+        "entre_5_et_10": "5-10 %",
+        "entre_10_et_20": "10-20 %",
+        "entre_20_et_50": "20-50 %",
+        "entre_50_et_60": "50-60 %",
+        "entre_60_et_70": "60-70 %",
+        "entre_70_et_80": "70-80 %",
+        "entre_80_et_90": "80-90 %",
+        "entre_90_et_100": "90-100 %",
+        "gt_100": "> 100 %"
+      },
+      "parcelles_avec_hit": 2121,
+      "parcelles_avec_hit_1_5_pct": 1,
+      "pct_sig_min": 0.0001,
+      "pct_sig_max": 100.0,
+      "part_parcels_1_5_pct": 0.0,
+      "parcelles_sans_intersection": 13464,
+      "part_parcels_concernees": 13.6
+    }
+  },
+  "hits_detail": [
+    {
+      "parcelle": "AO:102",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0024,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AO:139",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0009,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AO:140",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0048,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AO:153",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.001,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AO:219",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0088,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AO:249",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0048,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AO:316",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0059,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AO:348",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.7789,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AP:164",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0005,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AP:165",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0009,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AP:166",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0012,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AP:199",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0024,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AP:325",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0004,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AP:429",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.2797,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AP:430",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0068,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AP:431",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0177,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AP:432",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0062,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AP:450",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0098,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AP:50",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0283,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AP:51",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0026,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AP:74",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0076,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AP:75",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0019,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AV:1268",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0154,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AV:1290",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0164,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AV:1327",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0175,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AV:1328",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0351,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AV:178",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0065,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AV:179",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0006,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AV:182",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 7.9109,
+      "libelle": "préemption",
+      "bucket": "entre_5_et_10"
+    },
+    {
+      "parcelle": "AV:183",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0941,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AV:536",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0227,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AV:537",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0198,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AV:814",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0181,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AV:837",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0308,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AV:863",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0215,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AV:920",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0108,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AV:921",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.024,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AV:975",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0107,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AV:976",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0021,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AV:981",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0089,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AV:993",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0032,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AV:999",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0068,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AW:127",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0137,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AW:131",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0001,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AW:2",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.027,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AW:242",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0004,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AW:261",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0019,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AW:334",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0003,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "AW:4",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0437,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1077",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0082,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1079",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0042,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1082",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0025,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1088",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0155,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1090",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.024,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1091",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0237,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1120",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.008,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1183",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0945,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:123",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0033,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:124",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.032,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:125",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0016,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:126",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0077,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1325",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0068,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1364",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.015,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1396",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0046,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1400",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.2059,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1412",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0047,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1413",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0073,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1414",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0042,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1415",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0028,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1416",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0053,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1464",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0012,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1475",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.005,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1506",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.013,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:154",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0202,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1579",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0282,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1592",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0168,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:1600",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0127,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:211",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0048,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:68",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0055,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:701",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0064,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:816",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.005,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:882",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0005,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:883",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0488,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:952",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0107,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:984",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0136,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:985",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0124,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BC:986",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0105,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BD:1064",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0014,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BD:310",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.035,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BD:867",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0017,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BD:906",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0049,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BE:1017",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0045,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BE:1031",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0102,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BE:1227",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0321,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BE:1241",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0049,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BE:1366",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0073,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BE:1400",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0061,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BE:1711",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0284,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BE:1764",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0096,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BE:1766",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0097,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BE:1826",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0078,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BE:1835",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.1193,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BE:294",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.01,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BE:303",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.1315,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BE:305",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0167,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BE:424",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0033,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BE:427",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0136,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BE:428",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0134,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BE:431",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0898,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BE:432",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.4972,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BE:457",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0098,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BH:1183",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0686,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BH:1187",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0077,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BH:1193",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0049,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BH:1455",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0186,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BH:1456",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0171,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BH:1465",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0076,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BH:322",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0035,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BH:323",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0168,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BH:326",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.018,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BH:327",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0117,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BH:331",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0033,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BH:333",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0098,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BH:334",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0082,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BH:335",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0149,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BH:564",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0067,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BH:565",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0361,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BH:815",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0596,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BL:223",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0029,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BL:256",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0224,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BL:311",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0002,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BP:41",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0027,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BP:62",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0011,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BP:64",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0013,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BP:67",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 8.767,
+      "libelle": "préemption",
+      "bucket": "entre_5_et_10"
+    },
+    {
+      "parcelle": "BP:68",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0033,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BP:70",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.005,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BS:16",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0703,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BS:18",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0427,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BS:32",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.1938,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    },
+    {
+      "parcelle": "BS:607",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 3.1524,
+      "libelle": "préemption",
+      "bucket": "entre_1_et_5"
+    },
+    {
+      "parcelle": "BS:627",
+      "couche": "infos_surf",
+      "nom_couche": "Informations surfaciques",
+      "pct_sig": 0.0014,
+      "libelle": "préemption",
+      "bucket": "gt_0_le_1"
+    }
+  ],
+  "errors": []
+}

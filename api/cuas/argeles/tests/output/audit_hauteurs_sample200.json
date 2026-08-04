@@ -1,0 +1,73 @@
+{
+  "meta": {
+    "generated_at": "2026-07-13T09:32:36.829180+00:00",
+    "schema": "argeles",
+    "catalogue": "/Volumes/T7/Travaux_Freelance/KERELIA/CUAs/BACKEND_PRINCIPAL/LATRESNE/cua_latresne_v4/api/cuas/argeles/catalogue_cua_argeles.json",
+    "n_parcelles": 200,
+    "mode": "batch",
+    "audit_mode": "raw_min_pct_sig_0",
+    "seed": "42",
+    "elapsed_s": 4.6,
+    "distribution": "fine",
+    "buckets": {
+      "zero": "0 %",
+      "gt_0_le_1": "0-1 %",
+      "entre_1_et_5": "1-5 %",
+      "entre_5_et_10": "5-10 %",
+      "entre_10_et_20": "10-20 %",
+      "entre_20_et_50": "20-50 %",
+      "entre_50_et_60": "50-60 %",
+      "entre_60_et_70": "60-70 %",
+      "entre_70_et_80": "70-80 %",
+      "entre_80_et_90": "80-90 %",
+      "entre_90_et_100": "90-100 %",
+      "gt_100": "> 100 %"
+    },
+    "couche": "hauteurs",
+    "geojson": "api/cuas/argeles/tests/output/audit_hauteurs_sample200.geojson"
+  },
+  "summary_by_layer": {
+    "hauteurs": {
+      "nom": "Hauteurs maximales (PLU)",
+      "geom_type": "surfacique",
+      "total_hits": 0,
+      "buckets": {
+        "zero": 0,
+        "gt_0_le_1": 0,
+        "entre_1_et_5": 0,
+        "entre_5_et_10": 0,
+        "entre_10_et_20": 0,
+        "entre_20_et_50": 0,
+        "entre_50_et_60": 0,
+        "entre_60_et_70": 0,
+        "entre_70_et_80": 0,
+        "entre_80_et_90": 0,
+        "entre_90_et_100": 200,
+        "gt_100": 0
+      },
+      "bucket_labels": {
+        "zero": "0 %",
+        "gt_0_le_1": "0-1 %",
+        "entre_1_et_5": "1-5 %",
+        "entre_5_et_10": "5-10 %",
+        "entre_10_et_20": "10-20 %",
+        "entre_20_et_50": "20-50 %",
+        "entre_50_et_60": "50-60 %",
+        "entre_60_et_70": "60-70 %",
+        "entre_70_et_80": "70-80 %",
+        "entre_80_et_90": "80-90 %",
+        "entre_90_et_100": "90-100 %",
+        "gt_100": "> 100 %"
+      },
+      "parcelles_avec_hit": 200,
+      "parcelles_avec_hit_1_5_pct": 0,
+      "pct_sig_min": 99.9923,
+      "pct_sig_max": 100.0,
+      "part_parcels_1_5_pct": 0.0,
+      "parcelles_sans_intersection": 0,
+      "part_parcels_concernees": 100.0
+    }
+  },
+  "hits_detail": [],
+  "errors": []
+}
