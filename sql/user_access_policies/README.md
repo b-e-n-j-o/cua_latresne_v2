@@ -10,6 +10,7 @@ Exécuter les scripts **dans l'ordre** sur la base Supabase (SQL Editor ou `psql
 | `004_migrate_metadata_insee_to_user_commune_access.sql` | Import legacy `user_metadata.insee` |
 | `005_rls_policies.sql` | Politiques RLS (optionnel) |
 | `006_grant_postgrest.sql` | GRANT pour PostgREST |
+| `008_commune_domains_latresne.sql` | Domaines autorisés signup (`latresne.fr`, `mairie-latresne.fr`) |
 
 ## Avant migration (transition)
 
