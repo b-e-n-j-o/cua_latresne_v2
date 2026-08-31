@@ -664,7 +664,13 @@ def run_intersections(uf, catalogue, engine=None, schema=SCHEMA) -> dict:
 
 
 def load_catalogue(path: str) -> dict:
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    raw = Path(path).read_text(encoding="utf-8")
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"Catalogue CUA invalide ({path}) : JSON ligne {exc.lineno} col {exc.colno} — {exc.msg}"
+        ) from exc
 
 
 # ============================================================

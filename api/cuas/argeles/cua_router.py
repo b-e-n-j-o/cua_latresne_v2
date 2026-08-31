@@ -9,6 +9,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from api.cuas.argeles.db import logger
 from api.cuas.argeles.generate_cua import COMMUNE_CUA_CATALOGUE, generate_cua_for_parcelles
 from services.auth.commune_access import assert_authorized_for_commune_slug
 from services.auth.current_user import AuthenticatedUser, get_current_user
@@ -94,8 +95,10 @@ async def generate_cua(
             user_email=current_user.email,
         )
     except ValueError as exc:
+        logger.warning("Génération CUA 400 %s : %s", slug, exc)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
+        logger.exception("Génération CUA 500 %s : %s", slug, exc)
         raise HTTPException(
             status_code=500,
             detail=f"Échec génération CUA : {exc}",
