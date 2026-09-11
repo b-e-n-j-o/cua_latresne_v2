@@ -13,6 +13,7 @@ import requests
 from api.cuas.argeles.db import logger
 
 _PARIS = ZoneInfo("Europe/Paris")
+_PROJECT_URL_BASE = "https://www.kerelia.fr"
 
 
 def _webhook_url() -> str:
@@ -23,6 +24,14 @@ def _notifications_allowed() -> bool:
     if os.getenv("SLACK_FORCE_NOTIFY", "").strip().lower() in ("1", "true", "yes", "on"):
         return True
     return (os.getenv("RENDER") or "").strip().lower() in ("true", "1", "yes")
+
+
+def _project_url(commune_slug: str | None, slug: str | None) -> str:
+    commune = (commune_slug or "").strip().lower()
+    project = (slug or "").strip()
+    if not commune or not project or commune == "?":
+        return ""
+    return f"{_PROJECT_URL_BASE}/{commune}/cua/projects/{project}"
 
 
 def _format_parcelles(parcelles: list[dict] | None) -> str:
@@ -68,13 +77,14 @@ def notify_cua_generated(
             if contenance is not None
             else ""
         )
+        project_url = _project_url(str(commune), result.get("slug"))
         text = (
-            f"*CUA généré* — {commune} — {ts}\n"
+            f":white_check_mark: *CUA généré* — {commune} — {ts}\n"
             f"• User : {user}\n"
             f"• {n} parcelle(s) : {_format_parcelles(result.get('parcelles'))}\n"
             f"• Surface SIG : {surface_txt}{cad_txt}\n"
             f"• Dossier : {dossier}\n"
-            f"• Slug : {result.get('slug') or '—'}"
+            f"• Projet : {project_url or '—'}"
         )
         _post(text)
     except Exception as exc:
@@ -100,7 +110,7 @@ def notify_cua_failed(
             err = err[:1197] + "…"
         status = f"HTTP {status_code}" if status_code else "échec"
         kind = (error_type or "").strip()
-        header = f"*CUA échec* — {commune_slug or '?'} — {status}"
+        header = f":x: *CUA échec* — {commune_slug or '?'} — {status}"
         if kind:
             header += f" ({kind})"
         lines = [

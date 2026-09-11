@@ -25,9 +25,9 @@ from .identite_fonciere import (
     identite_fonciere_request_context,
     resolve_identite_fonciere_geometry,
 )
-from .carte_identite_fonciere import generate_identite_fonciere_map_html
 from .sse_identite_fonciere import iter_identite_fonciere_sse_chunks, sse_error_chunk
 from .pdf.rapport_identite_fonciere import generate_rapport_pdf
+from .carte_identite_fonciere import generate_identite_fonciere_map_html
 from . import identite_fonciere_history as identite_fonciere_history_module
 from services.auth.current_user import get_current_user_id
 from .storage_et_urls import (
@@ -42,6 +42,7 @@ router = APIRouter(prefix="/api/identite-parcelle", tags=["Identité Parcellaire
 router_fonciere = APIRouter(prefix="/api/identite-fonciere", tags=["Identité Foncière"])
 
 _logger = logging.getLogger(__name__)
+
 
 # HTML Folium servi via GET /map/view/{token} (évite de ne renvoyer que du HTML inline)
 _MAP_HTML_CACHE: dict[str, tuple[str, float]] = {}

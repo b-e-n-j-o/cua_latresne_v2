@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import create_engine, text
 
-from admin_routes import router as admin_router
+from api.admin.monitoring_router import router as monitoring_router
 from api.departements import router as departements_router
 from api.generate_dpe import router as dpe_router
 import api.identite_fonciere.identite_fonciere_history as identite_fonciere_history_module
@@ -290,7 +290,7 @@ app.add_middleware(
 )
 
 # --- Back-office / admin ---
-app.include_router(admin_router)
+app.include_router(monitoring_router)
 app.include_router(reglements_admin_router)
 app.include_router(reglements_superadmin_router)
 app.include_router(documents_router)
