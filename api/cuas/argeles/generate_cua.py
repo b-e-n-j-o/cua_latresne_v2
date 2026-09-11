@@ -31,12 +31,15 @@ from api.cuas.argeles.carto_context import (
     run_carto_context,
     storage_object_path,
 )
+from api.cuas.argeles.cua_slack import notify_cua_generated
 from api.cuas.argeles.db import SUPABASE_BUCKET, get_supabase, logger, persist_cua, upload_file
 from api.cuas.argeles.intersections import load_catalogue, run_intersections
 from api.cuas.argeles.uf import build_uf
 from services.history.project_directory import ensure_project_directory, register_project_file
 
 _CUAS_DIR = Path(__file__).resolve().parent
+
+NUMERO_CU_MAX_LEN = 80
 
 # Encart identité par défaut (surchargeable via API).
 DEFAULT_DOSSIER: dict[str, Any] = {
@@ -92,13 +95,13 @@ def _auto_numero_cu(
             if r.get("section") and r.get("numero")
         )
         if parcel_part:
-            return f"CU-{parcel_part}"
+            return f"CU-{parcel_part}"[:NUMERO_CU_MAX_LEN]
     if meta:
         insee = str(meta.get("code_insee") or "")
         dept = insee[:3] if len(insee) >= 3 else "000"
         if insee:
-            return f"{dept}-{insee}-{datetime.now().strftime('%Y')}-PARCEL"
-    return f"CU-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+            return f"{dept}-{insee}-{datetime.now().strftime('%Y')}-PARCEL"[:NUMERO_CU_MAX_LEN]
+    return f"CU-{datetime.now().strftime('%Y%m%d-%H%M%S')}"[:NUMERO_CU_MAX_LEN]
 
 
 def _merge_dossier(
@@ -115,7 +118,7 @@ def _merge_dossier(
     numero_cu = str(merged.get("numero_cu") or "").strip()
     if not numero_cu:
         numero_cu = _auto_numero_cu(refs, meta)
-    merged["numero_cu"] = numero_cu
+    merged["numero_cu"] = numero_cu[:NUMERO_CU_MAX_LEN]
     if not str(merged.get("date_depot") or "").strip():
         merged["date_depot"] = _today_fr()
     return merged
@@ -317,4 +320,5 @@ def generate_cua_for_parcelles(
             except Exception as exc:
                 logger.warning(f"ProjectFile non enregistré pour {pipeline_slug} : {exc}")
 
+    notify_cua_generated(result, user_email=user_email, user_id=user_id)
     return result

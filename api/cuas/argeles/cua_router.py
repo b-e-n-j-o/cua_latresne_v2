@@ -4,13 +4,19 @@
 from __future__ import annotations
 
 import asyncio
+import traceback
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
+from api.cuas.argeles.cua_slack import notify_cua_failed
 from api.cuas.argeles.db import logger
-from api.cuas.argeles.generate_cua import COMMUNE_CUA_CATALOGUE, generate_cua_for_parcelles
+from api.cuas.argeles.generate_cua import (
+    COMMUNE_CUA_CATALOGUE,
+    NUMERO_CU_MAX_LEN,
+    generate_cua_for_parcelles,
+)
 from services.auth.commune_access import assert_authorized_for_commune_slug
 from services.auth.current_user import AuthenticatedUser, get_current_user
 
@@ -25,7 +31,7 @@ class ParcelleRefIn(BaseModel):
 class DossierIn(BaseModel):
     numero_cu: Optional[str] = Field(
         default="",
-        max_length=80,
+        max_length=NUMERO_CU_MAX_LEN,
         description="Référence du dossier ou de la demande Cerfa (auto-générée si absente)",
     )
     demandeur: Optional[str] = None
@@ -34,6 +40,13 @@ class DossierIn(BaseModel):
     date_depot: Optional[str] = None
     superficie: Optional[float] = None
     cadastre: Optional[str] = None
+
+    @field_validator("numero_cu", mode="before")
+    @classmethod
+    def _truncate_numero_cu(cls, value):
+        if value is None:
+            return ""
+        return str(value).strip()[:NUMERO_CU_MAX_LEN]
 
 
 class GenerateCuaRequest(BaseModel):
@@ -96,9 +109,26 @@ async def generate_cua(
         )
     except ValueError as exc:
         logger.warning("Génération CUA 400 %s : %s", slug, exc)
+        notify_cua_failed(
+            commune_slug=slug,
+            refs=refs,
+            user_email=current_user.email,
+            error=str(exc),
+            status_code=400,
+            error_type=type(exc).__name__,
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Génération CUA 500 %s : %s", slug, exc)
+        notify_cua_failed(
+            commune_slug=slug,
+            refs=refs,
+            user_email=current_user.email,
+            error=str(exc),
+            status_code=500,
+            error_type=type(exc).__name__,
+            traceback_text=traceback.format_exc(),
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Échec génération CUA : {exc}",
