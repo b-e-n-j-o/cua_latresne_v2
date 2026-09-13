@@ -1636,6 +1636,11 @@ def parse_args() -> argparse.Namespace:
         help="Schéma PostgreSQL cible (sinon dérivé du CSV, ex: argeles, latresne)",
     )
     parser.add_argument(
+        "--label",
+        default=None,
+        help="Libellé commune (si --schema est fourni, le CSV n'est plus obligatoire)",
+    )
+    parser.add_argument(
         "--csv",
         default=DEFAULT_COMMUNES_CSV,
         help="Chemin vers v_commune_2025.csv",
@@ -1690,13 +1695,26 @@ def main() -> None:
     args = parse_args()
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     code_insee = sanitize_insee(args.insee)
-    commune_info = lookup_commune(args.csv, code_insee)
+    schema_arg = (args.schema or "").strip() or None
+    label_arg = (args.label or "").strip() or None
+    csv_available = Path(args.csv).is_file()
 
-    schema = args.schema.strip() if args.schema else commune_info["schema"]
+    if schema_arg and (label_arg or not csv_available):
+        commune_info = {
+            "insee": code_insee,
+            "label": label_arg or schema_arg,
+            "dep": code_insee[:2] if code_insee[:2].isdigit() else "",
+            "schema": schema_arg,
+            "row": {},
+        }
+    else:
+        commune_info = lookup_commune(args.csv, code_insee)
+
+    schema = schema_arg or commune_info["schema"]
     cfg = SyncConfig.build(
         code_insee=code_insee,
         target_schema=schema,
-        commune_label=commune_info["label"],
+        commune_label=label_arg or commune_info["label"],
         run_id=run_id,
     )
     setup_logging(cfg.log_file)

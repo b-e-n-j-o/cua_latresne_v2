@@ -130,6 +130,8 @@ def _run_veille_cadastrale(job_id: str) -> None:
                 commune["insee"],
                 "--schema",
                 commune["schema"],
+                "--label",
+                commune["label"],
                 "--apply",
             ]
             env = os.environ.copy()
