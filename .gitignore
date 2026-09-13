@@ -35,3 +35,9 @@ INTERSECTIONS/STYLES/modele_styles_full.gpkg-wal
 cache_lidar/
 temp_lidar/
 out_pipeline/
+
+# Rapports diff cadastre (JSON horodatés + logs)
+services/ingestion_cadastre/reports/
+services/ingestion_cadastre/diff_parcelles_*.json
+api/veille_sig/cadastre/reports/
+api/veille_sig/cadastre/diff_parcelles_*.json

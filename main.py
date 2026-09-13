@@ -75,6 +75,8 @@ from api.reglements.router_reglements import admin_router as reglements_superadm
 from api.reglements.router_reglements import router as reglements_admin_router
 from api.reglements.router_documents import router as documents_router
 from api.raa.raa_api import router as raa_router
+from api.veille_sig.cadastre.cadastre_veille_api import router as cadastre_veille_router
+from api.veille_sig.cadastre.cadastre_veille_cron import router as cadastre_veille_cron_router
 
 
 logging.basicConfig(
@@ -182,7 +184,11 @@ async def block_scanners(request: Request, call_next):
     if not _INTERNAL_AGENT_TOKEN:
         return await call_next(request)
     ua = request.headers.get("user-agent") or ""
-    token = (request.headers.get("x-internal-token") or "").strip()
+    token = (
+        request.headers.get("x-internal-token")
+        or request.headers.get("x-cron-token")
+        or ""
+    ).strip()
     is_scanner = any(fragment in ua.lower() for fragment in _SCANNER_UA_FRAGMENTS)
     if is_scanner and token != _INTERNAL_AGENT_TOKEN:
         headers = dict(request.headers)
@@ -353,6 +359,10 @@ app.include_router(mnt_router, prefix="/mnt")
 
 # --- Veille réglementaire RAA (par commune) ---
 app.include_router(raa_router)
+
+# --- Veille cadastrale (photos datées + filiations) ---
+app.include_router(cadastre_veille_router)
+app.include_router(cadastre_veille_cron_router)
 
 # --- Site / compte (santé, leads, auth) ---
 app.include_router(site_account_router)

@@ -25,12 +25,14 @@ from services.ingestion_cadastre.etl_stats import fetch_post_etl_stats
 log = logging.getLogger(__name__)
 
 HERE = Path(__file__).resolve().parent
+BACKEND_ROOT = HERE.parent.parent
+CADASTRE_VEILLE_DIR = BACKEND_ROOT / "api" / "veille_sig" / "cadastre"
 DEFAULT_BACKEND_URL = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("BACKEND_URL") or "https://api.kerelia.fr"
 POLL_INTERVAL_S = 5
 POLL_TIMEOUT_S = 3600
 
 SYNC_ETALAB_SCRIPT = Path(
-    os.getenv("SYNC_ETALAB_SCRIPT", str(HERE / "sync_or_add_parcelles.py"))
+    os.getenv("SYNC_ETALAB_SCRIPT", str(CADASTRE_VEILLE_DIR / "sync_or_add_parcelles.py"))
 )
 
 
@@ -118,7 +120,7 @@ def trigger_parcelles_sync_api(
 
 
 def load_parcelles_diff_json(insee: str, schema: str) -> Optional[dict[str, Any]]:
-    path = HERE / f"diff_parcelles_{insee}_{schema}_parcelles.json"
+    path = CADASTRE_VEILLE_DIR / f"diff_parcelles_{insee}_{schema}_parcelles.json"
     if not path.is_file():
         return None
     with open(path, encoding="utf-8") as f:
@@ -157,7 +159,7 @@ def step_parcelles(
         if not SYNC_ETALAB_SCRIPT.is_file():
             raise FileNotFoundError(f"sync_or_add_parcelles introuvable : {SYNC_ETALAB_SCRIPT}")
         args = ["--insee", insee, "--schema", schema]
-        args.append("--dry-run" if cfg.dry_run else "--insert")
+        args.append("--dry-run" if cfg.dry_run else "--apply")
         if defer_slack:
             args.append("--no-slack")
         run_script(SYNC_ETALAB_SCRIPT, args, cfg.dry_run)

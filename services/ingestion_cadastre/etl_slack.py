@@ -29,12 +29,19 @@ def format_parcelles_block(result: dict) -> str:
         "=" * 60,
         f"  Schéma          : {result.get('schema', '')}",
         f"  Table cible     : {result.get('table_cible', '')}",
+        f"  Etalab updated  : {(result.get('millesime_etalab') or {}).get('updated_min')} "
+        f"→ {(result.get('millesime_etalab') or {}).get('updated_max')}",
         f"  Etalab          : {result.get('total_etalab', 0)} parcelles",
         f"  Base            : {result.get('total_db', 0)} parcelles",
         f"  Nouveaux        : {result.get('nouveaux', {}).get('count', 0)}",
         f"  Supprimés       : {result.get('supprimes', {}).get('count', 0)}",
         f"  Contenance diff : {result.get('contenance_diff', {}).get('count', 0)}",
         f"  Géométrie diff  : {result.get('geom_diff', {}).get('count', 0)}",
+        f"  Divisions       : {(result.get('veille') or {}).get('counts', {}).get('division', 0)}",
+        f"  Fusions         : {(result.get('veille') or {}).get('counts', {}).get('fusion', 0)}",
+        f"  Recodages       : {(result.get('veille') or {}).get('counts', {}).get('recodage', 0)}",
+        f"  Suppressions    : {(result.get('veille') or {}).get('counts', {}).get('suppression', 0)}",
+        f"  Créations       : {(result.get('veille') or {}).get('counts', {}).get('creation', 0)}",
         "=" * 60,
     ]
     return "\n".join(lines)
