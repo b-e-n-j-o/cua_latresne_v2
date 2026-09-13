@@ -19,6 +19,7 @@ import os
 import subprocess
 import sys
 import threading
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -47,7 +48,9 @@ _JOB: dict[str, Any] = {
     "communes": [],
     "error": None,
     "log": [],
+    "current": None,
 }
+_HEARTBEAT_S = 20
 
 
 def _internal_token() -> str:
@@ -112,6 +115,13 @@ def _tail(path, n: int = 40) -> str:
     return "\n".join(lines[-n:])
 
 
+def _set_current(**fields: Any) -> None:
+    with _lock:
+        cur = dict(_JOB.get("current") or {})
+        cur.update(fields)
+        _JOB["current"] = cur
+
+
 def _run_apply(job_id: str, commune: dict[str, str]) -> tuple[int, str]:
     """Lance --apply dans sa propre session (survit à un SIGTERM uvicorn)."""
     LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -143,12 +153,40 @@ def _run_apply(job_id: str, commune: dict[str, str]) -> tuple[int, str]:
             stderr=subprocess.STDOUT,
             start_new_session=True,
         )
-        try:
-            rc = proc.wait(timeout=_COMMUNE_TIMEOUT_S)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.wait(timeout=30)
-            return 124, f"timeout {_COMMUNE_TIMEOUT_S}s — voir {log_path.name}"
+    _set_current(
+        schema=commune["schema"],
+        label=commune["label"],
+        pid=proc.pid,
+        log_file=log_path.name,
+        started_at=datetime.now(timezone.utc).isoformat(),
+        last_line="",
+        elapsed_s=0,
+    )
+    _append_log(f"{commune['label']} : process {proc.pid} (muet jusqu'au heartbeat { _HEARTBEAT_S}s)")
+    started = time.monotonic()
+    last_beat = -_HEARTBEAT_S
+    try:
+        while True:
+            rc = proc.poll()
+            elapsed = int(time.monotonic() - started)
+            last = _tail(log_path, 1)
+            _set_current(elapsed_s=elapsed, last_line=last, alive=rc is None)
+            if rc is not None:
+                break
+            if elapsed >= _COMMUNE_TIMEOUT_S:
+                proc.kill()
+                proc.wait(timeout=30)
+                return 124, f"timeout {_COMMUNE_TIMEOUT_S}s — voir {log_path.name}"
+            if elapsed - last_beat >= _HEARTBEAT_S:
+                last_beat = elapsed
+                _append_log(
+                    f"… {commune['label']} toujours en cours ({elapsed}s) pid={proc.pid}"
+                    + (f" — {last}" if last else "")
+                )
+            time.sleep(2)
+    except Exception:
+        proc.kill()
+        raise
     if rc != 0:
         return rc, _tail(log_path)
     return rc, log_path.name
@@ -162,6 +200,7 @@ def _run_veille_cadastrale(job_id: str) -> None:
         _JOB["started_at"] = datetime.now(timezone.utc).isoformat()
         _JOB["error"] = None
         _JOB["log"] = []
+        _JOB["current"] = None
 
     try:
         communes = _load_communes()
@@ -175,6 +214,8 @@ def _run_veille_cadastrale(job_id: str) -> None:
         failures: list[str] = []
         for i, commune in enumerate(communes):
             label = f"{commune['label']} ({commune['insee']})"
+            with _lock:
+                _JOB["communes"][i]["status"] = "running"
             _append_log(f"[{i + 1}/{len(communes)}] {label} — apply")
             rc, detail = _run_apply(job_id, commune)
             if rc != 0:
@@ -225,6 +266,7 @@ def _job_public() -> dict[str, Any]:
             "communes": list(_JOB["communes"]),
             "error": _JOB["error"],
             "log": list(_JOB["log"][-40:]),
+            "current": _JOB.get("current"),
         }
 
 
@@ -262,6 +304,7 @@ def trigger_veille(
                 "communes": [],
                 "error": None,
                 "log": [],
+                "current": None,
             }
         )
 
