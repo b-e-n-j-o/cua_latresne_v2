@@ -6,7 +6,8 @@ Déclenchement quotidien de la veille cadastrale (cron-job.org → Render).
     GET  /api/tasks/trigger-veille/status
 
 Auth : header X-Cron-Token (ou x-internal-token) = INTERNAL_TOKEN.
-Répond tout de suite (200) ; le --apply tourne en arrière-plan.
+Répond tout de suite (200) ; le --apply tourne dans un thread + process isolé
+(un redémarrage uvicorn ne doit pas tuer le --apply en cours).
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 
 from api.veille_sig._env import BACKEND_ROOT
 
@@ -33,6 +34,7 @@ router = APIRouter(tags=["cadastre-veille-cron"])
 ETL_COMMUNES_JSON = (
     BACKEND_ROOT / "services" / "ingestion_cadastre" / "config" / "etl_communes.json"
 )
+LOG_DIR = BACKEND_ROOT / "api" / "veille_sig" / "cadastre" / "reports"
 # Téléchargement Etalab + diff 15 k parcelles : plusieurs minutes par commune.
 _COMMUNE_TIMEOUT_S = 45 * 60
 
@@ -84,6 +86,8 @@ def _load_communes() -> list[dict[str, str]]:
         insee = (row.get("insee") or "").strip()
         if not schema or not insee:
             raise ValueError(f"Ligne {i}: schema et insee requis — {row}")
+        if schema == "mios":
+            continue
         out.append(
             {
                 "schema": schema,
@@ -94,20 +98,70 @@ def _load_communes() -> list[dict[str, str]]:
     return out
 
 
-def _append_log(job: dict[str, Any], message: str) -> None:
-    job["log"].append(message)
+def _append_log(message: str) -> None:
+    with _lock:
+        _JOB["log"].append(message)
     logger.info(message)
+
+
+def _tail(path, n: int = 40) -> str:
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return ""
+    return "\n".join(lines[-n:])
+
+
+def _run_apply(job_id: str, commune: dict[str, str]) -> tuple[int, str]:
+    """Lance --apply dans sa propre session (survit à un SIGTERM uvicorn)."""
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    log_path = LOG_DIR / f"cron_{job_id}_{commune['schema']}.log"
+    cmd = [
+        sys.executable,
+        "-m",
+        "api.veille_sig.cadastre.sync_or_add_parcelles",
+        "--insee",
+        commune["insee"],
+        "--schema",
+        commune["schema"],
+        "--label",
+        commune["label"],
+        "--apply",
+    ]
+    env = os.environ.copy()
+    env["PYTHONPATH"] = (
+        f"{BACKEND_ROOT}{os.pathsep}{env.get('PYTHONPATH', '')}"
+    ).rstrip(os.pathsep)
+    with log_path.open("w", encoding="utf-8") as logf:
+        logf.write(f"$ {' '.join(cmd)}\n")
+        logf.flush()
+        proc = subprocess.Popen(
+            cmd,
+            cwd=str(BACKEND_ROOT),
+            env=env,
+            stdout=logf,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+        try:
+            rc = proc.wait(timeout=_COMMUNE_TIMEOUT_S)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=30)
+            return 124, f"timeout {_COMMUNE_TIMEOUT_S}s — voir {log_path.name}"
+    if rc != 0:
+        return rc, _tail(log_path)
+    return rc, log_path.name
 
 
 def _run_veille_cadastrale(job_id: str) -> None:
     with _lock:
-        job = _JOB
-        if job.get("job_id") != job_id:
+        if _JOB.get("job_id") != job_id:
             return
-        job["status"] = "running"
-        job["started_at"] = datetime.now(timezone.utc).isoformat()
-        job["error"] = None
-        job["log"] = []
+        _JOB["status"] = "running"
+        _JOB["started_at"] = datetime.now(timezone.utc).isoformat()
+        _JOB["error"] = None
+        _JOB["log"] = []
 
     try:
         communes = _load_communes()
@@ -116,45 +170,21 @@ def _run_veille_cadastrale(job_id: str) -> None:
                 {"schema": c["schema"], "insee": c["insee"], "status": "pending"}
                 for c in communes
             ]
-        _append_log(_JOB, f"Veille cadastrale — {len(communes)} commune(s)")
+        _append_log(f"Veille cadastrale — {len(communes)} commune(s)")
 
         failures: list[str] = []
         for i, commune in enumerate(communes):
             label = f"{commune['label']} ({commune['insee']})"
-            _append_log(_JOB, f"[{i + 1}/{len(communes)}] {label} — apply")
-            cmd = [
-                sys.executable,
-                "-m",
-                "api.veille_sig.cadastre.sync_or_add_parcelles",
-                "--insee",
-                commune["insee"],
-                "--schema",
-                commune["schema"],
-                "--label",
-                commune["label"],
-                "--apply",
-            ]
-            env = os.environ.copy()
-            env["PYTHONPATH"] = (
-                f"{BACKEND_ROOT}{os.pathsep}{env.get('PYTHONPATH', '')}"
-            ).rstrip(os.pathsep)
-            completed = subprocess.run(
-                cmd,
-                cwd=str(BACKEND_ROOT),
-                env=env,
-                capture_output=True,
-                text=True,
-                timeout=_COMMUNE_TIMEOUT_S,
-            )
-            if completed.returncode != 0:
-                tail = (completed.stderr or completed.stdout or "")[-800:]
-                msg = f"{label} : exit {completed.returncode} — {tail}"
+            _append_log(f"[{i + 1}/{len(communes)}] {label} — apply")
+            rc, detail = _run_apply(job_id, commune)
+            if rc != 0:
+                msg = f"{label} : exit {rc} — {detail}"
                 failures.append(msg)
-                _append_log(_JOB, f"❌ {msg}")
+                _append_log(f"❌ {msg}")
                 with _lock:
                     _JOB["communes"][i]["status"] = "error"
             else:
-                _append_log(_JOB, f"✅ {label}")
+                _append_log(f"✅ {label} ({detail})")
                 with _lock:
                     _JOB["communes"][i]["status"] = "done"
 
@@ -176,6 +206,15 @@ def _run_veille_cadastrale(job_id: str) -> None:
             _JOB["finished_at"] = datetime.now(timezone.utc).isoformat()
 
 
+def _enqueue(job_id: str) -> None:
+    threading.Thread(
+        target=_run_veille_cadastrale,
+        args=(job_id,),
+        name=f"cadastre-veille-{job_id}",
+        daemon=False,
+    ).start()
+
+
 def _job_public() -> dict[str, Any]:
     with _lock:
         return {
@@ -191,7 +230,6 @@ def _job_public() -> dict[str, Any]:
 
 @router.post("/api/tasks/trigger-veille")
 def trigger_veille(
-    background_tasks: BackgroundTasks,
     x_cron_token: str | None = Header(default=None, alias="X-Cron-Token"),
     x_internal_token: str | None = Header(default=None, alias="x-internal-token"),
 ):
@@ -227,7 +265,7 @@ def trigger_veille(
             }
         )
 
-    background_tasks.add_task(_run_veille_cadastrale, job_id)
+    _enqueue(job_id)
     logger.info("[cadastre-veille cron job=%s] enqueued", job_id)
     return {
         "status": "success",
