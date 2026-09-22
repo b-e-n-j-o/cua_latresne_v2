@@ -26,7 +26,7 @@ try:
 except ImportError:
     from tools import build_dispatch, build_tool_declarations
 
-from .plu_auth import get_plu_user_id
+from .plu_auth import get_plu_user_id, is_plu_superadmin
 from .sessions import (
     messages_get,
     messages_insert,
@@ -58,7 +58,7 @@ class ChatResponse(BaseModel):
     session_id:  str
     answer:      str
     tool_calls:  list[ToolCallLog] = []
-    usage:       Usage
+    usage:       Usage | None = None
     latency_ms:  int
     model:       str
     provider:    str = "mistral"
@@ -823,7 +823,7 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
         messages = messages_get(session_id)
         show_map = session_show_map(session, messages)
 
-        return ChatResponse(
+        resp = ChatResponse(
             session_id=session_id,
             answer=answer,
             tool_calls=tool_calls,
@@ -836,3 +836,8 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
             show_map=show_map,
             **context_limit_fields(usage.context_tokens),
         )
+        if not is_plu_superadmin(user_id):
+            resp.usage = None
+            resp.tool_calls = []
+            resp.model_message_id = None
+        return resp

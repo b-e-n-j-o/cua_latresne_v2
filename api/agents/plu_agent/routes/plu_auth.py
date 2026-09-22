@@ -139,6 +139,17 @@ def get_plu_user_id(authorization: str | None = Header(None)) -> str:
     return verify_supabase_access_token(token)
 
 
+def is_plu_superadmin(user_id: str | None) -> bool:
+    """True si ``user_commune_access.role = superadmin`` pour ce user_id."""
+    if not user_id:
+        return False
+    try:
+        from services.auth.commune_access import is_superadmin
+    except ImportError:
+        return False
+    return bool(is_superadmin(user_id))
+
+
 def session_belongs_to_user(session: dict | None, user_id: str) -> bool:
     if not session:
         return False

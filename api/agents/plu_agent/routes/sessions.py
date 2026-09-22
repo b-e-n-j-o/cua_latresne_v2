@@ -24,7 +24,12 @@ from .llm_raw_context import (
     ensure_raw_llm_context_column,
     metriques_depuis_raw_dict,
 )
-from .plu_auth import ensure_user_id_column, get_plu_user_id, session_belongs_to_user
+from .plu_auth import (
+    ensure_user_id_column,
+    get_plu_user_id,
+    is_plu_superadmin,
+    session_belongs_to_user,
+)
 from .schemas import (
     CONTEXT_TOKEN_LIMIT,
     RawLlmContextResponse,
@@ -756,7 +761,7 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
             msgs = messages_get(session_id) if req.question else None
             show_map = session_show_map(session_row, msgs)
 
-        return SessionResponse(
+        resp = SessionResponse(
             session_id=session_id,
             zones=zones,
             zones_summary=zones_summary(zones),
@@ -771,6 +776,11 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
             show_map=show_map,
             **context_limit_fields(usage.context_tokens if usage else None),
         )
+        if not is_plu_superadmin(user_id):
+            resp.usage = None
+            resp.tool_calls = []
+            resp.model_message_id = None
+        return resp
 
     @router.delete("/session/{session_id}", status_code=204)
     @bind
@@ -813,10 +823,14 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
                     id=str(m["id"]),
                     role=m["role"],
                     content=m["content"],
-                    tool_calls=m.get("tool_calls"),
+                    tool_calls=m.get("tool_calls") if is_plu_superadmin(user_id) else None,
                     created_at=str(m["created_at"]),
-                    has_raw_context=bool(m.get("has_raw_context")),
-                    usage=usage_from_metriques(m.get("metriques_tour")),
+                    has_raw_context=bool(m.get("has_raw_context"))
+                    if is_plu_superadmin(user_id)
+                    else False,
+                    usage=usage_from_metriques(m.get("metriques_tour"))
+                    if is_plu_superadmin(user_id)
+                    else None,
                 )
                 for m in messages
             ],
@@ -833,8 +847,13 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
         message_id: str,
         user_id: str = Depends(get_plu_user_id),
     ):
-        """Contexte brut LLM (prompt + sorties tools) pour un message assistant."""
+        """Contexte brut LLM (prompt + sorties tools) — superadmin uniquement."""
         require_session_for_user(session_id, user_id)
+        if not is_plu_superadmin(user_id):
+            raise HTTPException(
+                status_code=403,
+                detail="Contexte brut réservé aux superadministrateurs.",
+            )
         row = message_get_raw_context(session_id, message_id)
         if not row:
             raise HTTPException(
