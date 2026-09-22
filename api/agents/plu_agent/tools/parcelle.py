@@ -1,4 +1,4 @@
-"""Tool get_parcelle — informations cadastrales et géométrie."""
+"""Résolution cadastrale côté serveur (plus exposé comme tool LLM)."""
 
 import json
 

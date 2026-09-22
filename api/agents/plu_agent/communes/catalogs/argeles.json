@@ -1,6 +1,25 @@
 {
   "_doc": "Argelès — socle GPU = default.json. Couches supplémentaires : éditer ce fichier (keep + clean_attributes).",
   "layers": {
+    "servitudes": {
+      "attributes": [
+        "id",
+        "gml_id",
+        "suptype",
+        "nomsuplitt",
+        "typeass",
+        "nature_protection",
+        "precision_protection",
+        "statut_proprietaire",
+        "nom_sup",
+        "type",
+        "transporteur",
+        "cat_fluide",
+        "nom_captage",
+        "perimetre_protection",
+        "tension"
+      ]
+    },
     "aoc": {
       "enabled": true,
       "table": "aoc",

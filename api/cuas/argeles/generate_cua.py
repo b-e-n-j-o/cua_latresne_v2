@@ -80,10 +80,6 @@ def _cua_viewer_url(remote_docx_path: str) -> str:
     return f"https://kerelia.fr/cua?t={token}"
 
 
-def _today_fr() -> str:
-    return datetime.now().strftime("%d/%m/%Y")
-
-
 def _auto_numero_cu(
     refs: Optional[list[dict[str, str]]] = None,
     meta: Optional[dict[str, str]] = None,
@@ -119,8 +115,6 @@ def _merge_dossier(
     if not numero_cu:
         numero_cu = _auto_numero_cu(refs, meta)
     merged["numero_cu"] = numero_cu[:NUMERO_CU_MAX_LEN]
-    if not str(merged.get("date_depot") or "").strip():
-        merged["date_depot"] = _today_fr()
     return merged
 
 

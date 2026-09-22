@@ -42,4 +42,16 @@ DB_CONFIG = {
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
 GEMINI_MODEL   = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
 
+# Stack Mistral (chat GLM 5.2 + embeddings). Clé BEN en priorité (palier GLM).
+MISTRAL_API_KEY = (
+    (os.environ.get("MISTRAL_API_KEY_BEN") or "").strip()
+    or (os.environ.get("MISTRAL_API_KEY") or "").strip()
+)
+MISTRAL_CHAT_MODEL = os.environ.get("MISTRAL_CHAT_MODEL", "zai-glm-5-2")
+MISTRAL_EMBED_MODEL = os.environ.get("MISTRAL_EMBED_MODEL", "mistral-embed")
+MISTRAL_REASONING_EFFORT = os.environ.get("MISTRAL_REASONING_EFFORT", "high")
+MISTRAL_EMBED_DIM = int(os.environ.get("MISTRAL_EMBED_DIM", "1024"))
+# Défaut chat PLU : mistral (l'UI n'envoie pas encore provider). Vertex si PLU_LLM_PROVIDER=gemini.
+PLU_LLM_PROVIDER = (os.environ.get("PLU_LLM_PROVIDER") or "mistral").strip().lower()
+
 # Préfixe HTTP par commune : voir communes/ + api.create_plu_router()

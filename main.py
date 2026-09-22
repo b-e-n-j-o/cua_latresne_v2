@@ -48,10 +48,10 @@ from api.mnt.router_mnt import router as mnt_router
 from api.tiles_generic import router as tiles_router
 from api.tiles_mbtiles import router as mbtiles_router
 from api.tiles_mbtiles_parcelles import router as tiles_parcelles
-from services.ingestion_cadastre.router_ingest_parcelles import router as parcelles_ingest_router
-from services.ingestion_cadastre.router_sync_parcelles import router as parcelles_sync_router
-from services.ingestion_cadastre.router_etl_commune import router as etl_commune_router
-from services.ingestion_mnt_lidar.router_ingestion_mnt_lidar import router as ingestion_mnt_lidar_router
+from services.ingestion.ingestion_cadastre.router_ingest_parcelles import router as parcelles_ingest_router
+from services.ingestion.ingestion_cadastre.router_sync_parcelles import router as parcelles_sync_router
+from services.ingestion.ingestion_cadastre.router_etl_commune import router as etl_commune_router
+from services.ingestion.ingestion_mnt_lidar.router_ingestion_mnt_lidar import router as ingestion_mnt_lidar_router
 from app.deps import supabase
 from app.routers.cerfa import router as cerfa_router
 from app.routers.cua_pipeline import router as cua_pipeline_router
@@ -71,6 +71,7 @@ from services.history.project_directory import router as project_directory_route
 import services.history.project_directory as project_directory_module
 from services.plu_txt_markdown.router import router as plu_txt_markdown_router
 from services.plu_txt_markdown.router_laius import router as plu_laius_router
+from services.appel_llm.router import router as appel_llm_router
 from api.reglements.router_reglements import admin_router as reglements_superadmin_router
 from api.reglements.router_reglements import router as reglements_admin_router
 from api.reglements.router_documents import router as documents_router
@@ -349,6 +350,9 @@ app.include_router(pipelines_supabase_router)
 # --- PLU : TXT brut → Markdown (batch LLM) ---
 app.include_router(plu_txt_markdown_router)
 app.include_router(plu_laius_router)
+
+# --- Playground LLM Mistral (prompt système + prompt utilisateur) ---
+app.include_router(appel_llm_router)
 
 # --- LiDAR HD (nuage de points) ---
 app.include_router(lidar_router, prefix="/lidar")

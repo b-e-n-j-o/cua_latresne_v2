@@ -7,8 +7,7 @@ import re
 
 from google.genai import types
 
-from ..commune_context import q
-from .utils.db import db_query
+from ..corpus import fetch_textes, insee_courant, resoudre_codes_zonage
 
 logger = logging.getLogger("plu_tools")
 
@@ -34,7 +33,7 @@ def _zone_libelle(code: str) -> str:
 def get_reglement_pprmvt(db_config: dict, codes_zone: list[str] | None = None) -> dict:
     """
     Récupère les dispositions générales DG1–DG3 et le règlement des zones demandées
-    depuis ``{schema}.pprmvt_reglements``.
+    depuis ``corpus.textes`` (document PPRMVT).
     """
     if codes_zone is None:
         requested_raw: list = []
@@ -55,29 +54,23 @@ def get_reglement_pprmvt(db_config: dict, codes_zone: list[str] | None = None) -
         seen.add(c)
         requested.append(c)
 
-    codes_to_fetch = list(DG_CODES) + requested
-    if not codes_to_fetch:
-        return {
-            "dispositions_generales": [],
-            "zones": [],
-            "dispositions_generales_found": 0,
-            "zones_found": 0,
-            "zones_requested": [],
-            "error": "Aucun code zone fourni et dispositions générales non configurées.",
-        }
-
-    placeholders = ", ".join("%s" for _ in codes_to_fetch)
-    sql = f"""
-        SELECT code_zone, reglementation
-        FROM {q(TABLE_NAME)}
-        WHERE upper(trim(code_zone)) IN ({placeholders})
-    """
-    params = tuple(codes_to_fetch)
+    codes_to_fetch = list(requested)
+    insee = insee_courant()
+    if insee:
+        codes_to_fetch = resoudre_codes_zonage(
+            db_config, codes_to_fetch, document_type="PPRMVT", insee=insee
+        )
 
     try:
-        rows = db_query(db_config, sql, params)
+        textes = fetch_textes(
+            db_config,
+            document_type="PPRMVT",
+            codes=codes_to_fetch,
+            include_globale=True,
+            insee=insee,
+        )
     except Exception as e:
-        logger.error("get_reglement_pprmvt — SQL échoué : %s", e)
+        logger.error("get_reglement_pprmvt — lecture corpus échouée : %s", e)
         return {
             "dispositions_generales": [],
             "zones": [],
@@ -87,31 +80,36 @@ def get_reglement_pprmvt(db_config: dict, codes_zone: list[str] | None = None) -
             "error": str(e),
         }
 
-    by_code: dict[str, str] = {}
-    for row in rows:
-        key = _norm_code(row["code_zone"])
-        by_code[key] = (row.get("reglementation") or "").strip()
+    by_code: dict[str, dict] = {}
+    for t in textes:
+        key = _norm_code(t.get("zone_code") or "")
+        if key:
+            by_code[key] = t
 
     dispositions_generales: list[dict] = []
     for dg in DG_CODES:
-        text = by_code.get(dg)
+        row = by_code.get(dg) or {}
+        text = (row.get("reglementation") or "").strip() if row else ""
         dispositions_generales.append({
             "code_zone": dg,
             "type": "dispositions_generales",
             "libelle": DG_LIBELLES[dg],
-            "reglementation": text,
+            "reglementation": text or None,
+            "texte_id": row.get("texte_id"),
             "found": bool(text),
             "error": None if text else f"Texte absent en base pour {dg}.",
         })
 
     zones_out: list[dict] = []
     for code in requested:
-        text = by_code.get(code)
+        row = by_code.get(code) or {}
+        text = (row.get("reglementation") or "").strip() if row else ""
         zones_out.append({
             "code_zone": code,
             "type": "zone",
             "libelle": _zone_libelle(code),
-            "reglementation": text,
+            "reglementation": text or None,
+            "texte_id": row.get("texte_id"),
             "found": bool(text),
             "error": None if text else f"Aucun règlement PPRMVT pour la zone « {code} ».",
         })
@@ -139,7 +137,7 @@ DECL_REGLEMENT_PPRMVT = types.FunctionDeclaration(
         "Chaque entrée est typée (dispositions_generales vs zone) avec un libellé explicite. "
         "À utiliser pour une question sur le PPRMVT / risques miniers, ou lorsque "
         "get_contexte_parcelle indique une zone PPRMVT. "
-        "Ne pas confondre avec get_reglement_zone (PLU communal, table plu_reglement). "
+        "Ne pas confondre avec get_reglement_zone (PLU communal). "
         "Passer les codes zone EXACTS (sans préfixe « zone_ »)."
     ),
     parameters=types.Schema(

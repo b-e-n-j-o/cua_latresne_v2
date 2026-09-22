@@ -8,8 +8,8 @@ from typing import Any
 
 from google.genai import types
 
-from ..commune_context import get_current_profile_optional, q
-from .utils.db import db_query
+from ..corpus import fetch_textes, insee_courant, resoudre_codes_zonage
+from ..commune_context import get_current_profile_optional
 
 logger = logging.getLogger("plu_tools")
 
@@ -51,6 +51,24 @@ SELECT_COLS = """
 """
 
 
+def _corpus_to_legacy_row(t: dict[str, Any]) -> dict[str, Any]:
+    """Aligné sur l'ancien SELECT ppri_reglements pour _row_to_bloc."""
+    return {
+        "id": t.get("texte_id"),
+        "commune": None,
+        "code_insee": t.get("commune_insee"),
+        "version_date": t.get("date_debut_applicabilite"),
+        "zone_code": t.get("zone_code"),
+        "titre_zone": t.get("titre"),
+        "chapitre": t.get("chapitre"),
+        "source_pdf_page_start": t.get("page_start"),
+        "source_pdf_page_end": t.get("page_end"),
+        "reglementation": t.get("reglementation"),
+        "texte_id": t.get("texte_id"),
+        "portee": t.get("portee"),
+    }
+
+
 def _norm_zone_code(code: str) -> str:
     c = str(code).strip().upper()
     c = c.replace("É", "E").replace("È", "E").replace("Ê", "E")
@@ -83,6 +101,9 @@ def _row_to_bloc(row: dict[str, Any]) -> dict[str, Any]:
         libelle = DG_LIBELLE
     return {
         "id": row.get("id"),
+        "texte_id": row.get("texte_id") or (
+            str(row["id"]) if row.get("id") else None
+        ),
         "zone_code": zc,
         "chapitre": chapitre,
         "titre_zone": titre,
@@ -96,6 +117,8 @@ def _row_to_bloc(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _is_disposition_row(row: dict[str, Any]) -> bool:
+    if (row.get("portee") or "") == "globale":
+        return True
     zc = _norm_zone_code(row.get("zone_code") or "")
     if not zc:
         return True
@@ -154,6 +177,8 @@ def _aggregate_blocs(
         "zone_code": zone_code,
         "libelle": libelle,
         "reglementation": combined,
+        "texte_id": (found_blocs[0].get("texte_id") if found_blocs else None),
+        "texte_ids": [b.get("texte_id") for b in found_blocs if b.get("texte_id")],
         "blocs": blocs,
         "blocs_count": len(blocs),
         "blocs_found": len(found_blocs),
@@ -169,41 +194,17 @@ def _fetch_rows(
     *,
     include_dispositions_generales: bool,
 ) -> list[dict[str, Any]]:
-    or_clauses: list[str] = []
-    params: list[Any] = [code_insee]
-
-    if requested:
-        ph = ", ".join("%s" for _ in requested)
-        or_clauses.append(f"upper(trim(zone_code)) IN ({ph})")
-        params.extend(requested)
-
-    if include_dispositions_generales:
-        legacy = sorted(DISPOSITION_ZONE_CODES)
-        ph = ", ".join("%s" for _ in legacy)
-        or_clauses.append(
-            f"(zone_code IS NULL OR trim(coalesce(zone_code, '')) = '' "
-            f"OR upper(trim(zone_code)) IN ({ph}))"
-        )
-        params.extend(legacy)
-
-    if not or_clauses:
-        return []
-
-    sql = f"""
-        SELECT {SELECT_COLS}
-        FROM {q(TABLE_NAME)}
-        WHERE code_insee = %s
-          AND ({' OR '.join(or_clauses)})
-        ORDER BY
-            CASE WHEN upper(trim(coalesce(zone_code, ''))) = %s THEN 0
-                 WHEN zone_code IS NULL OR trim(coalesce(zone_code, '')) = '' THEN 1
-                 ELSE 2 END,
-            chapitre NULLS LAST,
-            zone_code NULLS LAST,
-            id
-    """
-    params.append(DG_ZONE_CODE)
-    return db_query(db_config, sql, tuple(params))
+    codes = resoudre_codes_zonage(
+        db_config, requested, document_type="PPRI", insee=code_insee
+    )
+    textes = fetch_textes(
+        db_config,
+        document_type="PPRI",
+        codes=codes,
+        include_globale=include_dispositions_generales,
+        insee=code_insee,
+    )
+    return [_corpus_to_legacy_row(t) for t in textes]
 
 
 def get_reglement_ppri(
@@ -213,7 +214,7 @@ def get_reglement_ppri(
     include_dispositions_communes: bool = True,
 ) -> dict:
     """
-    Récupère le règlement PPRI depuis ``{schema}.ppri_reglements`` :
+    Récupère le règlement PPRI depuis ``corpus.textes`` :
     dispositions générales (``zone_code`` = DG, texte fusionné DG1–DG3) + zones demandées.
     """
     requested = _parse_requested_codes(codes_zone)
@@ -342,7 +343,7 @@ DECL_REGLEMENT_PPRI = types.FunctionDeclaration(
     name="get_reglement_ppri",
     description=(
         "Récupère le règlement écrit du PPRI (Plan de Prévention des Risques "
-        "d'Inondation) de Latresne depuis ppri_reglements. "
+        "d'Inondation) de Latresne. "
         "Inclut TOUJOURS automatiquement les dispositions générales (zone_code DG, "
         "texte fusionné DG1–DG3) — ne pas passer DG dans codes_zone. "
         f"Zones couleur valides (orthographe exacte) : {_PPRI_ZONES_COULEUR_HELP}. "

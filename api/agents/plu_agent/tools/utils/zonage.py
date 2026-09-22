@@ -1,6 +1,7 @@
 """
-Zonage PLU — intersection surfacique réelle + règlement.
+Zonage PLU — intersection surfacique réelle.
 
+Le texte réglementaire n'est pas joint ici (tool get_reglement_zone).
 ST_Intersects seul inclut les contacts bord à bord (0 %) ; on exige une aire > seuil.
 """
 
@@ -9,6 +10,7 @@ from __future__ import annotations
 import logging
 
 from ...commune_context import q
+from ...corpus import attacher_textes_plu
 from .db import db_query
 from .parcel_geom import resolve_unite_fonciere
 
@@ -96,11 +98,9 @@ def fetch_zonage_reglement_rows(
             ROUND(
                 (ST_Area({ix}) / NULLIF(ST_Area(c.geom), 0) * 100)::numeric,
                 1
-            ) AS pct_parcelle_couverte,
-            r.reglementation
+            ) AS pct_parcelle_couverte
         FROM {q("zonage_plu")} z
         CROSS JOIN cible c
-        LEFT JOIN {q("plu_reglement")} r ON r.code_zone = z.zonage_reglement
         WHERE ST_Intersects({zone_g}, c.geom)
           AND {parcel_intersection_filter_sql("z", "c", min_m2)}
         ORDER BY superficie_intersection_m2 DESC;
@@ -135,8 +135,9 @@ def get_zonage_et_reglements(
     numero: str = None,
     idu: str = None,
     min_intersection_m2: float | None = None,
+    include_reglement: bool = False,
 ) -> dict:
-    """Zones PLU avec surface réelle sur la parcelle (exclut contacts 0 m² / 0 %)."""
+    """Zones PLU avec surface réelle (codes, %, libellés). Texte PLU optionnel."""
     try:
         resolved = resolve_unite_fonciere(
             db_config,
@@ -174,6 +175,8 @@ def get_zonage_et_reglements(
             min_intersection_m2=min_intersection_m2,
         )
         rows = filter_zonage_rows(rows, min_intersection_m2=min_intersection_m2)
+        if include_reglement:
+            rows = attacher_textes_plu(db_config, rows)
 
         if rows:
             logger.info(

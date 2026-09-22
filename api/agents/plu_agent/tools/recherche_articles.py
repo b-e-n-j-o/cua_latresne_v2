@@ -9,17 +9,21 @@ Deux portes d'entrée dans le corpus (2.5k articles) :
 
 Aligné sur le pattern de zonage.py : psycopg2, _query/RealDictCursor,
 retours {..., "error": ...}, déclarations DECL_*.
+Embeddings via Vertex uniquement (même client que chat.py).
 """
 
-import os
 import logging
 from typing import List, Dict, Any
 
 import numpy as np
 import psycopg2
 import psycopg2.extras
-from google import genai
 from google.genai import types
+
+try:
+    from ..vertex_client import build_vertex_client
+except ImportError:
+    from vertex_client import build_vertex_client
 
 logger = logging.getLogger("plu_tools")
 
@@ -45,13 +49,20 @@ def _query(db_config: dict, sql: str, params: tuple) -> List[dict]:
     return rows
 
 
-# ── Embedding de la requête ─────────────────────────────────
-_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+# ── Embedding de la requête (Vertex uniquement) ─────────────
+_client = None
+
+
+def _get_vertex_client():
+    global _client
+    if _client is None:
+        _client = build_vertex_client()
+    return _client
 
 
 def _embed_query(text: str) -> List[float]:
-    """Embedde la requête utilisateur (task_type=RETRIEVAL_QUERY) + normalise."""
-    resp = _client.models.embed_content(
+    """Embedde la requête (Vertex, task_type=RETRIEVAL_QUERY) + normalise."""
+    resp = _get_vertex_client().models.embed_content(
         model=EMBED_MODEL,
         contents=text,
         config=types.EmbedContentConfig(
@@ -72,10 +83,27 @@ _COLS = "article_id, num, title, path_title, resume, text_clean"
 # ============================================================
 # TOOL 1 — Recherche hybride (RRF)
 # ============================================================
+def _embed_for_search(text: str, embed_backend: str) -> tuple[list[float], str]:
+    """
+    Retourne (vecteur, backend_effectif).
+    ``mistral`` → mistral-embed (1024d). ``vertex`` → Gemini Vertex (768d).
+    """
+    backend = (embed_backend or "vertex").strip().lower()
+    if backend == "mistral":
+        try:
+            from ..mistral_client import embed_query_mistral
+        except ImportError:
+            from mistral_client import embed_query_mistral
+
+        return embed_query_mistral(text), "mistral"
+    return _embed_query(text), "vertex"
+
+
 def search_articles_urbanisme(
     db_config: dict,
     query: str,
     top_k: int = 5,
+    embed_backend: str = "vertex",
 ) -> dict:
     """
     Recherche hybride : fusionne une branche sémantique (vecteur, cosinus)
@@ -86,19 +114,12 @@ def search_articles_urbanisme(
         return {"articles": [], "count": 0, "error": "Requête vide."}
 
     try:
-        qvec = _embed_query(query)
+        qvec, embed_used = _embed_for_search(query, embed_backend)
     except Exception as e:
         logger.error("search_articles_urbanisme — embedding requête échoué : %s", e)
         return {"articles": [], "count": 0, "error": f"Embedding requête : {e}"}
 
-    # — Branche sémantique : distance cosinus (<=>), plus petit = plus proche —
-    sql_vec = f"""
-        SELECT {_COLS}, (embedding <=> %s::vector) AS dist
-        FROM {TABLE}
-        WHERE embedding IS NOT NULL
-        ORDER BY embedding <=> %s::vector
-        LIMIT %s
-    """
+    semantic_ok = len(qvec) == EMBED_DIM
     # — Branche lexicale : full-text FR, websearch_to_tsquery tolère le langage naturel —
     sql_fts = f"""
         SELECT {_COLS}, ts_rank(fts, websearch_to_tsquery('french', %s)) AS rank
@@ -109,7 +130,23 @@ def search_articles_urbanisme(
     """
 
     try:
-        vec_rows = _query(db_config, sql_vec, (qvec, qvec, CANDIDATES))
+        vec_rows: list[dict] = []
+        if semantic_ok:
+            sql_vec = f"""
+                SELECT {_COLS}, (embedding <=> %s::vector) AS dist
+                FROM {TABLE}
+                WHERE embedding IS NOT NULL
+                ORDER BY embedding <=> %s::vector
+                LIMIT %s
+            """
+            vec_rows = _query(db_config, sql_vec, (qvec, qvec, CANDIDATES))
+        else:
+            logger.warning(
+                "search_articles_urbanisme — vecteur %sd incompatible avec "
+                "la table Gemini %sd ; branche sémantique ignorée (FTS seul).",
+                len(qvec),
+                EMBED_DIM,
+            )
         fts_rows = _query(db_config, sql_fts, (query, query, CANDIDATES))
     except Exception as e:
         logger.error("search_articles_urbanisme — SQL échoué : %s", e)
@@ -140,7 +177,13 @@ def search_articles_urbanisme(
         row["rrf_score"] = round(score, 5)
         articles.append(row)
 
-    return {"articles": articles, "count": len(articles), "error": None}
+    return {
+        "articles": articles,
+        "count": len(articles),
+        "error": None,
+        "embed_backend": embed_used,
+        "semantic": semantic_ok,
+    }
 
 
 # ============================================================

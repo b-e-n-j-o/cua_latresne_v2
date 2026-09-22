@@ -92,6 +92,7 @@ Le `group` ne doit pas être `prescriptions` / `servitudes` / `informations` (r�
 | `context_llm` | Inclure dans `get_contexte_parcelle` → `couches_supplementaires` |
 | `context_carto` | Inclure dans `GET /map` → clé `extra` |
 | `optional` | Ne pas faire échouer si la table/colonne manque |
+| `collapse_identical` | LLM : si `true`, fusionne les entités aux mêmes attributs (`nb_entites`). Défaut `false`. La carte garde toutes les géométries. |
 
 Le code métier lit ce catalogue via `CommuneProfile.catalog` :
 - GPU : `prescriptions.py`, `servitudes.py`, `infos.py` (via `catalog_bridge`)

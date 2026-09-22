@@ -84,6 +84,9 @@ class LayerSpec:
     optional: bool = False
     """Si True, erreur SQL table absente → couche ignorée (comme infos_*)."""
 
+    collapse_identical: bool = False
+    """LLM only : si True, fusionne les entités aux mêmes attributs (galeries fragmentées)."""
+
 
 @dataclass(frozen=True)
 class LayerCatalog:
@@ -145,6 +148,7 @@ def _parse_layer(layer_id: str, raw: dict[str, Any]) -> LayerSpec:
         reglement_table=raw.get("reglement_table"),
         optional=bool(raw.get("optional", False)),
         inclu_buffer=bool(raw.get("inclu_buffer", False)),
+        collapse_identical=bool(raw.get("collapse_identical", False)),
     )
 
 

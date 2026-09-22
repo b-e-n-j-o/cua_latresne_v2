@@ -7,9 +7,9 @@ import logging
 
 import psycopg2
 
-from ...commune_context import q
+from ...commune_context import current_schema, q
 from .catalog_bridge import infos_config
-from .db import db_query
+from .db import db_query, existing_columns, sql_select_existing
 from .parcel_geom import resolve_unite_fonciere
 from .intersection_metrics import (
     apply_surfacic_metrics_to_item,
@@ -21,11 +21,15 @@ from .zonage import strict_parcel_intersection_filter_sql
 logger = logging.getLogger("plu_tools")
 
 
+_DEFAULT_INFO_ATTRS = ("gml_id", "libelle", "txt", "typeinf", "stypeinf")
+
+
 def _sql_infos(
     table: str,
     with_geojson: bool,
     strict_parcel: bool = True,
     with_area_metrics: bool = False,
+    attr_sql: str = "p.gml_id, p.libelle, p.txt, p.typeinf, p.stypeinf",
 ) -> str:
     entity_geom = "ST_MakeValid(p.geom_2154)"
     geom_sel = (
@@ -62,11 +66,7 @@ def _sql_infos(
         ),
         {scope_cte}
         SELECT
-            p.gml_id,
-            p.libelle,
-            p.txt,
-            p.typeinf,
-            p.stypeinf
+            {attr_sql}
             {geom_sel}{metrics_sel}
         FROM {q(table)} p
         CROSS JOIN cible_scope c
@@ -92,6 +92,8 @@ def fetch_infos_rows(
         if not cfg.get("context_llm") and not with_geojson:
             continue
         try:
+            wanted = cfg.get("attributes") or _DEFAULT_INFO_ATTRS
+            avail = existing_columns(db_config, current_schema(), cfg["table"])
             sql = _sql_infos(
                 cfg["table"],
                 with_geojson,
@@ -100,6 +102,7 @@ def fetch_infos_rows(
                     kind=cfg.get("kind"),
                     subgroup=key,
                 ),
+                attr_sql=sql_select_existing("p", wanted, avail),
             )
             if strict_parcel:
                 out[key] = db_query(db_config, sql, (geom_wkb,))

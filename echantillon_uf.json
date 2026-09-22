@@ -1,0 +1,451 @@
+{
+  "commune": "argeles",
+  "genere_le": "2026-09-15T19:01:42",
+  "n": 30,
+  "ufs": [
+    {
+      "id": "WRdHWp9bcErP3YAuQw62nzz8XG",
+      "refs": [
+        {
+          "section": "AV",
+          "numero": "1230"
+        },
+        {
+          "section": "AV",
+          "numero": "1335"
+        }
+      ],
+      "cree_le": "2026-09-14T14:53:50.221867+00:00"
+    },
+    {
+      "id": "3JLZ5oot4voRiSNyCdQ7h5axfv",
+      "refs": [
+        {
+          "section": "BH",
+          "numero": "1370"
+        }
+      ],
+      "cree_le": "2026-09-14T12:47:23.651405+00:00"
+    },
+    {
+      "id": "XChfASRWjUJJhNPpu2qLr4iu6Q",
+      "refs": [
+        {
+          "section": "BW",
+          "numero": "61"
+        }
+      ],
+      "cree_le": "2026-09-14T08:46:25.095768+00:00"
+    },
+    {
+      "id": "NAKa9krtXYu3YA1ejW1oazdEmC",
+      "refs": [
+        {
+          "section": "BW",
+          "numero": "43"
+        },
+        {
+          "section": "BW",
+          "numero": "44"
+        },
+        {
+          "section": "BW",
+          "numero": "47"
+        },
+        {
+          "section": "BW",
+          "numero": "52"
+        },
+        {
+          "section": "BW",
+          "numero": "53"
+        },
+        {
+          "section": "BW",
+          "numero": "54"
+        },
+        {
+          "section": "BW",
+          "numero": "55"
+        },
+        {
+          "section": "BW",
+          "numero": "56"
+        },
+        {
+          "section": "BW",
+          "numero": "57"
+        },
+        {
+          "section": "BW",
+          "numero": "58"
+        },
+        {
+          "section": "BW",
+          "numero": "46"
+        },
+        {
+          "section": "BW",
+          "numero": "45"
+        }
+      ],
+      "cree_le": "2026-09-14T08:08:32.312138+00:00"
+    },
+    {
+      "id": "fQw58Rref1tauhuvxGYMGAVyc2",
+      "refs": [
+        {
+          "section": "BH",
+          "numero": "932"
+        }
+      ],
+      "cree_le": "2026-09-11T10:31:03.337926+00:00"
+    },
+    {
+      "id": "wzRFWp6wRyzagH8bgxKcJyrKFZ",
+      "refs": [
+        {
+          "section": "AY",
+          "numero": "753"
+        }
+      ],
+      "cree_le": "2026-09-11T09:16:15.704038+00:00"
+    },
+    {
+      "id": "EqPzrqKocrVEomtek2cWjjgQ6e",
+      "refs": [
+        {
+          "section": "BW",
+          "numero": "43"
+        },
+        {
+          "section": "BW",
+          "numero": "44"
+        },
+        {
+          "section": "BW",
+          "numero": "47"
+        },
+        {
+          "section": "BW",
+          "numero": "52"
+        },
+        {
+          "section": "BW",
+          "numero": "53"
+        },
+        {
+          "section": "BW",
+          "numero": "54"
+        },
+        {
+          "section": "BW",
+          "numero": "55"
+        },
+        {
+          "section": "BW",
+          "numero": "56"
+        },
+        {
+          "section": "BW",
+          "numero": "57"
+        },
+        {
+          "section": "BW",
+          "numero": "58"
+        },
+        {
+          "section": "BW",
+          "numero": "46"
+        },
+        {
+          "section": "AY",
+          "numero": "753"
+        },
+        {
+          "section": "BW",
+          "numero": "45"
+        }
+      ],
+      "cree_le": "2026-09-11T09:06:40.577795+00:00"
+    },
+    {
+      "id": "9oBbwgBBe5Ak1FEtmMKb75QTmU",
+      "refs": [
+        {
+          "section": "BP",
+          "numero": "1145"
+        },
+        {
+          "section": "BP",
+          "numero": "271"
+        }
+      ],
+      "cree_le": "2026-09-10T12:13:17.127944+00:00"
+    },
+    {
+      "id": "zgG2EGn8aFTvbXGsWqu52sk7K2",
+      "refs": [
+        {
+          "section": "BC",
+          "numero": "1475"
+        },
+        {
+          "section": "BC",
+          "numero": "1473"
+        }
+      ],
+      "cree_le": "2026-09-10T09:35:08.382444+00:00"
+    },
+    {
+      "id": "EeZLwbozz5JsA3Qof5YaBoz3Dk",
+      "refs": [
+        {
+          "section": "BE",
+          "numero": "1034"
+        }
+      ],
+      "cree_le": "2026-09-10T09:21:11.608460+00:00"
+    },
+    {
+      "id": "4yc7yWMxqLxvRE8X28AJBAezkm",
+      "refs": [
+        {
+          "section": "BH",
+          "numero": "1164"
+        }
+      ],
+      "cree_le": "2026-09-10T08:34:34.597426+00:00"
+    },
+    {
+      "id": "tq41z53hKMEqERd4LK4NcynfbF",
+      "refs": [
+        {
+          "section": "BE",
+          "numero": "1488"
+        }
+      ],
+      "cree_le": "2026-09-10T07:59:26.521739+00:00"
+    },
+    {
+      "id": "yjcTiPkuG4hjdCLNP39TTZnZhj",
+      "refs": [
+        {
+          "section": "BC",
+          "numero": "1691"
+        },
+        {
+          "section": "BC",
+          "numero": "1692"
+        },
+        {
+          "section": "BC",
+          "numero": "318"
+        },
+        {
+          "section": "BC",
+          "numero": "319"
+        },
+        {
+          "section": "BC",
+          "numero": "320"
+        }
+      ],
+      "cree_le": "2026-09-09T13:51:45.345673+00:00"
+    },
+    {
+      "id": "FPSd69wr93BqVAgWtaVcDHD3sC",
+      "refs": [
+        {
+          "section": "BC",
+          "numero": "526"
+        },
+        {
+          "section": "BC",
+          "numero": "528"
+        },
+        {
+          "section": "BC",
+          "numero": "530"
+        }
+      ],
+      "cree_le": "2026-09-09T13:39:48.481618+00:00"
+    },
+    {
+      "id": "3CQavu765XwMZBGmhmrDe8dVdW",
+      "refs": [
+        {
+          "section": "BC",
+          "numero": "526"
+        }
+      ],
+      "cree_le": "2026-09-09T13:37:57.216888+00:00"
+    },
+    {
+      "id": "nqgXmQ1kAWeH8fFTSNE7Tg3aar",
+      "refs": [
+        {
+          "section": "BC",
+          "numero": "772"
+        }
+      ],
+      "cree_le": "2026-09-09T09:35:08.048122+00:00"
+    },
+    {
+      "id": "VLjs1jAVg2WX9wKKcLF3hdEuRg",
+      "refs": [
+        {
+          "section": "BD",
+          "numero": "361"
+        }
+      ],
+      "cree_le": "2026-09-09T09:02:46.363691+00:00"
+    },
+    {
+      "id": "3fsJ5HXLcm9sRZKQoaymviWan7",
+      "refs": [
+        {
+          "section": "AY",
+          "numero": "712"
+        }
+      ],
+      "cree_le": "2026-09-08T15:40:40.819582+00:00"
+    },
+    {
+      "id": "wtRmz2Y1soJaV54FHBvkBWwNQg",
+      "refs": [
+        {
+          "section": "AX",
+          "numero": "192"
+        }
+      ],
+      "cree_le": "2026-09-08T14:55:38.901492+00:00"
+    },
+    {
+      "id": "CxoKkh71za8oYaMC67u2PUQdgh",
+      "refs": [
+        {
+          "section": "BL",
+          "numero": "106"
+        }
+      ],
+      "cree_le": "2026-09-08T14:12:47.726915+00:00"
+    },
+    {
+      "id": "4LfoFphgbxHvMdo3pPCiC9638a",
+      "refs": [
+        {
+          "section": "AZ",
+          "numero": "240"
+        }
+      ],
+      "cree_le": "2026-09-08T08:35:46.053471+00:00"
+    },
+    {
+      "id": "L1a4GRMwAd7mG8PpxbCawLj3sx",
+      "refs": [
+        {
+          "section": "BH",
+          "numero": "866"
+        }
+      ],
+      "cree_le": "2026-09-07T14:58:57.241117+00:00"
+    },
+    {
+      "id": "XDQH5PmbAGTmA3K7ZJrAQmPdbx",
+      "refs": [
+        {
+          "section": "BP",
+          "numero": "1250"
+        }
+      ],
+      "cree_le": "2026-09-07T14:35:50.195903+00:00"
+    },
+    {
+      "id": "ja7Pxv1yHJntM1JeNAXmfRG8N6",
+      "refs": [
+        {
+          "section": "BH",
+          "numero": "153"
+        }
+      ],
+      "cree_le": "2026-09-07T14:28:46.456290+00:00"
+    },
+    {
+      "id": "jp8qcDXbvGPfrHiv7PVw5DiLxD",
+      "refs": [
+        {
+          "section": "BE",
+          "numero": "589"
+        }
+      ],
+      "cree_le": "2026-09-07T14:07:40.936826+00:00"
+    },
+    {
+      "id": "Fx977PYnEjXaemRcuMGxbh1HSF",
+      "refs": [
+        {
+          "section": "BE",
+          "numero": "893"
+        }
+      ],
+      "cree_le": "2026-09-07T13:53:40.457462+00:00"
+    },
+    {
+      "id": "1xtdBKuGsLUqpCyMggLdw3aydm",
+      "refs": [
+        {
+          "section": "BW",
+          "numero": "43"
+        },
+        {
+          "section": "BW",
+          "numero": "44"
+        },
+        {
+          "section": "BW",
+          "numero": "45"
+        }
+      ],
+      "cree_le": "2026-09-07T13:29:10.788598+00:00"
+    },
+    {
+      "id": "hkhAk4o1Nnp2ZziJMrQoCaiUhc",
+      "refs": [
+        {
+          "section": "BS",
+          "numero": "45"
+        },
+        {
+          "section": "BS",
+          "numero": "46"
+        }
+      ],
+      "cree_le": "2026-09-07T12:25:22.307874+00:00"
+    },
+    {
+      "id": "Ak3zSUycDeRU7nGq5KbjxBCVLG",
+      "refs": [
+        {
+          "section": "AW",
+          "numero": "59"
+        }
+      ],
+      "cree_le": "2026-09-03T14:36:26.463684+00:00"
+    },
+    {
+      "id": "e2ubEYoTNY4BMGUMBvYbVzoKPJ",
+      "refs": [
+        {
+          "section": "AE",
+          "numero": "338"
+        },
+        {
+          "section": "AE",
+          "numero": "67"
+        }
+      ],
+      "cree_le": "2026-09-03T13:46:07.872225+00:00"
+    }
+  ]
+}

@@ -1,0 +1,194 @@
+[
+    {
+      "index": 1,
+      "label": null,
+      "output": {
+        "type_regle": "ratio",
+        "ces_max_pct": 70,
+        "emprise_max_m2": null,
+        "citation": "L’emprise au sol de l’ensemble des constructions est limitée à 70% de la surface de la parcelle ou de l’unité foncière.",
+        "article": "ARTICLE 1AU 2.1 – VOLUMETRIE ET IMPLANTATION DES CONSTRUCTIONS",
+        "commentaire": null
+      }
+    },
+    {
+      "index": 2,
+      "label": null,
+      "output": {
+        "type_regle": "non_reglemente",
+        "ces_max_pct": null,
+        "emprise_max_m2": null,
+        "citation": "EMPRISE AU SOL : Non règlementé.",
+        "article": "ARTICLE 2AU. 2.1 – VOLUMETRIE ET IMPLANTATION DES CONSTRUCTIONS",
+        "commentaire": null
+      }
+    },
+    {
+      "index": 3,
+      "label": null,
+      "output": {
+        "type_regle": "ratio",
+        "ces_max_pct": 20,
+        "emprise_max_m2": null,
+        "citation": "L’emprise au sol des constructions existantes ou projetées ne devra pas excéder 20 % de la superficie totale du terrain.",
+        "article": "ARTICLE 2AUL. 2.1 – VOLUMETRIE ET IMPLANTATION DES CONSTRUCTIONS",
+        "commentaire": null
+      }
+    },
+    {
+      "index": 4,
+      "label": null,
+      "output": {
+        "type_regle": "non_reglemente",
+        "ces_max_pct": null,
+        "emprise_max_m2": null,
+        "citation": "EMPRISE AU SOL\nNon règlementé.",
+        "article": "Article 2AUX 2.1 – VOLUMETRIE ET IMPLANTATION DES CONSTRUCTIONS",
+        "commentaire": null
+      }
+    },
+    {
+      "index": 5,
+      "label": null,
+      "output": {
+        "type_regle": "ratio",
+        "ces_max_pct": 30,
+        "emprise_max_m2": null,
+        "citation": "L’emprise au sol des extensions des bâtiments d'habitation existants, prévues à l’article L151-12 du Code de l’Urbanisme, est limitée à 30% de l’emprise au sol de la construction initiale à la date d’approbation du PLU pour l’extension des bâtiments d'habitation ou agricole existants.",
+        "article": "A 2.1 - EMPRISE AU SOL",
+        "commentaire": "Règle applicable uniquement aux extensions des bâtiments d'habitation existants. L'emprise au sol n'est pas réglementée pour les constructions à usage agricole. Les annexes sont limitées à 15 m² et les piscines à 50 m²."
+      }
+    },
+    {
+      "index": 6,
+      "label": null,
+      "output": {
+        "type_regle": "ratio",
+        "ces_max_pct": 15,
+        "emprise_max_m2": null,
+        "citation": "L’emprise au sol des extensions des bâtiments d'habitation existants, prévues à l’article L151-12 du Code de l’Urbanisme, est limitée à 15% de l’emprise au sol existante à la date d’approbation du PLU pour l’extension des bâtiments d'habitation ou agricole existants.",
+        "article": "ARTICLE N. 2.1 – EMPRISE AU SOL (Zones N et Nb)",
+        "commentaire": "Règle applicable uniquement aux extensions des bâtiments d'habitation existants dans les zones N et Nb. L'emprise au sol des annexes est limitée à 15 m² et les piscines à 50 m²."
+      }
+    },
+    {
+      "index": 7,
+      "label": null,
+      "output": {
+        "type_regle": "ratio",
+        "ces_max_pct": 70,
+        "emprise_max_m2": null,
+        "citation": "L’emprise au sol des constructions existantes ou projetées ne devra pas excéder 70 % de la superficie totale du terrain.",
+        "article": "Article UAa. 2.1 - VOLUMETRIE ET IMPLANTATION DES CONSTRUCTIONS",
+        "commentaire": null
+      }
+    },
+    {
+      "index": 8,
+      "label": null,
+      "output": {
+        "type_regle": "ratio",
+        "ces_max_pct": 10,
+        "emprise_max_m2": null,
+        "citation": "Seule une extension de 10% maximum pourra être acceptée pour les commerces dans les conditions visées à l’article UA2.",
+        "article": "UAb.2.1",
+        "commentaire": "Règle spécifique aux commerces. Pour l'habitation, l'emprise au sol est déterminée par le plan masse du lotissement (maisons du Racou)."
+      }
+    },
+    {
+      "index": 9,
+      "label": null,
+      "output": {
+        "type_regle": "ratio",
+        "ces_max_pct": 40,
+        "emprise_max_m2": null,
+        "citation": "L’emprise au sol des constructions existantes ou projetées ne devra pas excéder 40 % de la superficie totale du terrain.",
+        "article": "ARTICLE UC. 2.1. – VOLUMETRIE ET IMPLANTATION DES CONTRUCTIONS",
+        "commentaire": null
+      }
+    },
+    {
+      "index": 10,
+      "label": null,
+      "output": {
+        "type_regle": "ratio",
+        "ces_max_pct": 80,
+        "emprise_max_m2": null,
+        "citation": "Dans les seuls secteurs UDb1 et UDb2 : L’emprise au sol des constructions existantes ou projetées ne devra pas excéder 80 % de la superficie totale du terrain.",
+        "article": "ARTICLE UD. 2.1. – VOLUMETRIE ET IMPLANTATION DES CONSTRUCTIONS - EMPRISE AU SOL",
+        "commentaire": "Règle applicable uniquement aux secteurs UDb1 et UDb2. Pour le secteur UDa, non réglementé. Pour le secteur UDc, CES max 60%."
+      }
+    },
+    {
+      "index": 11,
+      "label": null,
+      "output": {
+        "type_regle": "non_reglemente",
+        "ces_max_pct": null,
+        "emprise_max_m2": null,
+        "citation": "EMPRISE AU SOL\nNon règlementé.",
+        "article": "ARTICLE UE. 2.1. – VOLUMETRIE ET IMPLANTATION DES CONSTRUCTIONS",
+        "commentaire": null
+      }
+    },
+    {
+      "index": 12,
+      "label": null,
+      "output": {
+        "type_regle": "ratio",
+        "ces_max_pct": 20,
+        "emprise_max_m2": null,
+        "citation": "L’emprise au sol des constructions existantes ou projetées ne devra pas excéder 20 % de la superficie totale du terrain.",
+        "article": "Article UL 2.1 - IMPLANTATION DES CONSTRUCTIONS",
+        "commentaire": null
+      }
+    },
+    {
+      "index": 13,
+      "label": null,
+      "output": {
+        "type_regle": "ratio",
+        "ces_max_pct": 50,
+        "emprise_max_m2": null,
+        "citation": "L’emprise au sol des constructions existantes ou projetées ne devra pas excéder 50 % de la superficie totale du terrain.",
+        "article": "UP 2.1 – EMPRISE AU SOL (secteur UPb)",
+        "commentaire": "Règle applicable uniquement au secteur UPb. Pour le secteur UPa, l'emprise au sol ne doit pas excéder l'emprise existante à la date d'approbation du PLU (sauf exceptions)."
+      }
+    },
+    {
+      "index": 14,
+      "label": null,
+      "output": {
+        "type_regle": "ratio",
+        "ces_max_pct": 30,
+        "emprise_max_m2": null,
+        "citation": "L’emprise au sol des constructions et installations ne pourra pas excéder 30 % de la superficie du terrain.",
+        "article": "ARTICLE UT 2.1 - EMPRISE AU SOL (secteur UTc)",
+        "commentaire": "Règle applicable uniquement au secteur UTc. Exceptions : ouvrages techniques, espaces aqua-ludiques, piscines, aires de jeux, terrasses et espaces refuge."
+      }
+    },
+    {
+      "index": 15,
+      "label": null,
+      "output": {
+        "type_regle": "non_reglemente",
+        "ces_max_pct": null,
+        "emprise_max_m2": null,
+        "citation": "Emprise au sol : Non réglementé",
+        "article": "Tableau récapitulatif des paramètres quantitatifs",
+        "commentaire": "L'emprise au sol n'est pas réglementée dans les secteurs UXa, UXb, UXc, UXd et UXe. Les règles portent sur d'autres paramètres (recul, hauteur, stationnement, etc.)."
+      }
+    },
+    {
+      "index": 16,
+      "label": null,
+      "output": {
+        "type_regle": "ratio",
+        "ces_max_pct": 70,
+        "emprise_max_m2": null,
+        "citation": "L’emprise au sol des constructions existantes ou projetées ne devra pas excéder 70 % de la superficie totale du terrain.",
+        "article": "Article UB 2.1 – EMPRISE AU SOL (secteurs UBa1 et UBa2)",
+        "commentaire": "Règle applicable uniquement aux secteurs UBa1 et UBa2. Pour les autres secteurs, voir commentaire ou tableau récapitulatif."
+      }
+    }
+  ]

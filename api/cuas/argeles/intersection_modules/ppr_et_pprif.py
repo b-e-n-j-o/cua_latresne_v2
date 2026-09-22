@@ -106,6 +106,12 @@ def _str_field(obj: dict, key: str) -> Optional[str]:
     return s or None
 
 
+def _fmt_pct(p: float) -> str:
+    p = min(max(p, 0.0), 100.0)
+    txt = f"{p:.0f}" if p >= 10 else f"{p:.1f}".replace(".", ",")
+    return f"{txt}\u00a0%"
+
+
 def _pick_best_entity(entities: list[dict]) -> dict:
     return max(entities, key=_pct_sig)
 
@@ -123,14 +129,6 @@ def _bloc_from_ppr_entity(entity: dict) -> dict[str, Any]:
         "reglementation": regl,
         "pct_sig": _pct_sig(entity),
     }
-
-
-def _ppr_objets_significatifs(
-    objets: list[dict],
-    min_pct: float = MIN_PPR_PCT,
-) -> list[dict]:
-    """Exclut les micro-recouvrements frontaliers (≤ seuil % de l'UF)."""
-    return [obj for obj in objets if _pct_sig(obj) > min_pct]
 
 
 def _merge_ppr_fields(entities: list[dict]) -> dict[str, Any]:
@@ -153,11 +151,7 @@ def _build_ppr_blocs(
     objets: list[dict],
     min_pct: float = MIN_PPR_PCT,
 ) -> list[dict[str, Any]]:
-    """Un bloc par sous-zone PPR intersectée (clé = label), si part UF > seuil."""
-    objets = _ppr_objets_significatifs(objets, min_pct)
-    if not objets:
-        return []
-
+    """Un bloc par sous-zone PPR (clé = label) dont la part UF cumulée dépasse le seuil."""
     by_label: dict[str, list[dict]] = {}
     for obj in objets:
         label = _str_field(obj, "label")
@@ -167,7 +161,13 @@ def _build_ppr_blocs(
 
     blocs: list[dict[str, Any]] = []
     for label_key in sorted(by_label):
-        blocs.append(_merge_ppr_fields(by_label[label_key]))
+        entities = by_label[label_key]
+        total_pct = min(sum(_pct_sig(e) for e in entities), 100.0)
+        if total_pct <= min_pct:
+            continue
+        bloc = _merge_ppr_fields(entities)
+        bloc["pct_sig"] = round(total_pct, 4)
+        blocs.append(bloc)
     return blocs
 
 
@@ -187,16 +187,18 @@ def _build_pprif_blocs(
 
     blocs: list[dict[str, Any]] = []
     for label_key in sorted(by_label):
-        entity = _pick_best_entity(by_label[label_key])
+        entities = by_label[label_key]
+        entity = _pick_best_entity(entities)
         display_label = _str_field(entity, "label")
         regl = (laius.get(label_key) or "").strip()
+        total_pct = min(sum(_pct_sig(e) for e in entities), 100.0)
         blocs.append(
             {
                 "label": display_label,
                 "risque": _str_field(entity, "degre"),
                 "zone": display_label,
                 "reglementation": regl or None,
-                "pct_sig": _pct_sig(entity),
+                "pct_sig": round(total_pct, 4),
             }
         )
     return blocs
@@ -229,7 +231,7 @@ def _zones_agregees(
 
 
 def _format_sous_zones(zones_pct: list[tuple[str, float]]) -> str:
-    return ", ".join(f"sous-zone {zone} ({pct:.2f} %)" for zone, pct in zones_pct)
+    return ", ".join(f"sous-zone {zone} ({_fmt_pct(pct)})" for zone, pct in zones_pct)
 
 
 def _format_risque_parcelle(prefix: str, zones_pct: list[tuple[str, float]]) -> str:
@@ -237,7 +239,7 @@ def _format_risque_parcelle(prefix: str, zones_pct: list[tuple[str, float]]) -> 
         return ""
     if len(zones_pct) == 1:
         zone, pct = zones_pct[0]
-        return f"{prefix} : sous-zone {zone} ({pct:.2f} %)"
+        return f"{prefix} : sous-zone {zone} ({_fmt_pct(pct)})"
     return f"{prefix} : {_format_sous_zones(zones_pct)}"
 
 
@@ -252,7 +254,7 @@ def _format_parcelles_concernées(parcelles: list[dict]) -> str:
         except (TypeError, ValueError):
             pct = 0.0
         if pct > 0:
-            parts.append(f"{ref} ({pct:.2f} %)")
+            parts.append(f"{ref} ({_fmt_pct(pct)})")
         else:
             parts.append(ref)
     return ", ".join(parts)

@@ -68,11 +68,11 @@ def _database_url() -> str:
 
 @functools.lru_cache(maxsize=1)
 def get_engine():
-    """Engine SQLAlchemy unique (cached). Pool volontairement petit (run séquentiel)."""
+    """Engine SQLAlchemy unique (cached). Pool = boucle partagée + modules métier."""
     engine = create_engine(
         _database_url(),
-        pool_size=1,
-        max_overflow=0,
+        pool_size=3,       # boucle intersections + servitudes/enedis en parallèle
+        max_overflow=2,
         pool_pre_ping=True,
         pool_recycle=1800,
     )

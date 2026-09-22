@@ -1,6 +1,25 @@
 {
   "_doc": "Latresne — socle GPU = default.json. Couches supplémentaires : éditer uniquement ce fichier (keep + clean_attributes). Indépendant du catalogue identité foncière.",
   "layers": {
+    "servitudes": {
+      "attributes": [
+        "id",
+        "suptype",
+        "nom",
+        "nomsuplitt",
+        "typeass",
+        "type",
+        "tension",
+        "nom_sup",
+        "nom_captage",
+        "transporteur",
+        "cat_fluide",
+        "reglementation",
+        "nature_protection",
+        "precision_protection",
+        "perimetre_protection"
+      ]
+    },
     "pm1_detaillee_gironde": {
       "enabled": true,
       "table": "pm1_detaillee_gironde",
@@ -93,6 +112,7 @@
       "optional": true,
       "context_llm": true,
       "context_carto": true,
+      "collapse_identical": true,
       "keep": [
         "reglementation"
       ],

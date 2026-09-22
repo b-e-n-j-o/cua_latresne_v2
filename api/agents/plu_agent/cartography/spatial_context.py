@@ -31,6 +31,7 @@ from ..tools.utils.catalog_bridge import (
     prescription_config,
 )
 from ..tools.utils.fetch_layer import fetch_extra_layers_carto, fetch_extra_layers_llm
+from ..tools.utils.repartition_parcelles import build_repartition_parcelles
 
 logger = logging.getLogger("plu_tools")
 
@@ -101,7 +102,7 @@ def build_contexte_from_catalog(
 
     infos_block = _infos_block(infos, infos_error)
 
-    return {
+    payload = {
         "zones": zones,
         "zones_count": zones_count,
         "surfaciques": presc.get("surfaciques", []) if not presc_error else [],
@@ -140,6 +141,15 @@ def build_contexte_from_catalog(
         ),
         "error": None,
     }
+    parcelles_uf = payload["parcelles"]
+    if len(parcelles_uf) > 1 and not resolved.get("error"):
+        payload["repartition_parcelles"] = build_repartition_parcelles(
+            db_config,
+            parcelles=parcelles_uf,
+            uf_context=payload,
+            catalog=cat,
+        )
+    return payload
 
 
 def _empty_error(error: str) -> dict:

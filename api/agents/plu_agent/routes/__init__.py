@@ -6,9 +6,9 @@ Responsabilité
 Appelé une fois par `api.create_plu_router(profile)` pour attacher au même
 `APIRouter` tous les sous-modules métier, **déjà liés** au bon profil :
 
-  - `system`   → GET /healthz, GET /tools
+  - `system`   → GET /healthz, GET /llm-health, GET /tools
   - `sessions` → CRUD sessions + messages (tables `{schema}.plu_*`)
-  - `chat`     → POST /chat/{id} (boucle Gemini + tools)
+  - `chat`     → POST /chat/{id} (boucle Gemini ou Mistral + tools)
   - `map`      → GET /session/{id}/map (GeoJSON, hors LLM)
 
 Chaque module expose `register(router, profile, bind)` au lieu d'un routeur

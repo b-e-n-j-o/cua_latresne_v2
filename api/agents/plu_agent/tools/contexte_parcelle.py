@@ -123,9 +123,10 @@ def get_contexte_parcelle(
 DECL_CONTEXTE_PARCELLE = types.FunctionDeclaration(
     name="get_contexte_parcelle",
     description=(
-        "Retourne tout le contexte PLU intersectant une ou plusieurs parcelles contiguës "
-        "(unité foncière) : zonage, prescriptions, servitudes, informations, "
-        "et couches supplémentaires déclarées dans le catalogue de la commune. "
+        "Retourne le contexte spatial d'une ou plusieurs parcelles (unité foncière) : "
+        "zonage (code, libellé, surface, % — sans le texte du règlement), "
+        "prescriptions, servitudes, informations, couches supplémentaires. "
+        "Pour le règlement écrit d'une zone PLU → get_reglement_zone. "
         "La carte interactive est gérée par l'interface (pas de tool carto)."
     ),
     parameters=types.Schema(

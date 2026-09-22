@@ -1,0 +1,498 @@
+{
+  "parcelles": [
+    {
+      "section": "AV",
+      "numero": "19"
+    }
+  ],
+  "n_parcelles": 1,
+  "parcelle": "UF",
+  "surface_m2": 8882.92,
+  "surface_indicative": 8950.0,
+  "intersections": {
+    "zonage_plu": {
+      "nom": "Zonage PLU",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "afficher_pct_sig_partiel": false,
+      "min_pct_sig": 1.0,
+      "pct_sig": 100.0,
+      "objets": [
+        {
+          "zonage_reglement": "1AU",
+          "libelle": "1AU",
+          "libelong": "Zones ouvertes à l'urbanisation, à vocation principale d'habitat, sous réserve du respect des orientations d'aménagement et de programmation",
+          "reglementation": "Zone destinée à être urbanisée **à dominante d'habitat**, immédiatement constructible **sous réserve du respect des Orientations d'Aménagement et de Programmation (OAP)** : les projets doivent être compatibles avec l'OAP correspondante (pièce 3 du PLU), qui prime notamment pour les hauteurs. Les opérations s'apprécient à l'échelle de l'ensemble du projet et non parcelle par parcelle. **Emprise au sol : 70 %.** **Servitude de mixité sociale** : un quota de logements sociaux est imposé aux opérations, le pourcentage applicable étant porté au plan de zonage. Hauteur au plan des hauteurs ou à l'OAP.",
+          "ces_type_regle": "ratio",
+          "ces_applicabilite": "toute_la_zone",
+          "ces_max_pct": 70.0,
+          "emprise_max_m2": null,
+          "ces_statut": "a_valider",
+          "ces_citation": "L’emprise au sol de l’ensemble des constructions est limitée à 70% de la surface de la parcelle ou de l’unité foncière.",
+          "surface_inter_m2": 8882.92,
+          "pct_sig": 100.0
+        }
+      ],
+      "status": "concernee",
+      "diagnostic_metier": "1 zone(s) UF | 1 bloc(s) réglementaire(s)",
+      "intro": "L'unité foncière est située dans la zone 1AU du PLU (100 % de la surface).",
+      "zones": [
+        "1AU"
+      ],
+      "items": [
+        {
+          "kind": "reglementation",
+          "zone": "1AU",
+          "reglementation": "Zone destinée à être urbanisée **à dominante d'habitat**, immédiatement constructible **sous réserve du respect des Orientations d'Aménagement et de Programmation (OAP)** : les projets doivent être compatibles avec l'OAP correspondante (pièce 3 du PLU), qui prime notamment pour les hauteurs. Les opérations s'apprécient à l'échelle de l'ensemble du projet et non parcelle par parcelle. **Emprise au sol : 70 %.** **Servitude de mixité sociale** : un quota de logements sociaux est imposé aux opérations, le pourcentage applicable étant porté au plan de zonage. Hauteur au plan des hauteurs ou à l'OAP."
+        }
+      ],
+      "detail_parcelles": []
+    },
+    "hauteurs": {
+      "nom": "Hauteurs maximales (PLU)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "afficher_pct_sig_partiel": false,
+      "min_pct_sig": 1.0,
+      "pct_sig": 100.0,
+      "objets": [
+        {
+          "hauteur": "12,5m(F) 11,5m(A) STR",
+          "libelong": "Zones ouvertes à l'urbanisation, à vocation principale d'habitat, sous réserve du respect des orientations d'aménagement et de programmation",
+          "reglementation": "Le terrain est situé dans le secteur suivant : Zones ouvertes à l'urbanisation, à vocation principale d'habitat, sous réserve du respect des orientations d'aménagement et de programmation. Les règles de hauteur applicables sont les suivantes : 12.5m au faîtage et 11.5m à l'acrotère.",
+          "surface_inter_m2": 8882.92,
+          "pct_sig": 100.0
+        }
+      ],
+      "status": "concernee"
+    },
+    "ppr": {
+      "nom": "PPR (Plan de Prevention des Risques)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "afficher_pct_sig_partiel": false,
+      "min_pct_sig": 1.0,
+      "pct_sig": 100.0,
+      "objets": [
+        {
+          "risque": null,
+          "degre": "III",
+          "label": "III - Zone blanche non directement exposée",
+          "code_degre": "III",
+          "ces": "Pas de coefficient d'emprise au titre du risque inondation (zone non soumise au debordement des fleuves).",
+          "mise_hors_d_eau": "Recommandation (non opposable) : implanter les planchers et installations sensibles a au moins 0,20 m au-dessus de la voirie ou du terrain naturel, jusqu'a 0,50 m dans les secteurs sujets au ruissellement. Sous-sols enterres deconseilles.",
+          "reglementation_generale": "Zone non exposee a un risque previsible de debordement, mais pouvant subir des ruissellements pluviaux. Seule regle opposable : le recul de construction vis-a-vis des cours d'eau (Massane/Riberette 20 m ou 10 m si calibrees, Ravaner 10 m, autres 6 m) et des falaises (25 m). Les mas isoles sont examines au titre de l'article R.111-2 du code de l'urbanisme.",
+          "surface_inter_m2": 8882.92,
+          "pct_sig": 100.0
+        }
+      ],
+      "status": "concernee"
+    },
+    "pprif": {
+      "nom": "PPRIF (Risque Incendie de Foret)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "afficher_pct_sig_partiel": false,
+      "min_pct_sig": 1.0,
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "aoc": {
+      "nom": "AOC viticoles",
+      "type": "information",
+      "geom_type": "surfacique",
+      "afficher_pct_sig_partiel": false,
+      "min_pct_sig": 1.0,
+      "pct_sig": 99.6922,
+      "objets": [
+        {
+          "denom": "Côtes du Roussillon,Languedoc",
+          "crinao": null,
+          "reglementation": "Le terrain est compris dans l'aire de production de l'Appellation d'Origine Contrôlée / Protégée « Côtes du Roussillon, Languedoc ». Cette appellation est protégée au titre du Code rural et de la pêche maritime ; à ce titre, l'organisme de défense et de gestion (ODG) de l'appellation dispose, en application de l'article L.643-4 du Code rural et de la pêche maritime, de la faculté de saisir l'administration de tout projet ou document d'urbanisme portant atteinte à l'aire ou aux conditions de production de l'appellation. La constructibilité du terrain reste déterminée par le zonage du document d'urbanisme en vigueur (cf. article relatif aux dispositions d'urbanisme).",
+          "surface_inter_m2": 8855.58,
+          "pct_sig": 99.6922
+        }
+      ],
+      "status": "concernee"
+    },
+    "prescriptions_surf": {
+      "nom": "Prescriptions surfaciques (PLU)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "afficher_pct_sig_partiel": true,
+      "min_pct_sig": 1.0,
+      "pct_sig": 100.0,
+      "objets": [
+        {
+          "libelle": "Orientations d'aménagement et de programmation",
+          "nom": "OAP Nèguebous",
+          "typepsc": "18",
+          "reglementation": "OAP sectorielle « Nèguebous » — zone 1AU — vocation habitat.\nSource : PLU d'Argelès-sur-Mer, pièce 5 OAP (modification n°2), p. 17 et 23. Les OAP sont opposables aux tiers dans un rapport de compatibilité ; des adaptations mineures sont possibles lors de la traduction opérationnelle.\n\nSurfaces : 14,13 ha (périmètre de la carte) ; 12,22 ha retenus pour la programmation (hors fossé et abords de la RD 114, hors ER 26 — élargissement pour la piste cyclable village–Taxo — et hors partie du chemin rural Cami Trencat).\n\nProgrammation : de l'ordre de 455 logements, densité du secteur 37,23 lgt/ha.\n- 273 logements en accession à la propriété, dont 80 minimum en accession sociale (PSLA ou logement communal) ;\n- 182 logements locatifs, dont 110 minimum en locatif social.\nTypologie : 240 logements en îlot mixte (individuel groupé à petits collectifs, 40/50 lgt/ha) ; 215 en habitat individuel dense (25/35 lgt/ha).\n\nHauteurs : par compatibilité avec le SCoT Littoral Sud (secteur « SPUS »), il est recherché qu'une majorité des constructions atteigne au moins 12 m au faîtage.\n\nPrincipes du schéma : secteurs à dominante d'habitat collectif (densité moyenne) et d'habitat individuel (densité forte) ; voie principale et voies secondaires ; carrefour à aménager ; réseau de promenades et modes doux ; espace public et partagé végétal et mixte ; espace de nature à créer ou préserver ; création d'un ouvrage hydraulique (noue) ; arbres à préserver ou créer et végétalisation à conforter.\nUne étude de circulation (LEE Conseil) conclut à l'absence de dysfonctionnement de trafic induit sur la RD 114.",
+          "surface_inter_m2": 8882.92,
+          "pct_sig": 100.0
+        },
+        {
+          "libelle": "Servitude de mixité sociale",
+          "nom": null,
+          "typepsc": "17",
+          "reglementation": "L'unité foncière est grevée par une servitude de mixité sociale imposant la réalisation d'un pourcentage minimum de logements locatifs sociaux lors de toute opération résidentielle.",
+          "surface_inter_m2": 8882.92,
+          "pct_sig": 100.0
+        }
+      ],
+      "status": "concernee"
+    },
+    "prescriptions_lineaires": {
+      "nom": "Prescriptions lineaires (PLU)",
+      "type": "prescription",
+      "geom_type": "lineaire",
+      "afficher_pct_sig_partiel": false,
+      "min_pct_sig": 0.0,
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "prescriptions_ponctuelles": {
+      "nom": "Prescriptions ponctuelles (PLU)",
+      "type": "prescription",
+      "geom_type": "ponctuel",
+      "afficher_pct_sig_partiel": false,
+      "min_pct_sig": 0.0,
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "infos_surf": {
+      "nom": "Informations surfaciques",
+      "type": "information",
+      "geom_type": "surfacique",
+      "afficher_pct_sig_partiel": true,
+      "min_pct_sig": 1.0,
+      "pct_sig": 100.0,
+      "objets": [
+        {
+          "libelle": "Périmètre de droit de préemption urbain",
+          "typeinf": "04",
+          "reglementation": "Le terrain est inclus dans le périmètre du Droit de Préemption Urbain (DPU) instauré sur la commune, rendant toute mutation immobilière soumise au dépôt préalable d'une Déclaration d'Intention d'Aliéner (DIA).",
+          "surface_inter_m2": 8882.92,
+          "pct_sig": 100.0
+        }
+      ],
+      "status": "concernee"
+    },
+    "retrait_gonflement_argiles_2026": {
+      "nom": "Retrait-gonflement des argiles (2026)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "afficher_pct_sig_partiel": true,
+      "min_pct_sig": 1.0,
+      "pct_sig": 100.0,
+      "objets": [
+        {
+          "niveau": 2,
+          "alea": "2",
+          "reglementation": "Le terrain est situé en zone d'exposition moyenne au phénomène de retrait-gonflement des argiles, selon le zonage applicable à compter du 1er juillet 2026 (arrêté du 9 janvier 2026). Ce phénomène peut provoquer des mouvements de terrain différentiels susceptibles d'endommager les constructions (fissures, tassements). En application de la loi ELAN (article 68, articles L.132-4 et suivants du Code de la construction et de l'habitation), toute vente d'un terrain non bâti constructible doit être accompagnée d'une étude géotechnique préalable (G1), et toute construction d'une maison individuelle doit faire l'objet d'une étude géotechnique de conception (G2) adaptée au projet. Cartographie et informations : https://www.georisques.gouv.fr/risques/argiles",
+          "surface_inter_m2": 8882.92,
+          "pct_sig": 100.0
+        }
+      ],
+      "status": "concernee"
+    },
+    "old": {
+      "nom": "Zones de debroussaillement (OLD)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "afficher_pct_sig_partiel": true,
+      "min_pct_sig": 1.0,
+      "pct_sig": 100.0,
+      "objets": [
+        {
+          "zonage": 2,
+          "dat_ap_old": "2025-06-23",
+          "reglementation": "Le terrain est situé dans un secteur soumis aux Obligations Légales de Débroussaillement (OLD), en application des articles L.131-1 et suivants du Code forestier et de l'arrêté préfectoral du 2025-06-23. Les modalités précises (rayon, périmètre, périodicité) applicables à cette parcelle sont définies par le Plan de Prévention des Risques d'Incendie de Forêt (PPRIF) d'Argelès-sur-Mer — voir la section Risques naturels du présent certificat. Référence : https://www.pyrenees-orientales.gouv.fr/Actions-de-l-Etat/Agriculture-foret-et-developpement-rural/Foret/Prevention-des-forets-contre-les-incendies/4.-Debroussaillement/Le-debroussaillement",
+          "surface_inter_m2": 8882.92,
+          "pct_sig": 100.0
+        }
+      ],
+      "status": "concernee"
+    },
+    "alea_feu": {
+      "nom": "Risque d'incendie de forêt et de végétation",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "afficher_pct_sig_partiel": false,
+      "min_pct_sig": 1.0,
+      "pct_sig": 100.0,
+      "objets": [
+        {
+          "libelle": "Elevé",
+          "surface_inter_m2": 174.19,
+          "pct_sig": 1.961
+        },
+        {
+          "libelle": "Faible",
+          "surface_inter_m2": 1793.87,
+          "pct_sig": 20.1946
+        },
+        {
+          "libelle": "Très élevé",
+          "surface_inter_m2": 1448.85,
+          "pct_sig": 16.3105
+        },
+        {
+          "libelle": "Moyen",
+          "surface_inter_m2": 5466.01,
+          "pct_sig": 61.534
+        }
+      ],
+      "status": "concernee",
+      "diagnostic_metier": "4 aléa(s) distinct(s) sur l'UF",
+      "intro": "Selon le niveau de risque identifié, un projet de construction ou d'aménagement peut nécessiter des prescriptions particulières, voire être limité ou refusé afin de garantir la sécurité des personnes et des biens. Cette information s'inscrit dans une démarche de prévention et de réduction de la vulnérabilité face au risque d'incendie.",
+      "blocs": [
+        {
+          "libelle": "Moyen",
+          "pct_sig": 61.53
+        },
+        {
+          "libelle": "Faible",
+          "pct_sig": 20.19
+        },
+        {
+          "libelle": "Très élevé",
+          "pct_sig": 16.31
+        },
+        {
+          "libelle": "Elevé",
+          "pct_sig": 1.96
+        }
+      ],
+      "pac_url": "https://www.pyrenees-orientales.gouv.fr/Actions-de-l-Etat/Environnement-eau-risques-naturels-et-technologiques/Risques-naturels-et-technologiques/Porters-a-connaissance/Le-risque-Incendie-de-Foret-et-de-Vegetation/Le-PAC"
+    },
+    "haies_bocages": {
+      "nom": "Haies et bocages",
+      "type": "information",
+      "geom_type": "lineaire",
+      "afficher_pct_sig_partiel": false,
+      "min_pct_sig": 0.0,
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "znieffs": {
+      "nom": "ZNIEFF",
+      "type": "information",
+      "geom_type": "surfacique",
+      "afficher_pct_sig_partiel": true,
+      "min_pct_sig": 1.0,
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "prairies_sensibles": {
+      "nom": "Prairies permanentes",
+      "type": "information",
+      "geom_type": "surfacique",
+      "afficher_pct_sig_partiel": false,
+      "min_pct_sig": 1.0,
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "natura_2000": {
+      "nom": "NATURA 2000",
+      "type": "information",
+      "geom_type": "surfacique",
+      "afficher_pct_sig_partiel": true,
+      "min_pct_sig": 1.0,
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "reseaux_enedis_lineaires": {
+      "nom": "Réseaux ENEDIS linéaires",
+      "type": "reseaux",
+      "geom_type": "lineaire",
+      "afficher_pct_sig_partiel": false,
+      "min_pct_sig": 0.0,
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "concernee",
+      "diagnostic_metier": "Proximité des réseaux Basse Tension (BT) ENEDIS (indication SIG, hors étude de raccordement)",
+      "analyses": [
+        {
+          "type_code": "reseau-souterrain-bt",
+          "type_reseau": "Souterrain Basse Tension (BT)",
+          "id_cable_plus_proche": "OxMt1VAM1CeufVz0Nv8Rc",
+          "distance_directe_metres": 59.67,
+          "lineaire_buffer_proximite_metres": 0.0,
+          "nb_lignes_dans_uf": 0,
+          "lineaire_interieur_metres": 0.0,
+          "parcelles_voisines_sur_trajet": "AV n°1384, AV n°1409, AV n°1411",
+          "parcelles_voisines_fait_obstacle": "AV n°1384, AV n°1409, AV n°1411",
+          "diagnostic_expert_raccordement": "Câble Basse Tension (BT) le plus proche à environ 60 m du terrain (au-delà de 30 m). Proximité à confirmer sur le terrain et auprès d'ENEDIS."
+        },
+        {
+          "type_code": "reseau-bt",
+          "type_reseau": "Aérien Basse Tension (BT)",
+          "id_cable_plus_proche": "4Q1ao6SvnoKkXUTN0o6yw",
+          "distance_directe_metres": 200.87,
+          "lineaire_buffer_proximite_metres": 0.0,
+          "nb_lignes_dans_uf": 0,
+          "lineaire_interieur_metres": 0.0,
+          "parcelles_voisines_sur_trajet": "AV n°22, AV n°5, AV n°6",
+          "parcelles_voisines_fait_obstacle": "AV n°22, AV n°5, AV n°6",
+          "diagnostic_expert_raccordement": "Câble Basse Tension (BT) le plus proche à environ 201 m du terrain (au-delà de 30 m). Proximité à confirmer sur le terrain et auprès d'ENEDIS."
+        }
+      ]
+    },
+    "zaer": {
+      "nom": "ZAER (Zones d'Accélération des Energies Renouvelables)",
+      "type": "information",
+      "geom_type": "surfacique",
+      "afficher_pct_sig_partiel": false,
+      "min_pct_sig": 1.0,
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee"
+    },
+    "batiments": {
+      "nom": "Batiments",
+      "type": "information",
+      "geom_type": "surfacique",
+      "afficher_pct_sig_partiel": false,
+      "min_pct_sig": 1.0,
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "table_absente"
+    },
+    "servitudes": {
+      "nom": "Servitudes d'utilité publique (SUP)",
+      "type": "servitude",
+      "geom_type": "surfacique",
+      "afficher_pct_sig_partiel": true,
+      "min_pct_sig": 1.0,
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee",
+      "diagnostic_metier": "RAS : aucune servitude d'utilité publique réglementée sur l'UF",
+      "servitudes": []
+    },
+    "prairies_et_natura_2000": {
+      "nom": "Réglementation croisée Natura 2000 / Prairies sensibles",
+      "type": "information",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "non_concernee",
+      "regime_code": "hors_natura_et_prairie",
+      "diagnostic_metier": "RAS : UF hors contraintes Natura 2000 / Prairies",
+      "blocs": [],
+      "natura": null,
+      "prairie": null,
+      "has_natura": false,
+      "has_prairie": false
+    },
+    "ppr_et_pprif": {
+      "nom": "PPR / PPRIF (réglementation)",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 100.0,
+      "objets": [],
+      "status": "concernee",
+      "diagnostic_metier": "PPR : 1 sous-zone(s)",
+      "detail_parcelles": [],
+      "ppr": {
+        "nom": "PPR (Plan de Prévention des Risques)",
+        "status": "concernee",
+        "blocs": [
+          {
+            "label": "III - Zone blanche non directement exposée",
+            "degre": "III",
+            "risque": null,
+            "code_degre": "III",
+            "ces": "Pas de coefficient d'emprise au titre du risque inondation (zone non soumise au debordement des fleuves).",
+            "mise_hors_d_eau": "Recommandation (non opposable) : implanter les planchers et installations sensibles a au moins 0,20 m au-dessus de la voirie ou du terrain naturel, jusqu'a 0,50 m dans les secteurs sujets au ruissellement. Sous-sols enterres deconseilles.",
+            "reglementation_generale": "Zone non exposee a un risque previsible de debordement, mais pouvant subir des ruissellements pluviaux. Seule regle opposable : le recul de construction vis-a-vis des cours d'eau (Massane/Riberette 20 m ou 10 m si calibrees, Ravaner 10 m, autres 6 m) et des falaises (25 m). Les mas isoles sont examines au titre de l'article R.111-2 du code de l'urbanisme.",
+            "reglementation": "Zone non exposee a un risque previsible de debordement, mais pouvant subir des ruissellements pluviaux. Seule regle opposable : le recul de construction vis-a-vis des cours d'eau (Massane/Riberette 20 m ou 10 m si calibrees, Ravaner 10 m, autres 6 m) et des falaises (25 m). Les mas isoles sont examines au titre de l'article R.111-2 du code de l'urbanisme.",
+            "pct_sig": 100.0
+          }
+        ],
+        "notes": []
+      },
+      "pprif": {
+        "nom": "PPRIF (Risque Incendie de Forêt)",
+        "status": "non_concernee",
+        "blocs": []
+      }
+    },
+    "taxes": {
+      "nom": "Taxe d'aménagement – part communale",
+      "type": "fiscalite",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [
+        {
+          "id": 5,
+          "libelle": "Reste de la commune",
+          "taux": 5.0,
+          "surface_inter_m2": 8882.92,
+          "pct_sig": 100.0
+        }
+      ],
+      "taux_communale": 5.0,
+      "taux_communale_libelle": "5 %",
+      "libelle": "Reste de la commune",
+      "status": "concernee"
+    },
+    "prescriptions_plu": {
+      "nom": "Prescriptions PLU",
+      "type": "prescription",
+      "geom_type": "surfacique",
+      "pct_sig": 0.0,
+      "objets": [],
+      "status": "concernee",
+      "diagnostic_metier": "1 couche(s) | 2 prescription(s)",
+      "couches": [
+        {
+          "key": "prescriptions_surf",
+          "nom": "Prescriptions surfaciques (PLU)",
+          "items": [
+            {
+              "kind": "reglementation",
+              "libelle": "Orientations d'aménagement et de programmation — OAP Nèguebous",
+              "typepsc": "18",
+              "reglementation": "OAP sectorielle « Nèguebous » — zone 1AU — vocation habitat.\nSource : PLU d'Argelès-sur-Mer, pièce 5 OAP (modification n°2), p. 17 et 23. Les OAP sont opposables aux tiers dans un rapport de compatibilité ; des adaptations mineures sont possibles lors de la traduction opérationnelle.\n\nSurfaces : 14,13 ha (périmètre de la carte) ; 12,22 ha retenus pour la programmation (hors fossé et abords de la RD 114, hors ER 26 — élargissement pour la piste cyclable village–Taxo — et hors partie du chemin rural Cami Trencat).\n\nProgrammation : de l'ordre de 455 logements, densité du secteur 37,23 lgt/ha.\n- 273 logements en accession à la propriété, dont 80 minimum en accession sociale (PSLA ou logement communal) ;\n- 182 logements locatifs, dont 110 minimum en locatif social.\nTypologie : 240 logements en îlot mixte (individuel groupé à petits collectifs, 40/50 lgt/ha) ; 215 en habitat individuel dense (25/35 lgt/ha).\n\nHauteurs : par compatibilité avec le SCoT Littoral Sud (secteur « SPUS »), il est recherché qu'une majorité des constructions atteigne au moins 12 m au faîtage.\n\nPrincipes du schéma : secteurs à dominante d'habitat collectif (densité moyenne) et d'habitat individuel (densité forte) ; voie principale et voies secondaires ; carrefour à aménager ; réseau de promenades et modes doux ; espace public et partagé végétal et mixte ; espace de nature à créer ou préserver ; création d'un ouvrage hydraulique (noue) ; arbres à préserver ou créer et végétalisation à conforter.\nUne étude de circulation (LEE Conseil) conclut à l'absence de dysfonctionnement de trafic induit sur la RD 114.",
+              "pct_sig": 100.0,
+              "nom": "OAP Nèguebous"
+            },
+            {
+              "kind": "reglementation",
+              "libelle": "Servitude de mixité sociale",
+              "typepsc": "17",
+              "reglementation": "L'unité foncière est grevée par une servitude de mixité sociale imposant la réalisation d'un pourcentage minimum de logements locatifs sociaux lors de toute opération résidentielle.",
+              "pct_sig": 100.0
+            }
+          ],
+          "nb_objets": 2,
+          "afficher_pct_sig_partiel": true
+        }
+      ],
+      "detail_parcelles": []
+    }
+  },
+  "adresses_parcelles": {
+    "status": "non_concernee",
+    "diagnostic_metier": "Aucune adresse BAN liée aux 1 parcelle(s)",
+    "parcelles": [
+      {
+        "section": "AV",
+        "numero": "0019",
+        "idu": "66008000AV0019",
+        "adresses": []
+      }
+    ],
+    "adresses_uniques": [],
+    "texte_header": null
+  }
+}

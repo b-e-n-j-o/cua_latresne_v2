@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from typing import Any
 
 import psycopg2
@@ -49,7 +48,7 @@ def normalize_parcel_refs(
         if key in seen:
             continue
         seen.add(key)
-        refs.append({"type": "sn", "section": s, "numero": n})
+        refs.append({"type": "sn", "section": s, "numero": n.zfill(4)})
 
     for i in idus or []:
         i_norm = str(i).strip().upper()
@@ -67,7 +66,7 @@ def normalize_parcel_refs(
         key = f"sn:{s}:{n.zfill(4)}"
         if key not in seen:
             seen.add(key)
-            refs.append({"type": "sn", "section": s, "numero": n})
+            refs.append({"type": "sn", "section": s, "numero": n.zfill(4)})
 
     if idu and not idus:
         i_norm = str(idu).strip().upper()
@@ -76,6 +75,98 @@ def normalize_parcel_refs(
             refs.append({"type": "idu", "idu": i_norm})
 
     return refs
+
+
+def _fetch_parcel_rows(db_config: dict, refs: list[dict]) -> list[dict]:
+    """Charge les feuilles cadastrales : section + numéro toujours comparés en SS NNNN."""
+    if not refs:
+        return []
+    idu_list = [r["idu"] for r in refs if r["type"] == "idu"]
+    sn_sections = [r["section"] for r in refs if r["type"] == "sn"]
+    sn_numeros = [r["numero"].zfill(4) for r in refs if r["type"] == "sn"]
+    has_idu = bool(idu_list)
+    has_sn = bool(sn_sections)
+    sql_fetch = f"""
+        SELECT idu, section, numero, contenance,
+               ST_MakeValid(geom_2154) AS geom,
+               ST_AsGeoJSON(ST_Transform(ST_MakeValid(geom_2154), 4326)) AS geojson_wgs84
+        FROM {q("parcelles")}
+        WHERE (%s AND upper(trim(idu)) = ANY(%s))
+           OR (%s AND (upper(trim(section)), lpad(trim(numero::text), 4, '0')) IN (
+                SELECT upper(trim(w.sec)), lpad(trim(w.num), 4, '0')
+                FROM unnest(%s::text[], %s::text[]) AS w(sec, num)
+           ))
+    """
+    return _query(
+        db_config,
+        sql_fetch,
+        (
+            has_idu,
+            [i.upper() for i in idu_list] if has_idu else [""],
+            has_sn,
+            sn_sections if has_sn else [""],
+            sn_numeros if has_sn else [""],
+        ),
+    )
+
+
+def lookup_parcel_refs(db_config: dict, refs: list[dict]) -> dict:
+    """
+    Résout chaque ref indépendamment (unité foncière multi-feuilles).
+
+    Retour : found (lignes SQL), missing (refs), items (statut par feuille).
+    """
+    from .parcel_ref_parse import official_label
+
+    items: list[dict] = []
+    found: list[dict] = []
+    missing: list[dict] = []
+    if not refs:
+        return {"found": found, "missing": missing, "items": items}
+
+    rows = _fetch_parcel_rows(db_config, refs)
+    by_key: dict[str, dict] = {}
+    for row in rows:
+        by_key[f"idu:{str(row['idu']).upper()}"] = row
+        by_key[f"sn:{str(row['section']).upper().strip()}:{str(row['numero']).zfill(4)}"] = row
+
+    seen_idu: set[str] = set()
+    for r in refs:
+        if r["type"] == "idu":
+            row = by_key.get(f"idu:{r['idu']}")
+            official = r["idu"]
+            entry = {"type": "idu", "idu": r["idu"], "official": official, "found": bool(row)}
+        else:
+            official = official_label(r["section"], r["numero"])
+            row = by_key.get(f"sn:{r['section']}:{r['numero'].zfill(4)}")
+            entry = {
+                "type": "sn",
+                "section": r["section"],
+                "numero": r["numero"].zfill(4),
+                "official": official,
+                "found": bool(row),
+            }
+        if row:
+            if row["idu"] not in seen_idu:
+                seen_idu.add(row["idu"])
+                found.append(row)
+            entry["idu"] = row["idu"]
+            entry["contenance"] = row.get("contenance")
+            items.append(entry)
+        else:
+            missing.append(r)
+            items.append(entry)
+    return {"found": found, "missing": missing, "items": items}
+
+
+def found_rows_to_refs_kwargs(found: list[dict]) -> dict:
+    parcelles = [
+        {"section": row["section"], "numero": str(row["numero"]).zfill(4)}
+        for row in found
+    ]
+    return _refs_kwargs_from_normalized(
+        normalize_parcel_refs(parcelles=parcelles)
+    )
 
 
 def resolve_unite_fonciere(
@@ -95,34 +186,7 @@ def resolve_unite_fonciere(
     if not refs:
         return {"error": "Fournir parcelles, idus, ou section+numero."}
 
-    idu_list = [r["idu"] for r in refs if r["type"] == "idu"]
-    sn_sections = [r["section"] for r in refs if r["type"] == "sn"]
-    sn_numeros = [r["numero"] for r in refs if r["type"] == "sn"]
-    has_idu = bool(idu_list)
-    has_sn = bool(sn_sections)
-
-    sql_fetch = f"""
-        SELECT idu, section, numero, contenance,
-               ST_MakeValid(geom_2154) AS geom,
-               ST_AsGeoJSON(ST_Transform(ST_MakeValid(geom_2154), 4326)) AS geojson_wgs84
-        FROM {q("parcelles")}
-        WHERE (%s AND idu = ANY(%s))
-           OR (%s AND (section, lpad(numero, 4, '0')) IN (
-                SELECT w.sec, lpad(w.num, 4, '0')
-                FROM unnest(%s::text[], %s::text[]) AS w(sec, num)
-           ))
-    """
-    rows = _query(
-        db_config,
-        sql_fetch,
-        (
-            has_idu,
-            idu_list if has_idu else [""],
-            has_sn,
-            sn_sections if has_sn else [""],
-            sn_numeros if has_sn else [""],
-        ),
-    )
+    rows = _fetch_parcel_rows(db_config, refs)
 
     if not rows:
         return {"error": "Aucune parcelle trouvée pour les références fournies."}
@@ -275,46 +339,40 @@ def refs_from_tool_calls(tool_calls: list[dict] | None) -> dict[str, Any]:
 
 
 def refs_from_user_text(text: str) -> dict[str, Any]:
-    """
-    Heuristique section/numéro ou IDU dans un message utilisateur
-    (alignée sur le parseur frontend PluChat).
-    """
-    if not text or not str(text).strip():
-        return {}
+    """Références cadastrales dans un message (parseur déterministe)."""
+    from .parcel_ref_parse import parse_parcel_refs_from_text
 
-    idu_matches = re.findall(r"\b([0-9A-Z]{10}\d{4})\b", text, re.IGNORECASE)
-    if len(idu_matches) > 1:
-        return {"idus": [u.upper() for u in idu_matches]}
-    if len(idu_matches) == 1:
-        return {"idu": idu_matches[0].upper()}
+    return parse_parcel_refs_from_text(text)
 
-    pairs: list[dict] = []
-    seen: set[str] = set()
-    for m in re.finditer(r"\b([A-Za-z]{1,2})\s+(\d{1,4})\b", text):
-        section = m.group(1).upper()
-        numero = m.group(2)
-        key = f"{section}:{numero.zfill(4)}"
-        if key in seen:
-            continue
-        seen.add(key)
-        pairs.append({"section": section, "numero": numero})
 
-    if len(pairs) >= 2:
-        return {"parcelles": pairs}
-    if len(pairs) == 1:
-        return {"section": pairs[0]["section"], "numero": pairs[0]["numero"]}
+def merge_parcel_ref_sources(
+    *,
+    text: str | None = None,
+    parcelles: list[dict] | None = None,
+    idus: list[str] | None = None,
+    section: str | None = None,
+    numero: str | None = None,
+    idu: str | None = None,
+) -> dict[str, Any]:
+    """Fusionne refs explicites et texte libre, puis normalise."""
+    parsed = refs_from_user_text(text or "") if text else {}
+    parsed_parcelles = list(parsed.get("parcelles") or [])
+    if parsed.get("section") and parsed.get("numero"):
+        parsed_parcelles.append(
+            {"section": parsed["section"], "numero": parsed["numero"]}
+        )
+    parsed_idus = list(parsed.get("idus") or [])
+    if parsed.get("idu"):
+        parsed_idus.append(parsed["idu"])
 
-    section_num = re.search(
-        r"section\s+([A-Za-z]{1,2})\s+(?:n[°o]?\s*|num[ée]ro\s+)?(\d{1,4})\b",
-        text,
-        re.IGNORECASE,
+    refs = normalize_parcel_refs(
+        parcelles=(parcelles or []) + parsed_parcelles,
+        idus=(idus or []) + parsed_idus,
+        section=section,
+        numero=numero,
+        idu=idu,
     )
-    if section_num:
-        return {
-            "section": section_num.group(1).upper(),
-            "numero": section_num.group(2),
-        }
-    return {}
+    return _refs_kwargs_from_normalized(refs)
 
 
 def refs_from_messages(messages: list[dict]) -> dict[str, Any]:
@@ -384,8 +442,8 @@ def resolve_session_refs(
 
 
 def parcelles_refs_to_json(
-    parcelles: list[dict] | None,
-    idus: list[str] | None,
+    parcelles: list[dict] | None = None,
+    idus: list[str] | None = None,
     section: str | None = None,
     numero: str | None = None,
     idu: str | None = None,

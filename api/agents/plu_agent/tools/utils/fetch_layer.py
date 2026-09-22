@@ -16,6 +16,7 @@ from .intersection_metrics import (
     is_surfacic_layer,
     surfacic_metrics_select_sql,
 )
+from .llm_item_collapse import collapse_identical_llm_items
 from .zonage import strict_parcel_intersection_filter_sql
 
 logger = logging.getLogger("plu_tools")
@@ -287,14 +288,18 @@ def fetch_extra_layers_llm(
             )
             continue
         items = rows_to_llm_items(rows, spec)
+        if spec.collapse_identical:
+            items = collapse_identical_llm_items(items)
         g = spec.group or "autre"
         groups.setdefault(g, []).extend(items)
         total += len(items)
-        hit_parts.append(f"{spec.id}({n})")
+        collapsed = f" → {len(items)} après dédoublonnage" if len(items) != n else ""
+        hit_parts.append(f"{spec.id}({n}{collapsed})")
         logger.info(
-            "get_extra_layers — %s → %d entité(s) [%s.%s]",
+            "get_extra_layers — %s → %d entité(s)%s [%s.%s]",
             spec.id,
             n,
+            collapsed,
             sch,
             spec.table,
         )

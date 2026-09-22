@@ -7,6 +7,9 @@ Chaque module expose fetch_* / build_map_* et get_* pour le contexte LLM.
 
 from .infos import build_map_infos, fetch_infos_rows, get_infos
 from .parcel_geom import (
+    found_rows_to_refs_kwargs,
+    lookup_parcel_refs,
+    merge_parcel_ref_sources,
     normalize_parcel_refs,
     parcel_tool_properties,
     parcelles_refs_to_json,
@@ -16,6 +19,11 @@ from .parcel_geom import (
     refs_from_user_text,
     resolve_session_refs,
     resolve_unite_fonciere,
+)
+from .parcel_ref_parse import (
+    format_parcel_identity_prompt,
+    official_label,
+    parse_parcel_refs_from_text,
 )
 from .prescriptions import (
     build_map_prescriptions,
@@ -34,9 +42,15 @@ from .zonage import (
 __all__ = [
     "MIN_PARCEL_INTERSECTION_M2",
     "strict_parcel_intersection_filter_sql",
+    "found_rows_to_refs_kwargs",
+    "lookup_parcel_refs",
+    "merge_parcel_ref_sources",
     "normalize_parcel_refs",
+    "official_label",
     "parcel_tool_properties",
     "parcelles_refs_to_json",
+    "parse_parcel_refs_from_text",
+    "format_parcel_identity_prompt",
     "refs_from_messages",
     "refs_from_session",
     "refs_from_tool_calls",

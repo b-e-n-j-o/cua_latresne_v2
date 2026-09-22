@@ -1,0 +1,1943 @@
+{
+  "generated_at": "2026-09-11T20:00:23",
+  "mode": "compare_only",
+  "code_insee": "66008",
+  "commune": "Argelès-sur-Mer",
+  "schema": "argeles",
+  "table_cible": "argeles.parcelles",
+  "millesime_etalab": {
+    "source": "etalab",
+    "url": "https://cadastre.data.gouv.fr/bundler/cadastre-etalab/communes/66008/geojson/parcelles",
+    "updated_min": "2014-02-14",
+    "updated_max": "2026-05-27",
+    "updated_distinct": [
+      "2014-02-14",
+      "2014-04-08",
+      "2014-07-02",
+      "2014-09-10",
+      "2014-10-08",
+      "2014-10-21",
+      "2014-10-24",
+      "2014-10-30",
+      "2014-10-31",
+      "2014-11-03",
+      "2014-11-04",
+      "2014-11-07",
+      "2014-11-17",
+      "2014-11-26",
+      "2014-11-27",
+      "2014-12-02",
+      "2015-01-07",
+      "2015-01-19",
+      "2015-01-20",
+      "2015-01-22",
+      "2015-01-27",
+      "2015-02-10",
+      "2015-05-04",
+      "2015-05-05",
+      "2015-05-06",
+      "2015-05-11",
+      "2015-05-12",
+      "2015-05-20",
+      "2015-05-30",
+      "2015-06-04",
+      "2015-06-10",
+      "2015-06-15",
+      "2015-06-16",
+      "2015-06-18",
+      "2015-06-19",
+      "2015-08-13",
+      "2015-08-31",
+      "2015-09-02",
+      "2015-09-15",
+      "2015-09-22",
+      "2015-10-15",
+      "2015-10-27",
+      "2015-11-03",
+      "2015-11-18",
+      "2015-12-01",
+      "2015-12-05",
+      "2015-12-07",
+      "2015-12-16",
+      "2015-12-29",
+      "2016-01-14",
+      "2016-01-19",
+      "2016-02-11",
+      "2016-03-01",
+      "2016-04-01",
+      "2016-04-22",
+      "2016-05-10",
+      "2016-05-18",
+      "2016-06-01",
+      "2016-06-07",
+      "2016-06-17",
+      "2016-06-21",
+      "2016-06-25",
+      "2016-06-27",
+      "2016-07-19",
+      "2016-07-28",
+      "2016-08-09",
+      "2016-08-10",
+      "2016-08-12",
+      "2016-08-30",
+      "2016-09-06",
+      "2016-09-12",
+      "2016-09-27",
+      "2016-10-10",
+      "2016-10-18",
+      "2016-10-22",
+      "2016-11-12",
+      "2016-11-22",
+      "2016-12-05",
+      "2016-12-14",
+      "2017-01-17",
+      "2017-02-08",
+      "2017-02-09",
+      "2017-02-13",
+      "2017-03-06",
+      "2017-03-14",
+      "2017-03-15",
+      "2017-03-20",
+      "2017-03-24",
+      "2017-04-12",
+      "2017-04-19",
+      "2017-05-23",
+      "2017-05-24",
+      "2017-06-06",
+      "2017-06-27",
+      "2017-08-02",
+      "2017-09-05",
+      "2017-09-12",
+      "2017-09-14",
+      "2017-10-03",
+      "2017-10-23",
+      "2017-11-13",
+      "2017-12-21",
+      "2018-01-10",
+      "2018-02-12",
+      "2018-02-27",
+      "2018-03-01",
+      "2018-03-06",
+      "2018-03-13",
+      "2018-04-10",
+      "2018-04-13",
+      "2018-04-17",
+      "2018-04-24",
+      "2018-05-15",
+      "2018-06-12",
+      "2018-06-13",
+      "2018-06-19",
+      "2018-06-22",
+      "2018-06-26",
+      "2018-07-10",
+      "2018-07-12",
+      "2018-07-17",
+      "2018-07-31",
+      "2018-08-07",
+      "2018-08-21",
+      "2018-08-29",
+      "2018-09-03",
+      "2018-09-11",
+      "2018-09-18",
+      "2018-10-02",
+      "2018-10-10",
+      "2018-10-12",
+      "2018-10-23",
+      "2018-10-25",
+      "2018-11-27",
+      "2019-01-29",
+      "2019-02-18",
+      "2019-02-25",
+      "2019-03-13",
+      "2019-03-19",
+      "2019-04-15",
+      "2019-05-29",
+      "2019-06-13",
+      "2019-06-27",
+      "2019-07-03",
+      "2019-07-30",
+      "2019-09-18",
+      "2019-09-24",
+      "2019-10-09",
+      "2019-10-22",
+      "2019-10-25",
+      "2019-10-28",
+      "2019-11-05",
+      "2019-12-11",
+      "2020-01-13",
+      "2020-01-23",
+      "2020-01-28",
+      "2020-02-04",
+      "2020-03-24",
+      "2020-03-25",
+      "2020-03-30",
+      "2020-06-22",
+      "2020-06-23",
+      "2020-06-30",
+      "2020-07-07",
+      "2020-07-16",
+      "2020-07-21",
+      "2020-07-22",
+      "2020-08-25",
+      "2020-09-01",
+      "2020-09-09",
+      "2020-10-23",
+      "2020-11-10",
+      "2020-11-19",
+      "2020-11-24",
+      "2020-11-25",
+      "2020-12-08",
+      "2021-01-14",
+      "2021-01-28",
+      "2021-02-03",
+      "2021-03-02",
+      "2021-03-16",
+      "2021-03-25",
+      "2021-05-04",
+      "2021-05-05",
+      "2021-05-12",
+      "2021-05-27",
+      "2021-06-01",
+      "2021-06-22",
+      "2021-07-02",
+      "2021-07-06",
+      "2021-07-20",
+      "2021-07-22",
+      "2021-08-03",
+      "2021-09-10",
+      "2021-09-28",
+      "2021-11-10",
+      "2021-11-30",
+      "2021-12-14",
+      "2021-12-28",
+      "2022-01-04",
+      "2022-01-07",
+      "2022-01-14",
+      "2022-01-18",
+      "2022-01-25",
+      "2022-02-08",
+      "2022-03-01",
+      "2022-03-08",
+      "2022-04-20",
+      "2022-04-28",
+      "2022-05-03",
+      "2022-06-08",
+      "2022-07-05",
+      "2022-07-12",
+      "2022-07-29",
+      "2022-08-03",
+      "2022-09-12",
+      "2022-09-27",
+      "2022-09-29",
+      "2022-10-11",
+      "2022-10-12",
+      "2022-10-13",
+      "2022-10-14",
+      "2022-10-21",
+      "2022-11-08",
+      "2022-11-15",
+      "2022-11-17",
+      "2022-11-22",
+      "2022-12-13",
+      "2022-12-21",
+      "2022-12-27",
+      "2023-01-31",
+      "2023-02-14",
+      "2023-02-16",
+      "2023-03-03",
+      "2023-03-14",
+      "2023-03-21",
+      "2023-03-28",
+      "2023-04-13",
+      "2023-05-01",
+      "2023-05-04",
+      "2023-05-17",
+      "2023-05-31",
+      "2023-06-20",
+      "2023-07-12",
+      "2023-08-17",
+      "2023-10-10",
+      "2023-10-16",
+      "2023-10-17",
+      "2023-10-31",
+      "2023-11-02",
+      "2023-11-21",
+      "2023-12-01",
+      "2023-12-04",
+      "2023-12-06",
+      "2023-12-14",
+      "2024-01-03",
+      "2024-01-10",
+      "2024-01-23",
+      "2024-01-30",
+      "2024-02-08",
+      "2024-02-12",
+      "2024-02-13",
+      "2024-02-19",
+      "2024-02-26",
+      "2024-04-16",
+      "2024-05-08",
+      "2024-05-14",
+      "2024-05-27",
+      "2024-05-28",
+      "2024-06-03",
+      "2024-06-11",
+      "2024-06-25",
+      "2024-06-26",
+      "2024-07-02",
+      "2024-07-31",
+      "2024-08-09",
+      "2024-08-13",
+      "2024-08-27",
+      "2024-09-10",
+      "2024-09-13",
+      "2024-09-16",
+      "2024-09-24",
+      "2024-10-01",
+      "2024-10-16",
+      "2024-10-22",
+      "2024-11-26",
+      "2024-12-31",
+      "2025-01-28",
+      "2025-03-31",
+      "2025-04-08",
+      "2025-04-25",
+      "2025-05-22",
+      "2025-05-27",
+      "2025-05-29",
+      "2025-06-05",
+      "2025-07-01",
+      "2025-07-22",
+      "2025-07-28",
+      "2025-08-04",
+      "2025-09-02",
+      "2025-09-10",
+      "2025-09-22",
+      "2025-09-23",
+      "2025-09-29",
+      "2025-09-30",
+      "2025-10-01",
+      "2025-10-02",
+      "2025-10-07",
+      "2025-10-08",
+      "2025-10-09",
+      "2025-10-13",
+      "2025-10-14",
+      "2025-10-15",
+      "2025-10-20",
+      "2025-10-21",
+      "2025-10-23",
+      "2025-11-04",
+      "2025-11-12",
+      "2025-11-13",
+      "2025-11-17",
+      "2025-11-18",
+      "2025-11-19",
+      "2025-11-21",
+      "2025-12-04",
+      "2025-12-19",
+      "2025-12-24",
+      "2026-01-06",
+      "2026-01-19",
+      "2026-01-26",
+      "2026-02-03",
+      "2026-02-20",
+      "2026-03-02",
+      "2026-03-23",
+      "2026-03-26",
+      "2026-04-08",
+      "2026-04-10",
+      "2026-04-13",
+      "2026-04-30",
+      "2026-05-14",
+      "2026-05-19",
+      "2026-05-27"
+    ],
+    "created_min": "2005-12-05",
+    "created_max": "2026-04-20",
+    "nb_features_with_updated": 15614,
+    "millesime_pci": null
+  },
+  "note_date_base": "millesime_pci / created_etalab / updated_etalab sur parcelles après --ensure-schema et --apply.",
+  "seuils": {
+    "contenance_m2": 1.0,
+    "surface_m2": 10.0,
+    "hausdorff_m": 0.5
+  },
+  "total_etalab": 15614,
+  "total_db": 15585,
+  "total_communs": 15568,
+  "nouveaux": {
+    "count": 46,
+    "idu": [
+      "66008000AL0262",
+      "66008000AL0263",
+      "66008000AV1275",
+      "66008000AV1276",
+      "66008000AV1277",
+      "66008000AV1278",
+      "66008000AV1279",
+      "66008000AV1280",
+      "66008000AV1281",
+      "66008000AV1282",
+      "66008000AV1283",
+      "66008000AV1284",
+      "66008000AV1285",
+      "66008000AY0799",
+      "66008000AY0800",
+      "66008000AY0801",
+      "66008000BD1068",
+      "66008000BD1069",
+      "66008000BD1070",
+      "66008000BD1071",
+      "66008000BE1827",
+      "66008000BE1828",
+      "66008000BE1829",
+      "66008000BE1830",
+      "66008000BE1831",
+      "66008000BE1832",
+      "66008000BE1833",
+      "66008000BE1834",
+      "66008000BH1488",
+      "66008000BH1489",
+      "66008000BH1491",
+      "66008000BH1492",
+      "66008000BH1493",
+      "66008000BH1494",
+      "66008000BH1495",
+      "66008000BI0514",
+      "66008000BI0515",
+      "66008000BI0516",
+      "66008000BI0517",
+      "66008000BI0518",
+      "66008000BI0519",
+      "66008000BN0551",
+      "66008000BS0789",
+      "66008000BS0790",
+      "66008000BS0791",
+      "66008000BV0576"
+    ]
+  },
+  "supprimes": {
+    "count": 17,
+    "idu": [
+      "66008000AL0050",
+      "66008000AV1071",
+      "66008000AV1073",
+      "66008000AV1074",
+      "66008000AV1075",
+      "66008000AY0217",
+      "66008000BD0418",
+      "66008000BD0443",
+      "66008000BE1011",
+      "66008000BE1013",
+      "66008000BE1135",
+      "66008000BH0585",
+      "66008000BH1477",
+      "66008000BH1490",
+      "66008000BI0448",
+      "66008000BI0449",
+      "66008000BS0448"
+    ],
+    "avec_sig": {
+      "count": 17,
+      "idu": [
+        "66008000AL0050",
+        "66008000AV1071",
+        "66008000AV1073",
+        "66008000AV1074",
+        "66008000AV1075",
+        "66008000AY0217",
+        "66008000BD0418",
+        "66008000BD0443",
+        "66008000BE1011",
+        "66008000BE1013",
+        "66008000BE1135",
+        "66008000BH0585",
+        "66008000BH1477",
+        "66008000BH1490",
+        "66008000BI0448",
+        "66008000BI0449",
+        "66008000BS0448"
+      ]
+    }
+  },
+  "contenance_diff": {
+    "count": 0,
+    "details": []
+  },
+  "geom_diff": {
+    "count": 0,
+    "details": []
+  },
+  "geom_invalides": {
+    "count": 0,
+    "idu": []
+  },
+  "idu_maj_communs": [],
+  "veille": {
+    "seuils": {
+      "overlap_min_m2": 0.5,
+      "overlap_min_ratio": 0.12
+    },
+    "counts": {
+      "division": 17,
+      "fusion": 0,
+      "recodage": 0,
+      "remaniement": 0,
+      "suppression": 0,
+      "creation": 2
+    },
+    "evenements": [
+      {
+        "type": "division",
+        "parents": [
+          {
+            "idu": "66008000AL0050",
+            "ref": "AL:0050",
+            "section": "AL",
+            "numero": "50",
+            "contenance": 8300.0,
+            "area_m2": 8425.5,
+            "has_sig": true,
+            "created": null,
+            "updated": null,
+            "origin": "base_supprimee"
+          }
+        ],
+        "enfants": [
+          {
+            "idu": "66008000AL0262",
+            "ref": "AL:0262",
+            "section": "AL",
+            "numero": "262",
+            "contenance": 42.0,
+            "area_m2": 42.6,
+            "has_sig": false,
+            "created": "2026-03-25",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000AL0263",
+            "ref": "AL:0263",
+            "section": "AL",
+            "numero": "263",
+            "contenance": 8258.0,
+            "area_m2": 8382.8,
+            "has_sig": false,
+            "created": "2026-03-25",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          }
+        ],
+        "liens": [
+          {
+            "idu_old": "66008000AL0050",
+            "idu_new": "66008000AL0263",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 8425.5,
+            "area_new": 8382.8,
+            "area_inter": 8382.8,
+            "pct_old": 0.995,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000AL0050",
+            "idu_new": "66008000AL0262",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 8425.5,
+            "area_new": 42.6,
+            "area_inter": 42.6,
+            "pct_old": 0.005,
+            "pct_new": 1.0
+          }
+        ],
+        "nb_parents": 1,
+        "nb_enfants": 2
+      },
+      {
+        "type": "division",
+        "parents": [
+          {
+            "idu": "66008000AV1071",
+            "ref": "AV:1071",
+            "section": "AV",
+            "numero": "1071",
+            "contenance": 1180.0,
+            "area_m2": 1173.1,
+            "has_sig": true,
+            "created": null,
+            "updated": null,
+            "origin": "base_supprimee"
+          }
+        ],
+        "enfants": [
+          {
+            "idu": "66008000AV1275",
+            "ref": "AV:1275",
+            "section": "AV",
+            "numero": "1275",
+            "contenance": 1173.0,
+            "area_m2": 1167.6,
+            "has_sig": false,
+            "created": "2016-08-10",
+            "updated": "2026-04-10",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000AV1276",
+            "ref": "AV:1276",
+            "section": "AV",
+            "numero": "1276",
+            "contenance": 7.0,
+            "area_m2": 5.5,
+            "has_sig": false,
+            "created": "2016-08-10",
+            "updated": "2026-04-10",
+            "origin": "etalab_nouvelle"
+          }
+        ],
+        "liens": [
+          {
+            "idu_old": "66008000AV1071",
+            "idu_new": "66008000AV1276",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 1173.1,
+            "area_new": 5.5,
+            "area_inter": 5.5,
+            "pct_old": 0.005,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000AV1071",
+            "idu_new": "66008000AV1275",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 1173.1,
+            "area_new": 1167.6,
+            "area_inter": 1167.6,
+            "pct_old": 0.995,
+            "pct_new": 1.0
+          }
+        ],
+        "nb_parents": 1,
+        "nb_enfants": 2
+      },
+      {
+        "type": "division",
+        "parents": [
+          {
+            "idu": "66008000AV1073",
+            "ref": "AV:1073",
+            "section": "AV",
+            "numero": "1073",
+            "contenance": 152.0,
+            "area_m2": 165.8,
+            "has_sig": true,
+            "created": null,
+            "updated": null,
+            "origin": "base_supprimee"
+          }
+        ],
+        "enfants": [
+          {
+            "idu": "66008000AV1277",
+            "ref": "AV:1277",
+            "section": "AV",
+            "numero": "1277",
+            "contenance": 1.0,
+            "area_m2": 0.9,
+            "has_sig": false,
+            "created": "2016-08-10",
+            "updated": "2026-04-10",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000AV1278",
+            "ref": "AV:1278",
+            "section": "AV",
+            "numero": "1278",
+            "contenance": 151.0,
+            "area_m2": 164.8,
+            "has_sig": false,
+            "created": "2016-08-10",
+            "updated": "2026-04-10",
+            "origin": "etalab_nouvelle"
+          }
+        ],
+        "liens": [
+          {
+            "idu_old": "66008000AV1073",
+            "idu_new": "66008000AV1278",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 165.8,
+            "area_new": 164.8,
+            "area_inter": 164.8,
+            "pct_old": 0.994,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000AV1073",
+            "idu_new": "66008000AV1277",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 165.8,
+            "area_new": 0.9,
+            "area_inter": 0.9,
+            "pct_old": 0.006,
+            "pct_new": 1.0
+          }
+        ],
+        "nb_parents": 1,
+        "nb_enfants": 2
+      },
+      {
+        "type": "division",
+        "parents": [
+          {
+            "idu": "66008000AV1074",
+            "ref": "AV:1074",
+            "section": "AV",
+            "numero": "1074",
+            "contenance": 261.0,
+            "area_m2": 261.0,
+            "has_sig": true,
+            "created": null,
+            "updated": null,
+            "origin": "base_supprimee"
+          }
+        ],
+        "enfants": [
+          {
+            "idu": "66008000AV1279",
+            "ref": "AV:1279",
+            "section": "AV",
+            "numero": "1279",
+            "contenance": 12.0,
+            "area_m2": 12.6,
+            "has_sig": false,
+            "created": "2016-08-10",
+            "updated": "2026-04-10",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000AV1280",
+            "ref": "AV:1280",
+            "section": "AV",
+            "numero": "1280",
+            "contenance": 8.0,
+            "area_m2": 8.5,
+            "has_sig": false,
+            "created": "2016-08-10",
+            "updated": "2026-04-10",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000AV1281",
+            "ref": "AV:1281",
+            "section": "AV",
+            "numero": "1281",
+            "contenance": 240.0,
+            "area_m2": 239.2,
+            "has_sig": false,
+            "created": "2016-08-10",
+            "updated": "2026-04-10",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000AV1282",
+            "ref": "AV:1282",
+            "section": "AV",
+            "numero": "1282",
+            "contenance": 1.0,
+            "area_m2": 0.7,
+            "has_sig": false,
+            "created": "2016-08-10",
+            "updated": "2026-04-10",
+            "origin": "etalab_nouvelle"
+          }
+        ],
+        "liens": [
+          {
+            "idu_old": "66008000AV1074",
+            "idu_new": "66008000AV1279",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 261.0,
+            "area_new": 12.6,
+            "area_inter": 12.6,
+            "pct_old": 0.048,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000AV1074",
+            "idu_new": "66008000AV1281",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 261.0,
+            "area_new": 239.2,
+            "area_inter": 239.1,
+            "pct_old": 0.916,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000AV1074",
+            "idu_new": "66008000AV1280",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 261.0,
+            "area_new": 8.5,
+            "area_inter": 8.4,
+            "pct_old": 0.032,
+            "pct_new": 0.995
+          },
+          {
+            "idu_old": "66008000AV1074",
+            "idu_new": "66008000AV1282",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 261.0,
+            "area_new": 0.7,
+            "area_inter": 0.7,
+            "pct_old": 0.003,
+            "pct_new": 0.982
+          }
+        ],
+        "nb_parents": 1,
+        "nb_enfants": 4
+      },
+      {
+        "type": "division",
+        "parents": [
+          {
+            "idu": "66008000AV1075",
+            "ref": "AV:1075",
+            "section": "AV",
+            "numero": "1075",
+            "contenance": 4476.0,
+            "area_m2": 4419.8,
+            "has_sig": true,
+            "created": null,
+            "updated": null,
+            "origin": "base_supprimee"
+          }
+        ],
+        "enfants": [
+          {
+            "idu": "66008000AV1283",
+            "ref": "AV:1283",
+            "section": "AV",
+            "numero": "1283",
+            "contenance": 4022.0,
+            "area_m2": 3967.5,
+            "has_sig": false,
+            "created": "2016-08-10",
+            "updated": "2026-04-13",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000AV1284",
+            "ref": "AV:1284",
+            "section": "AV",
+            "numero": "1284",
+            "contenance": 298.0,
+            "area_m2": 295.4,
+            "has_sig": false,
+            "created": "2016-08-10",
+            "updated": "2026-04-13",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000AV1285",
+            "ref": "AV:1285",
+            "section": "AV",
+            "numero": "1285",
+            "contenance": 156.0,
+            "area_m2": 156.7,
+            "has_sig": false,
+            "created": "2016-08-10",
+            "updated": "2026-04-13",
+            "origin": "etalab_nouvelle"
+          }
+        ],
+        "liens": [
+          {
+            "idu_old": "66008000AV1075",
+            "idu_new": "66008000AV1284",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 4419.8,
+            "area_new": 295.4,
+            "area_inter": 295.4,
+            "pct_old": 0.067,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000AV1075",
+            "idu_new": "66008000AV1285",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 4419.8,
+            "area_new": 156.7,
+            "area_inter": 156.7,
+            "pct_old": 0.035,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000AV1075",
+            "idu_new": "66008000AV1283",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 4419.8,
+            "area_new": 3967.5,
+            "area_inter": 3967.5,
+            "pct_old": 0.898,
+            "pct_new": 1.0
+          }
+        ],
+        "nb_parents": 1,
+        "nb_enfants": 3
+      },
+      {
+        "type": "division",
+        "parents": [
+          {
+            "idu": "66008000AY0217",
+            "ref": "AY:0217",
+            "section": "AY",
+            "numero": "217",
+            "contenance": 402.0,
+            "area_m2": 408.2,
+            "has_sig": true,
+            "created": null,
+            "updated": null,
+            "origin": "base_supprimee"
+          }
+        ],
+        "enfants": [
+          {
+            "idu": "66008000AY0799",
+            "ref": "AY:0799",
+            "section": "AY",
+            "numero": "799",
+            "contenance": 164.0,
+            "area_m2": 166.5,
+            "has_sig": false,
+            "created": "2023-10-06",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000AY0800",
+            "ref": "AY:0800",
+            "section": "AY",
+            "numero": "800",
+            "contenance": 67.0,
+            "area_m2": 67.8,
+            "has_sig": false,
+            "created": "2023-10-06",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000AY0801",
+            "ref": "AY:0801",
+            "section": "AY",
+            "numero": "801",
+            "contenance": 171.0,
+            "area_m2": 174.0,
+            "has_sig": false,
+            "created": "2023-10-06",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          }
+        ],
+        "liens": [
+          {
+            "idu_old": "66008000AY0217",
+            "idu_new": "66008000AY0800",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 408.2,
+            "area_new": 67.8,
+            "area_inter": 67.8,
+            "pct_old": 0.166,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000AY0217",
+            "idu_new": "66008000AY0799",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 408.2,
+            "area_new": 166.5,
+            "area_inter": 166.5,
+            "pct_old": 0.408,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000AY0217",
+            "idu_new": "66008000AY0801",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 408.2,
+            "area_new": 174.0,
+            "area_inter": 174.0,
+            "pct_old": 0.426,
+            "pct_new": 1.0
+          }
+        ],
+        "nb_parents": 1,
+        "nb_enfants": 3
+      },
+      {
+        "type": "division",
+        "parents": [
+          {
+            "idu": "66008000BD0418",
+            "ref": "BD:0418",
+            "section": "BD",
+            "numero": "418",
+            "contenance": 920.0,
+            "area_m2": 927.3,
+            "has_sig": true,
+            "created": null,
+            "updated": null,
+            "origin": "base_supprimee"
+          }
+        ],
+        "enfants": [
+          {
+            "idu": "66008000BD1070",
+            "ref": "BD:1070",
+            "section": "BD",
+            "numero": "1070",
+            "contenance": 290.0,
+            "area_m2": 298.4,
+            "has_sig": false,
+            "created": "2026-03-23",
+            "updated": "2026-04-30",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000BD1071",
+            "ref": "BD:1071",
+            "section": "BD",
+            "numero": "1071",
+            "contenance": 629.0,
+            "area_m2": 628.9,
+            "has_sig": false,
+            "created": "2026-03-23",
+            "updated": "2026-04-30",
+            "origin": "etalab_nouvelle"
+          }
+        ],
+        "liens": [
+          {
+            "idu_old": "66008000BD0418",
+            "idu_new": "66008000BD1071",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 927.3,
+            "area_new": 628.9,
+            "area_inter": 628.9,
+            "pct_old": 0.678,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000BD0418",
+            "idu_new": "66008000BD1070",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 927.3,
+            "area_new": 298.4,
+            "area_inter": 298.4,
+            "pct_old": 0.322,
+            "pct_new": 1.0
+          }
+        ],
+        "nb_parents": 1,
+        "nb_enfants": 2
+      },
+      {
+        "type": "division",
+        "parents": [
+          {
+            "idu": "66008000BD0443",
+            "ref": "BD:0443",
+            "section": "BD",
+            "numero": "443",
+            "contenance": 2240.0,
+            "area_m2": 2245.0,
+            "has_sig": true,
+            "created": null,
+            "updated": null,
+            "origin": "base_supprimee"
+          }
+        ],
+        "enfants": [
+          {
+            "idu": "66008000BD1068",
+            "ref": "BD:1068",
+            "section": "BD",
+            "numero": "1068",
+            "contenance": 1528.0,
+            "area_m2": 1531.2,
+            "has_sig": false,
+            "created": "2026-02-06",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000BD1069",
+            "ref": "BD:1069",
+            "section": "BD",
+            "numero": "1069",
+            "contenance": 712.0,
+            "area_m2": 713.6,
+            "has_sig": false,
+            "created": "2026-02-06",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          }
+        ],
+        "liens": [
+          {
+            "idu_old": "66008000BD0443",
+            "idu_new": "66008000BD1068",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 2245.0,
+            "area_new": 1531.2,
+            "area_inter": 1531.2,
+            "pct_old": 0.682,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000BD0443",
+            "idu_new": "66008000BD1069",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 2245.0,
+            "area_new": 713.6,
+            "area_inter": 713.6,
+            "pct_old": 0.318,
+            "pct_new": 1.0
+          }
+        ],
+        "nb_parents": 1,
+        "nb_enfants": 2
+      },
+      {
+        "type": "division",
+        "parents": [
+          {
+            "idu": "66008000BE1011",
+            "ref": "BE:1011",
+            "section": "BE",
+            "numero": "1011",
+            "contenance": 465.0,
+            "area_m2": 474.4,
+            "has_sig": true,
+            "created": null,
+            "updated": null,
+            "origin": "base_supprimee"
+          }
+        ],
+        "enfants": [
+          {
+            "idu": "66008000BE1827",
+            "ref": "BE:1827",
+            "section": "BE",
+            "numero": "1827",
+            "contenance": 186.0,
+            "area_m2": 191.2,
+            "has_sig": false,
+            "created": "2022-04-21",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000BE1828",
+            "ref": "BE:1828",
+            "section": "BE",
+            "numero": "1828",
+            "contenance": 178.0,
+            "area_m2": 181.8,
+            "has_sig": false,
+            "created": "2022-04-21",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000BE1829",
+            "ref": "BE:1829",
+            "section": "BE",
+            "numero": "1829",
+            "contenance": 82.0,
+            "area_m2": 87.1,
+            "has_sig": false,
+            "created": "2022-04-21",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000BE1830",
+            "ref": "BE:1830",
+            "section": "BE",
+            "numero": "1830",
+            "contenance": 15.0,
+            "area_m2": 14.4,
+            "has_sig": false,
+            "created": "2022-04-21",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          }
+        ],
+        "liens": [
+          {
+            "idu_old": "66008000BE1011",
+            "idu_new": "66008000BE1829",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 474.4,
+            "area_new": 87.1,
+            "area_inter": 87.1,
+            "pct_old": 0.184,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000BE1011",
+            "idu_new": "66008000BE1828",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 474.4,
+            "area_new": 181.8,
+            "area_inter": 181.7,
+            "pct_old": 0.383,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000BE1011",
+            "idu_new": "66008000BE1827",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 474.4,
+            "area_new": 191.2,
+            "area_inter": 191.1,
+            "pct_old": 0.403,
+            "pct_new": 0.999
+          },
+          {
+            "idu_old": "66008000BE1011",
+            "idu_new": "66008000BE1830",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 474.4,
+            "area_new": 14.4,
+            "area_inter": 14.4,
+            "pct_old": 0.03,
+            "pct_new": 1.0
+          }
+        ],
+        "nb_parents": 1,
+        "nb_enfants": 4
+      },
+      {
+        "type": "division",
+        "parents": [
+          {
+            "idu": "66008000BE1013",
+            "ref": "BE:1013",
+            "section": "BE",
+            "numero": "1013",
+            "contenance": 375.0,
+            "area_m2": 384.0,
+            "has_sig": true,
+            "created": null,
+            "updated": null,
+            "origin": "base_supprimee"
+          }
+        ],
+        "enfants": [
+          {
+            "idu": "66008000BE1833",
+            "ref": "BE:1833",
+            "section": "BE",
+            "numero": "1833",
+            "contenance": 53.0,
+            "area_m2": 52.7,
+            "has_sig": false,
+            "created": "2022-04-21",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000BE1834",
+            "ref": "BE:1834",
+            "section": "BE",
+            "numero": "1834",
+            "contenance": 324.0,
+            "area_m2": 331.2,
+            "has_sig": false,
+            "created": "2022-04-21",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          }
+        ],
+        "liens": [
+          {
+            "idu_old": "66008000BE1013",
+            "idu_new": "66008000BE1834",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 384.0,
+            "area_new": 331.2,
+            "area_inter": 331.2,
+            "pct_old": 0.863,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000BE1013",
+            "idu_new": "66008000BE1833",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 384.0,
+            "area_new": 52.7,
+            "area_inter": 52.7,
+            "pct_old": 0.137,
+            "pct_new": 1.0
+          }
+        ],
+        "nb_parents": 1,
+        "nb_enfants": 2
+      },
+      {
+        "type": "division",
+        "parents": [
+          {
+            "idu": "66008000BE1135",
+            "ref": "BE:1135",
+            "section": "BE",
+            "numero": "1135",
+            "contenance": 79.0,
+            "area_m2": 79.6,
+            "has_sig": true,
+            "created": null,
+            "updated": null,
+            "origin": "base_supprimee"
+          }
+        ],
+        "enfants": [
+          {
+            "idu": "66008000BE1831",
+            "ref": "BE:1831",
+            "section": "BE",
+            "numero": "1831",
+            "contenance": 37.0,
+            "area_m2": 36.9,
+            "has_sig": false,
+            "created": "2022-04-21",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000BE1832",
+            "ref": "BE:1832",
+            "section": "BE",
+            "numero": "1832",
+            "contenance": 41.0,
+            "area_m2": 42.8,
+            "has_sig": false,
+            "created": "2022-04-21",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          }
+        ],
+        "liens": [
+          {
+            "idu_old": "66008000BE1135",
+            "idu_new": "66008000BE1832",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 79.6,
+            "area_new": 42.8,
+            "area_inter": 42.8,
+            "pct_old": 0.537,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000BE1135",
+            "idu_new": "66008000BE1831",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 79.6,
+            "area_new": 36.9,
+            "area_inter": 36.9,
+            "pct_old": 0.463,
+            "pct_new": 1.0
+          }
+        ],
+        "nb_parents": 1,
+        "nb_enfants": 2
+      },
+      {
+        "type": "division",
+        "parents": [
+          {
+            "idu": "66008000BH0585",
+            "ref": "BH:0585",
+            "section": "BH",
+            "numero": "585",
+            "contenance": 922.0,
+            "area_m2": 1008.5,
+            "has_sig": true,
+            "created": null,
+            "updated": null,
+            "origin": "base_supprimee"
+          }
+        ],
+        "enfants": [
+          {
+            "idu": "66008000BH1488",
+            "ref": "BH:1488",
+            "section": "BH",
+            "numero": "1488",
+            "contenance": 775.0,
+            "area_m2": 838.0,
+            "has_sig": false,
+            "created": "2025-12-18",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000BH1489",
+            "ref": "BH:1489",
+            "section": "BH",
+            "numero": "1489",
+            "contenance": 147.0,
+            "area_m2": 170.5,
+            "has_sig": false,
+            "created": "2025-12-18",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          }
+        ],
+        "liens": [
+          {
+            "idu_old": "66008000BH0585",
+            "idu_new": "66008000BH1488",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 1008.5,
+            "area_new": 838.0,
+            "area_inter": 838.0,
+            "pct_old": 0.831,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000BH0585",
+            "idu_new": "66008000BH1489",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 1008.5,
+            "area_new": 170.5,
+            "area_inter": 170.5,
+            "pct_old": 0.169,
+            "pct_new": 1.0
+          }
+        ],
+        "nb_parents": 1,
+        "nb_enfants": 2
+      },
+      {
+        "type": "division",
+        "parents": [
+          {
+            "idu": "66008000BH1477",
+            "ref": "BH:1477",
+            "section": "BH",
+            "numero": "1477",
+            "contenance": 54.0,
+            "area_m2": 52.2,
+            "has_sig": true,
+            "created": null,
+            "updated": null,
+            "origin": "base_supprimee"
+          }
+        ],
+        "enfants": [
+          {
+            "idu": "66008000BH1491",
+            "ref": "BH:1491",
+            "section": "BH",
+            "numero": "1491",
+            "contenance": 10.0,
+            "area_m2": 11.3,
+            "has_sig": false,
+            "created": "2026-03-23",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000BH1492",
+            "ref": "BH:1492",
+            "section": "BH",
+            "numero": "1492",
+            "contenance": 44.0,
+            "area_m2": 41.0,
+            "has_sig": false,
+            "created": "2026-03-23",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          }
+        ],
+        "liens": [
+          {
+            "idu_old": "66008000BH1477",
+            "idu_new": "66008000BH1492",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 52.2,
+            "area_new": 41.0,
+            "area_inter": 40.9,
+            "pct_old": 0.784,
+            "pct_new": 0.999
+          },
+          {
+            "idu_old": "66008000BH1477",
+            "idu_new": "66008000BH1491",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 52.2,
+            "area_new": 11.3,
+            "area_inter": 11.2,
+            "pct_old": 0.215,
+            "pct_new": 0.999
+          }
+        ],
+        "nb_parents": 1,
+        "nb_enfants": 2
+      },
+      {
+        "type": "division",
+        "parents": [
+          {
+            "idu": "66008000BH1490",
+            "ref": "BH:1490",
+            "section": "BH",
+            "numero": "1490",
+            "contenance": 550.0,
+            "area_m2": 556.1,
+            "has_sig": true,
+            "created": null,
+            "updated": null,
+            "origin": "base_supprimee"
+          }
+        ],
+        "enfants": [
+          {
+            "idu": "66008000BH1493",
+            "ref": "BH:1493",
+            "section": "BH",
+            "numero": "1493",
+            "contenance": 378.0,
+            "area_m2": 391.7,
+            "has_sig": false,
+            "created": "2026-03-23",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000BH1494",
+            "ref": "BH:1494",
+            "section": "BH",
+            "numero": "1494",
+            "contenance": 56.0,
+            "area_m2": 64.1,
+            "has_sig": false,
+            "created": "2026-03-23",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000BH1495",
+            "ref": "BH:1495",
+            "section": "BH",
+            "numero": "1495",
+            "contenance": 99.0,
+            "area_m2": 100.4,
+            "has_sig": false,
+            "created": "2026-03-23",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          }
+        ],
+        "liens": [
+          {
+            "idu_old": "66008000BH1490",
+            "idu_new": "66008000BH1494",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 556.1,
+            "area_new": 64.1,
+            "area_inter": 64.1,
+            "pct_old": 0.115,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000BH1490",
+            "idu_new": "66008000BH1493",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 556.1,
+            "area_new": 391.7,
+            "area_inter": 391.6,
+            "pct_old": 0.704,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000BH1490",
+            "idu_new": "66008000BH1495",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 556.1,
+            "area_new": 100.4,
+            "area_inter": 100.3,
+            "pct_old": 0.18,
+            "pct_new": 0.999
+          }
+        ],
+        "nb_parents": 1,
+        "nb_enfants": 3
+      },
+      {
+        "type": "division",
+        "parents": [
+          {
+            "idu": "66008000BI0448",
+            "ref": "BI:0448",
+            "section": "BI",
+            "numero": "448",
+            "contenance": 5978.0,
+            "area_m2": 5907.0,
+            "has_sig": true,
+            "created": null,
+            "updated": null,
+            "origin": "base_supprimee"
+          }
+        ],
+        "enfants": [
+          {
+            "idu": "66008000BI0514",
+            "ref": "BI:0514",
+            "section": "BI",
+            "numero": "514",
+            "contenance": 2291.0,
+            "area_m2": 2288.1,
+            "has_sig": false,
+            "created": "2023-09-12",
+            "updated": "2026-04-10",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000BI0515",
+            "ref": "BI:0515",
+            "section": "BI",
+            "numero": "515",
+            "contenance": 719.0,
+            "area_m2": 646.1,
+            "has_sig": false,
+            "created": "2023-09-12",
+            "updated": "2026-04-10",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000BI0516",
+            "ref": "BI:0516",
+            "section": "BI",
+            "numero": "516",
+            "contenance": 2239.0,
+            "area_m2": 2245.5,
+            "has_sig": false,
+            "created": "2023-09-12",
+            "updated": "2026-04-10",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000BI0517",
+            "ref": "BI:0517",
+            "section": "BI",
+            "numero": "517",
+            "contenance": 728.0,
+            "area_m2": 727.1,
+            "has_sig": false,
+            "created": "2023-09-12",
+            "updated": "2026-04-10",
+            "origin": "etalab_nouvelle"
+          }
+        ],
+        "liens": [
+          {
+            "idu_old": "66008000BI0448",
+            "idu_new": "66008000BI0517",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 5907.0,
+            "area_new": 727.1,
+            "area_inter": 727.1,
+            "pct_old": 0.123,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000BI0448",
+            "idu_new": "66008000BI0516",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 5907.0,
+            "area_new": 2245.5,
+            "area_inter": 2245.5,
+            "pct_old": 0.38,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000BI0448",
+            "idu_new": "66008000BI0514",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 5907.0,
+            "area_new": 2288.1,
+            "area_inter": 2288.1,
+            "pct_old": 0.387,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000BI0448",
+            "idu_new": "66008000BI0515",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 5907.0,
+            "area_new": 646.1,
+            "area_inter": 646.1,
+            "pct_old": 0.109,
+            "pct_new": 1.0
+          }
+        ],
+        "nb_parents": 1,
+        "nb_enfants": 4
+      },
+      {
+        "type": "division",
+        "parents": [
+          {
+            "idu": "66008000BI0449",
+            "ref": "BI:0449",
+            "section": "BI",
+            "numero": "449",
+            "contenance": 500.0,
+            "area_m2": 496.2,
+            "has_sig": true,
+            "created": null,
+            "updated": null,
+            "origin": "base_supprimee"
+          }
+        ],
+        "enfants": [
+          {
+            "idu": "66008000BI0518",
+            "ref": "BI:0518",
+            "section": "BI",
+            "numero": "518",
+            "contenance": 381.0,
+            "area_m2": 389.8,
+            "has_sig": false,
+            "created": "2023-09-12",
+            "updated": "2026-04-10",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000BI0519",
+            "ref": "BI:0519",
+            "section": "BI",
+            "numero": "519",
+            "contenance": 119.0,
+            "area_m2": 106.4,
+            "has_sig": false,
+            "created": "2023-09-12",
+            "updated": "2026-04-10",
+            "origin": "etalab_nouvelle"
+          }
+        ],
+        "liens": [
+          {
+            "idu_old": "66008000BI0449",
+            "idu_new": "66008000BI0518",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 496.2,
+            "area_new": 389.8,
+            "area_inter": 389.7,
+            "pct_old": 0.785,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000BI0449",
+            "idu_new": "66008000BI0519",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 496.2,
+            "area_new": 106.4,
+            "area_inter": 106.4,
+            "pct_old": 0.214,
+            "pct_new": 1.0
+          }
+        ],
+        "nb_parents": 1,
+        "nb_enfants": 2
+      },
+      {
+        "type": "division",
+        "parents": [
+          {
+            "idu": "66008000BS0448",
+            "ref": "BS:0448",
+            "section": "BS",
+            "numero": "448",
+            "contenance": 3205.0,
+            "area_m2": 3023.3,
+            "has_sig": true,
+            "created": null,
+            "updated": null,
+            "origin": "base_supprimee"
+          }
+        ],
+        "enfants": [
+          {
+            "idu": "66008000BS0789",
+            "ref": "BS:0789",
+            "section": "BS",
+            "numero": "789",
+            "contenance": 1848.0,
+            "area_m2": 1808.6,
+            "has_sig": false,
+            "created": "2026-04-20",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000BS0790",
+            "ref": "BS:0790",
+            "section": "BS",
+            "numero": "790",
+            "contenance": 615.0,
+            "area_m2": 624.8,
+            "has_sig": false,
+            "created": "2026-04-20",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          },
+          {
+            "idu": "66008000BS0791",
+            "ref": "BS:0791",
+            "section": "BS",
+            "numero": "791",
+            "contenance": 601.0,
+            "area_m2": 589.9,
+            "has_sig": false,
+            "created": "2026-04-20",
+            "updated": "2026-05-19",
+            "origin": "etalab_nouvelle"
+          }
+        ],
+        "liens": [
+          {
+            "idu_old": "66008000BS0448",
+            "idu_new": "66008000BS0791",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 3023.3,
+            "area_new": 589.9,
+            "area_inter": 589.9,
+            "pct_old": 0.195,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000BS0448",
+            "idu_new": "66008000BS0790",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 3023.3,
+            "area_new": 624.8,
+            "area_inter": 624.8,
+            "pct_old": 0.207,
+            "pct_new": 1.0
+          },
+          {
+            "idu_old": "66008000BS0448",
+            "idu_new": "66008000BS0789",
+            "role_old": "gone",
+            "role_new": "born",
+            "area_old": 3023.3,
+            "area_new": 1808.6,
+            "area_inter": 1808.6,
+            "pct_old": 0.598,
+            "pct_new": 1.0
+          }
+        ],
+        "nb_parents": 1,
+        "nb_enfants": 3
+      },
+      {
+        "type": "creation",
+        "parents": [],
+        "enfants": [
+          {
+            "idu": "66008000BN0551",
+            "ref": "BN:0551",
+            "section": "BN",
+            "numero": "551",
+            "contenance": 315.0,
+            "area_m2": 316.5,
+            "has_sig": false,
+            "created": "2022-10-26",
+            "updated": "2026-05-27",
+            "origin": "etalab_nouvelle"
+          }
+        ],
+        "liens": [],
+        "nb_parents": 0,
+        "nb_enfants": 1
+      },
+      {
+        "type": "creation",
+        "parents": [],
+        "enfants": [
+          {
+            "idu": "66008000BV0576",
+            "ref": "BV:0576",
+            "section": "BV",
+            "numero": "576",
+            "contenance": 2707.0,
+            "area_m2": 2715.3,
+            "has_sig": false,
+            "created": "2022-04-14",
+            "updated": "2026-05-14",
+            "origin": "etalab_nouvelle"
+          }
+        ],
+        "liens": [],
+        "nb_parents": 0,
+        "nb_enfants": 1
+      }
+    ]
+  },
+  "log_file": "/Volumes/T7/Travaux_Freelance/KERELIA/CUAs/BACKEND_PRINCIPAL/LATRESNE/cua_latresne_v4/services/ingestion_cadastre/reports/diff_parcelles_66008_argeles_parcelles_20260911_200016.log",
+  "rapport_json": "/Volumes/T7/Travaux_Freelance/KERELIA/CUAs/BACKEND_PRINCIPAL/LATRESNE/cua_latresne_v4/services/ingestion_cadastre/reports/diff_parcelles_66008_argeles_parcelles_20260911_200016.json",
+  "millesime_pci": null,
+  "millesime_base": null
+}

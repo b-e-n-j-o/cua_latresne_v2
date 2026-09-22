@@ -55,7 +55,7 @@ except ImportError:
 try:
     from api.veille_sig._env import BACKEND_ROOT, load_project_env
 except ImportError:
-    from services.ingestion_cadastre.env_loader import BACKEND_ROOT, load_project_env
+    from services.ingestion.ingestion_cadastre.env_loader import BACKEND_ROOT, load_project_env
 
 load_project_env()
 

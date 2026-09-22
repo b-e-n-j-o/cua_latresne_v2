@@ -45,6 +45,7 @@ def prescription_config(catalog: LayerCatalog | None = None) -> dict[str, dict]:
             "optional": L.optional,
             "context_llm": L.context_llm,
             "context_carto": L.context_carto,
+            "attributes": list(L.attributes),
         }
     return out
 
@@ -63,6 +64,7 @@ def infos_config(catalog: LayerCatalog | None = None) -> dict[str, dict]:
             "optional": L.optional,
             "context_llm": L.context_llm,
             "context_carto": L.context_carto,
+            "attributes": list(L.attributes),
         }
     return out
 

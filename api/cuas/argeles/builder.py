@@ -10,8 +10,11 @@ le texte vit en base, le builder ne fait que router et mettre en forme.
 Architecture : une fonction par section, le builder itère sur SECTIONS.
 - Changer de commune  → nouveau CommuneConfig.
 - Logo commune en haut à droite de la 1ʳᵉ page (n° dossier / pagination : à brancher).
+- Synthèse des couches : recap.py calcule les lignes, section_recap les met en forme.
+  Flag CommuneConfig.afficher_recap pour une version sans encart.
 """
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +27,8 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 
+logger = logging.getLogger(__name__)
+
 try:
     from api.cuas.argeles.docx_utils import (
         add_markdown_block,
@@ -32,6 +37,25 @@ try:
     )
 except ImportError:
     from docx_utils import add_markdown_block, add_para_with_link, parse_markdown_inline
+
+try:
+    from api.cuas.argeles.recap import (
+        compute_recap,
+        NON_VERIFIE,
+        fmt_num,
+        fmt_pct,
+        recap_item_citation,
+        recap_item_libelle,
+    )
+except ImportError:
+    from recap import (
+        compute_recap,
+        NON_VERIFIE,
+        fmt_num,
+        fmt_pct,
+        recap_item_citation,
+        recap_item_libelle,
+    )
 
 try:
     from api.modules_communs.intersection_partielle import (
@@ -63,8 +87,10 @@ LOGO_COMMUNE_PATH = _ARGELES_DIR / "logos" / "argeles.png"
 @dataclass
 class CommuneConfig:
     nom: str = "ARGELÈS-SUR-MER"
+    nom_affichage: str = "Argelès-sur-Mer"
     code_insee: str = "66008"
     departement: str = "Pyrénées-Orientales"
+    afficher_recap: bool = True
 
     plu_mention: str = ("approuvé le 20/04/2017, révisé le 10/03/2022, "
                         "modifié le 14/12/2023 et le 30/10/2025")
@@ -105,18 +131,16 @@ class CommuneConfig:
 #   risques      → ppr, pprif (via module ppr_et_pprif), alea_feu (via module alea_feu),
 #                  retrait_gonflement_argiles_2026, old (art. 5)
 #   prescriptions→ aoc, prescriptions_* (via module prescriptions_plu), infos_surf (hors DPU),
-#                  haies_bocages, znieffs, zaer, batiments (art. 5/7)
+#                  haies_bocages, znieffs, zaer (art. 5/7)
 #   métier       → reseaux_enedis_lineaires, prairies_et_natura_2000 (+ natura_2000,
-#                  prairies_sensibles via module dédié), servitudes
+#                  prairies_sensibles via module dédié), servitudes, batiments (synthèse)
+# ppr / pprif / alea_feu / zonage_plu / prescriptions_* sont dans LAYERS_METIER :
+# elles ne passent pas par ce routage.
 LAYER_TO_SECTION = {
     # DPU : c'est une info de infos_surf filtrée, géré séparément (voir section_dpu)
     # SUP : réglementation via handler catalogue servitudes (voir section_sup)
-    "ppr":                   "risques",
-    "pprif":                 "risques",
     "retrait_gonflement_argiles_2026": "risques",
     "old":                   "risques",
-    "alea_feu":              "risques",
-    "zonage_plu":            "dispositions",
     "hauteurs":              "dispositions",
 }
 # Couches gérées par un rendu spécifique (pas dans le flux générique "objets")
@@ -136,19 +160,21 @@ LAYERS_METIER = {
     "prescriptions_ponctuelles",
     "prescriptions_plu",
     "taxes",
+    "batiments",
 }
-# Couches prescriptions PLU gérées par prescriptions_plu (exclues du flux générique)
-PRESCRIPTION_PLU_KEYS = frozenset({
-    "prescriptions_surf",
-    "prescriptions_lineaires",
-    "prescriptions_ponctuelles",
-})
-# Statuts à ignorer silencieusement (ne rien montrer au pétitionnaire)
+# Statuts à ne pas afficher comme un « non concerné » (le recap les signale).
 STATUTS_IGNORES = {"erreur", "table_absente"}
+# Repli si la couche n'embarque pas min_pct_sig (le SQL a déjà filtré au catalogue).
 MIN_ZONAGE_PCT = 1.0
 
 FONT = "Arial"
 TITLE_BAR_FILL = "D9D9D9"
+DONNEE_INDISPONIBLE = "Donnée indisponible — à vérifier manuellement"
+RECAP_WIDTHS = (Cm(4.5), Cm(10.0), Cm(2.5))
+RECAP_AVERTISSEMENT = (
+    "Synthèse indicative générée automatiquement à partir des données géographiques. "
+    "Seules les dispositions détaillées dans les sections suivantes font foi."
+)
 
 
 @dataclass
@@ -182,7 +208,7 @@ def add_title_bar(doc, text):
     table = doc.add_table(rows=1, cols=1)
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
     cell = table.rows[0].cells[0]
-    _set_cell_bg(cell); _set_cell_borders(cell)
+    _set_cell_borders(cell); _set_cell_bg(cell)
     p = cell.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     r = p.add_run(text.upper()); r.bold = True; r.font.size = Pt(10); r.font.name = FONT
     doc.add_paragraph()
@@ -211,10 +237,15 @@ def _add_logo_first_page(doc, logo_path: Path = LOGO_COMMUNE_PATH) -> None:
 
 def add_kv_table(doc, rows):
     table = doc.add_table(rows=0, cols=2)
+    table.autofit = False
+    widths = (Cm(5.5), Cm(11.5))
+    for col, w in zip(table.columns, widths):
+        col.width = w
     for label, value in rows:
         cells = table.add_row().cells
-        for c in cells: _set_cell_borders(c)
-        cells[0].width = Cm(5.5); cells[1].width = Cm(11.5)
+        for c, w in zip(cells, widths):
+            c.width = w
+            _set_cell_borders(c)
         r0 = cells[0].paragraphs[0].add_run(label); r0.bold = True
         r0.font.size = Pt(10); r0.font.name = FONT
         r1 = cells[1].paragraphs[0].add_run(str(value) if value not in (None, "") else "—")
@@ -277,7 +308,7 @@ def _add_parcelles_concernées_para(doc, parcelles: list[dict], *, size: int = 9
         except (TypeError, ValueError):
             pct = 0.0
         if pct > 0:
-            r_pct = p.add_run(f" ({pct:.2f} %)")
+            r_pct = p.add_run(f" ({fmt_pct(pct)})")
             r_pct.font.size = Pt(size)
             r_pct.font.name = FONT
 
@@ -450,7 +481,7 @@ def _bloc_couche(doc, layer, prefix_nom=True, objets=None):
     if not rows:
         return
     enabled = bool(layer.get("afficher_pct_sig_partiel"))
-    multi = est_multi_entites(layer.get("objets") or rows)
+    multi = est_multi_entites(rows)
     if prefix_nom:
         add_para(doc, layer.get("nom") or "", bold=True, space_after=2)
     seen_regl: set[str] = set()
@@ -489,18 +520,57 @@ def _label_obj(obj: dict, *keys: str) -> str:
     return ""
 
 
-def _items_avec_pct(objets: list, *label_keys: str) -> list[tuple[str, float]]:
-    """Libellés distincts avec part UF maximale (> MIN_ZONAGE_PCT)."""
+def _seuil_pct(layer: dict | None = None) -> float:
+    """Seuil de significativité : celui de la couche (catalogue), sinon le repli builder."""
+    if layer and layer.get("min_pct_sig") is not None:
+        try:
+            return float(layer["min_pct_sig"])
+        except (TypeError, ValueError):
+            pass
+    return MIN_ZONAGE_PCT
+
+
+def _layer_ko(layer: dict | None) -> bool:
+    return bool(layer) and layer.get("status") in STATUTS_IGNORES
+
+
+def _log_couche_critique(nom: str, layer: dict | None) -> None:
+    if _layer_ko(layer):
+        logger.error(
+            "CUA : %s indisponible (status=%s)",
+            nom,
+            (layer or {}).get("status"),
+        )
+
+
+def _items_avec_pct(
+    objets: list,
+    *label_keys: str,
+    min_pct: float = MIN_ZONAGE_PCT,
+) -> list[tuple[str, float]]:
+    """Libellés distincts avec part UF cumulée, plafonnée à 100 %, au-dessus du seuil."""
     seen: dict[str, float] = {}
     for obj in objets:
-        pct = _pct_sig(obj)
-        if pct <= MIN_ZONAGE_PCT:
-            continue
         label = _label_obj(obj, *label_keys)
         if not label:
             continue
-        seen[label] = max(seen.get(label, 0.0), pct)
-    return sorted(seen.items(), key=lambda item: -item[1])
+        seen[label] = min(seen.get(label, 0.0) + _pct_sig(obj), 100.0)
+    return sorted(
+        ((lab, pct) for lab, pct in seen.items() if pct > min_pct),
+        key=lambda item: -item[1],
+    )
+
+
+def _objets_par_libelles_significatifs(
+    objets: list,
+    *label_keys: str,
+    min_pct: float = MIN_ZONAGE_PCT,
+) -> list:
+    """Objets dont le libellé, une fois agrégé, dépasse le seuil (évite de perdre des fragments)."""
+    labels = {lab for lab, _ in _items_avec_pct(objets, *label_keys, min_pct=min_pct)}
+    if not labels:
+        return objets
+    return [obj for obj in objets if _label_obj(obj, *label_keys) in labels]
 
 
 def _write_zonage_plu_detail_parcelles(doc, module: dict) -> bool:
@@ -541,19 +611,23 @@ def _write_zonage_plu_details(doc, module: dict) -> bool:
     return True
 
 
-def _format_hauteurs_intro(objets: list) -> tuple[list[str], Optional[str]]:
-    """Résumé secteurs de hauteur + parts de surface significatives."""
-    items = _items_avec_pct(objets, "libelong")
+def _format_hauteurs_intro(
+    objets: list,
+    *,
+    min_pct: float = MIN_ZONAGE_PCT,
+) -> tuple[list[str], Optional[str]]:
+    """Résumé secteurs de hauteur + parts de surface significatives (somme par secteur)."""
+    items = _items_avec_pct(objets, "libelong", min_pct=min_pct)
     if items:
         secteurs = [secteur for secteur, _ in items]
         if len(items) == 1:
             secteur, pct = items[0]
             texte = (
                 f"L'unité foncière est soumise aux règles de hauteur du secteur {secteur} "
-                f"({pct:.2f} % de la surface)."
+                f"({fmt_pct(pct)} de la surface)."
             )
         else:
-            parts = [f"{secteur} ({pct:.2f} %)" for secteur, pct in items]
+            parts = [f"{secteur} ({fmt_pct(pct)})" for secteur, pct in items]
             texte = (
                 "L'unité foncière est soumise aux règles de hauteur des secteurs "
                 f"{', '.join(parts)}."
@@ -574,10 +648,6 @@ def _format_hauteurs_intro(objets: list) -> tuple[list[str], Optional[str]]:
         "L'unité foncière est soumise aux règles de hauteur des secteurs "
         f"{', '.join(secteurs)}."
     )
-
-
-def _objets_significatifs(objets: list) -> list:
-    return [obj for obj in objets if _pct_sig(obj) > MIN_ZONAGE_PCT]
 
 
 def _titre_hauteur_obj(obj: dict) -> Optional[str]:
@@ -602,25 +672,27 @@ def _write_hauteurs_details(
     seen_regl: set[str] = set()
     multi_secteurs = len(secteurs or []) > 1
     wrote = False
+    seuil = _seuil_pct(layer)
+    pcts = dict(_items_avec_pct(objets, "libelong", min_pct=seuil))
 
-    for obj in _objets_significatifs(objets):
+    for obj in _objets_par_libelles_significatifs(objets, "libelong", min_pct=seuil):
         regl = _reglementation_text(obj)
         titre = _titre_hauteur_obj(obj)
-        pct = _pct_sig(obj)
+        pct = pcts.get(titre or "", _pct_sig(obj))
 
         if regl:
             if regl in seen_regl:
                 continue
             seen_regl.add(regl)
             if titre:
-                suffix = f" ({pct:.2f} %)" if multi_secteurs and pct > MIN_ZONAGE_PCT else ""
+                suffix = f" ({fmt_pct(pct)})" if multi_secteurs and pct > seuil else ""
                 add_para(doc, f"{titre}{suffix}", bold=True, size=9, space_after=2)
             add_markdown_block(doc, regl, size=9)
             wrote = True
             continue
 
         if titre:
-            suffix = f" ({pct:.2f} %)" if multi_secteurs and pct > MIN_ZONAGE_PCT else ""
+            suffix = f" ({fmt_pct(pct)})" if multi_secteurs and pct > seuil else ""
             add_para(doc, f"• {titre}{suffix}", size=9, space_after=3)
             wrote = True
             continue
@@ -636,6 +708,83 @@ def _write_hauteurs_details(
 # ============================================================
 # SECTIONS
 # ============================================================
+def _cell_text(cell, text, *, bold=False, italic=False, size=9, new_para=False):
+    p = cell.add_paragraph() if new_para else cell.paragraphs[0]
+    p.paragraph_format.space_after = Pt(1)
+    r = p.add_run(text)
+    r.bold = bold
+    r.italic = italic
+    r.font.size = Pt(size)
+    r.font.name = FONT
+
+
+def _fmt_superficie(value) -> Optional[str]:
+    if value in (None, ""):
+        return None
+    try:
+        return f"{fmt_num(float(value))} m²"
+    except (TypeError, ValueError):
+        return f"{value} m²"
+
+
+def section_recap(doc, ctx):
+    """Encart de synthèse des couches intersectantes — sans texte réglementaire."""
+    if not ctx.config.afficher_recap:
+        return
+    recap = compute_recap(ctx.rapport)
+    if not recap["lignes"]:
+        return
+    add_title_bar(doc, "Synthèse des contraintes applicables à l'unité foncière")
+    add_para(doc, recap["entete"], bold=True, size=9, space_after=4)
+
+    table = doc.add_table(rows=0, cols=3)
+    table.autofit = False
+    for col, w in zip(table.columns, RECAP_WIDTHS):
+        col.width = w
+
+    theme = None
+    for ligne in recap["lignes"]:
+        if ligne["theme"] != theme:
+            theme = ligne["theme"]
+            row = table.add_row()
+            cell = row.cells[0].merge(row.cells[2])
+            _set_cell_borders(cell)
+            _set_cell_bg(cell, "EFEFEF")
+            _cell_text(cell, theme.upper(), bold=True, size=8)
+            for col, w in zip(table.columns, RECAP_WIDTHS):
+                col.width = w
+
+        cells = table.add_row().cells
+        for c, w in zip(cells, RECAP_WIDTHS):
+            c.width = w
+            _set_cell_borders(c)
+        n = len(ligne["items"])
+        _cell_text(cells[0], ligne["titre"] + (f" ({n})" if n > 1 else ""), bold=True)
+        if ligne["statut"] == NON_VERIFIE:
+            _cell_text(cells[1], DONNEE_INDISPONIBLE, bold=True)
+        elif not ligne["items"]:
+            _cell_text(cells[1], ligne["si_absent"], italic=True)
+        else:
+            for i, item in enumerate(ligne["items"]):
+                _cell_text(cells[1], f"• {recap_item_libelle(item)}", new_para=i > 0)
+                citation = recap_item_citation(item)
+                if citation:
+                    _cell_text(cells[1], citation, italic=True, size=8, new_para=True)
+        if ligne.get("note"):
+            _cell_text(cells[1], ligne["note"], italic=True, size=7, new_para=True)
+        _cell_text(cells[2], ligne["renvoi"], italic=True, size=8)
+
+    add_para(doc, RECAP_AVERTISSEMENT, italic=True, size=8, space_after=2)
+    if recap["alertes"]:
+        add_para(
+            doc,
+            "Points à contrôler manuellement : " + ", ".join(recap["alertes"]) + ".",
+            bold=True,
+            size=9,
+        )
+    doc.add_paragraph()
+
+
 def section_identite(doc, ctx):
     d = ctx.dossier
     superficie = d.get("superficie") or ctx.rapport.get("surface_indicative")
@@ -649,8 +798,8 @@ def section_identite(doc, ctx):
     if "adresses_parcelles" in ctx.rapport:
         rows.append(("Adresse(s) de l'unité foncière", adresses_parcelles))
     rows.extend([
-        ("Demande déposée le", d.get("date_depot") or datetime.now().strftime("%d/%m/%Y")),
-        ("Superficie", f"{superficie} m²" if superficie else None),
+        ("Demande déposée le", d.get("date_depot") or None),
+        ("Superficie", _fmt_superficie(superficie)),
         ("N° de dossier", d.get("numero_cu")),
     ])
     add_kv_table(doc, rows)
@@ -690,14 +839,17 @@ def section_vu(doc, ctx):
 def section_dpu(doc, ctx):
     add_title_bar(doc, "Droit de préemption")
     # Le DPU vient de infos_surf (ligne libelle='Droit de Préemption Urbain', taguée)
+    layer = ctx.rapport.get("intersections", {}).get("infos_surf") or {}
+    if _layer_ko(layer):
+        _log_couche_critique("Droit de préemption (infos_surf)", layer)
+        add_para(doc, DONNEE_INDISPONIBLE, bold=True)
+        doc.add_paragraph()
+        return
     dpu_txt = None
-    for key in ("infos_surf",):
-        layer = ctx.rapport.get("intersections", {}).get(key, {})
-        for obj in layer.get("objets", []):
-            lib = (obj.get("libelle") or "").lower()
-            if "préemption" in lib or "preemption" in lib:
-                dpu_txt = texte_objet(obj)
-                break
+    for obj in layer.get("objets") or []:
+        if _is_dpu_objet(obj):
+            dpu_txt = texte_objet(obj)
+            break
     if dpu_txt:
         add_para(doc, dpu_txt)
     else:
@@ -746,11 +898,16 @@ def _write_ac1_monuments(doc, servitude: dict) -> None:
 
 
 def _dedupe_servitudes(servitudes: list[dict]) -> list[dict]:
-    """Une entrée par suptype (agrégation déjà faite dans modules_communs)."""
+    """Une entrée par suptype, ou par libellé si le type est absent."""
     seen: set[str] = set()
     out: list[dict] = []
     for s in servitudes:
-        key = (s.get("suptype") or "").strip().upper()
+        code = (s.get("suptype") or "").strip().upper()
+        nom = (
+            (s.get("libelle") or s.get("nomsuplitt") or s.get("nom_sup") or "")
+            .strip()
+        )
+        key = code or nom.casefold()
         if not key or key in seen:
             continue
         seen.add(key)
@@ -777,7 +934,7 @@ def _write_i4_variantes(doc, servitude: dict) -> None:
         if var_metric is not None and var_nb and var_nb > 1:
             add_para(
                 doc,
-                f"Surface d'intersection : {var_metric:,.2f} m² ({var_nb} fragment(s)).",
+                f"Surface d'intersection : {fmt_num(float(var_metric), 2)} m² ({var_nb} fragment(s)).",
                 italic=True,
                 size=9,
                 space_after=2,
@@ -785,7 +942,7 @@ def _write_i4_variantes(doc, servitude: dict) -> None:
         elif var_metric is not None:
             add_para(
                 doc,
-                f"Surface d'intersection : {var_metric:,.2f} m².",
+                f"Surface d'intersection : {fmt_num(float(var_metric), 2)} m².",
                 italic=True,
                 size=9,
                 space_after=2,
@@ -794,7 +951,13 @@ def _write_i4_variantes(doc, servitude: dict) -> None:
 
 def section_sup(doc, ctx):
     inter = ctx.rapport.get("intersections", {})
-    serv_layer = inter.get("servitudes") or inter.get("servitudes_reglementees", {})
+    serv_layer = inter.get("servitudes") or inter.get("servitudes_reglementees") or {}
+    if _layer_ko(serv_layer):
+        _log_couche_critique("Servitudes", serv_layer)
+        add_title_bar(doc, "Servitudes d'utilité publique")
+        add_para(doc, DONNEE_INDISPONIBLE, bold=True)
+        doc.add_paragraph()
+        return
     servitudes = _dedupe_servitudes(serv_layer.get("servitudes") or [])
     if not servitudes:
         return
@@ -950,7 +1113,7 @@ def _write_alea_feu_details(doc, module: dict) -> bool:
         pct = float(bloc.get("pct_sig") or 0)
         add_para(
             doc,
-            f"• {libelle} ({pct:.2f} % de l'unité foncière)",
+            f"• {libelle} ({fmt_pct(pct)} de l'unité foncière)",
             size=9,
             space_after=3,
         )
@@ -967,22 +1130,33 @@ def _write_alea_feu_details(doc, module: dict) -> bool:
 
 
 def section_risques(doc, ctx):
+    inter = ctx.rapport.get("intersections", {})
     groupes = couches_par_section(ctx.rapport)
     layers = groupes.get("risques", [])
-    pp = ctx.rapport.get("intersections", {}).get("ppr_et_pprif", {})
-    alea_feu = ctx.rapport.get("intersections", {}).get("alea_feu", {})
+    pp = inter.get("ppr_et_pprif") or {}
+    alea_feu = inter.get("alea_feu") or {}
     has_pp = bool(
         (pp.get("ppr") or {}).get("blocs")
         or (pp.get("pprif") or {}).get("blocs")
         or pp.get("detail_parcelles")
     )
     has_alea_feu = bool(alea_feu.get("blocs"))
-    if not layers and not has_pp and not has_alea_feu:
+    ppr_ko = _layer_ko(pp) or _layer_ko(inter.get("ppr")) or _layer_ko(inter.get("pprif"))
+    alea_ko = _layer_ko(alea_feu)
+    if ppr_ko:
+        _log_couche_critique("PPR/PPRIF", pp if _layer_ko(pp) else inter.get("ppr") or inter.get("pprif"))
+    if alea_ko:
+        _log_couche_critique("Aléa feu", alea_feu)
+    if not layers and not has_pp and not has_alea_feu and not ppr_ko and not alea_ko:
         return
     add_title_bar(doc, "Risques naturels et technologiques")
-    if has_pp:
+    if ppr_ko:
+        add_para(doc, DONNEE_INDISPONIBLE, bold=True)
+    elif has_pp:
         _write_ppr_pprif_details(doc, pp, ctx.config)
-    if has_alea_feu:
+    if alea_ko and not has_alea_feu:
+        add_para(doc, "Aléa feu de forêt : " + DONNEE_INDISPONIBLE, bold=True)
+    elif has_alea_feu:
         _write_alea_feu_details(doc, alea_feu)
     for key, layer in layers:
         _bloc_couche(doc, layer)
@@ -1065,7 +1239,7 @@ def section_prescriptions(doc, ctx):
     layers = [
         (key, layer)
         for key, layer in groupes.get("prescriptions", [])
-        if key not in PRESCRIPTION_PLU_KEYS
+        if _objets_affichables(key, layer)
     ]
     has_prescriptions_plu = bool(
         prescriptions_plu.get("couches") or prescriptions_plu.get("detail_parcelles")
@@ -1099,7 +1273,7 @@ def _write_natura_partielles(doc, natura_layer: dict) -> None:
             add_para(doc, note, italic=True, size=9, space_after=3)
 
 
-def _write_prairies_natura_details(doc, pn: dict):
+def _write_prairies_natura_details(doc, pn: dict, natura_layer: dict | None = None):
     """Natura 2000 / Prairies : blocs réglementaires depuis la table dédiée."""
     if not (pn.get("has_natura") or pn.get("has_prairie")):
         return
@@ -1134,6 +1308,7 @@ def _write_prairies_natura_details(doc, pn: dict):
             p.paragraph_format.space_after = Pt(3)
             parse_markdown_inline(p, f"Base légale : {base}", size=9, italic_base=True)
 
+    _write_natura_partielles(doc, natura_layer or {})
     doc.add_paragraph()
 
 
@@ -1161,8 +1336,7 @@ def section_metier(doc, ctx):
         doc.add_paragraph()
 
     pn = inter.get("prairies_et_natura_2000", {})
-    _write_prairies_natura_details(doc, pn)
-    _write_natura_partielles(doc, inter.get("natura_2000", {}))
+    _write_prairies_natura_details(doc, pn, inter.get("natura_2000") or {})
 
 
 def section_dispositions(doc, ctx):
@@ -1183,10 +1357,14 @@ def section_dispositions(doc, ctx):
     # ── Zonage PLU ──
     zonage = ctx.rapport.get("intersections", {}).get("zonage_plu", {})
     intro_zonage = zonage.get("intro")
+    if _layer_ko(zonage):
+        _log_couche_critique("Zonage PLU", zonage)
 
     add_title_bar(doc, "Zonage du PLU")
     _write_zonage_plu_detail_parcelles(doc, zonage)
-    if intro_zonage:
+    if _layer_ko(zonage):
+        add_para(doc, DONNEE_INDISPONIBLE, bold=True, space_after=6)
+    elif intro_zonage:
         add_para(doc, intro_zonage, bold=True, space_after=6)
     else:
         add_para(doc, "Zonage PLU non déterminé pour ce terrain.", italic=True, space_after=6)
@@ -1207,7 +1385,9 @@ def section_dispositions(doc, ctx):
     )
     if layer_hauteurs and (layer_hauteurs.get("objets") or []):
         objets_hauteurs = layer_hauteurs.get("objets") or []
-        secteurs, intro_hauteurs = _format_hauteurs_intro(objets_hauteurs)
+        secteurs, intro_hauteurs = _format_hauteurs_intro(
+            objets_hauteurs, min_pct=_seuil_pct(layer_hauteurs)
+        )
         doc.add_paragraph()
         add_title_bar(doc, "Réglementation liée aux hauteurs")
         if intro_hauteurs:
@@ -1273,7 +1453,7 @@ def section_formalites(doc, ctx):
 
 def section_signature(doc, ctx):
     c = ctx.config
-    add_para(doc, f"{c.nom.title()}, le {datetime.now().strftime('%d/%m/%Y')}", align=WD_ALIGN_PARAGRAPH.RIGHT)
+    add_para(doc, f"{c.nom_affichage}, le {datetime.now().strftime('%d/%m/%Y')}", align=WD_ALIGN_PARAGRAPH.RIGHT)
     add_para(doc, f"Le Maire, {c.maire}", align=WD_ALIGN_PARAGRAPH.RIGHT)
     add_para(doc, "Pour le Maire, par délégation", align=WD_ALIGN_PARAGRAPH.RIGHT)
     add_para(doc, c.delegation, align=WD_ALIGN_PARAGRAPH.RIGHT)
@@ -1305,6 +1485,7 @@ def section_informations(doc, ctx):
 # Ordre du document
 SECTIONS = [
     section_identite,
+    section_recap,
     section_carte_identite,
     section_vu,
     section_dpu,

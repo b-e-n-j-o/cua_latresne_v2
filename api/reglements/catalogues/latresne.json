@@ -6,7 +6,7 @@
   "sources": [
     {
       "source": "laius_plu",
-      "label": "Paragraphes PLU",
+      "label": "PLU",
       "table": "plu_laius",
       "pk": "code_zone",
       "list_primary": "code_zone",
@@ -30,7 +30,7 @@
     },
     {
       "source": "laius_ppri",
-      "label": "Paragraphes PPRI",
+      "label": "PPRI",
       "table": "ppri_laius",
       "pk": "code_zone",
       "list_primary": "code_zone",
@@ -54,7 +54,7 @@
     },
     {
       "source": "laius_pprmvt",
-      "label": "Paragraphes PPRMVT",
+      "label": "PPRMVT",
       "table": "pprmvt_laius",
       "pk": "code_zone",
       "list_primary": "code_zone",
@@ -78,14 +78,13 @@
     },
     {
       "source": "laius_servitudes",
-      "label": "Paragraphes Servitudes",
-      "write_role": "superadmin",
+      "label": "Servitudes",
       "schema": "public",
       "table": "servitudes_reglements",
       "pk": "suptype",
       "list_primary": "suptype",
       "list_secondary": "libelle",
-      "search_cols": ["suptype", "libelle", "reglementation", "base_legale"],
+      "search_cols": ["suptype", "libelle", "reglementation"],
       "columns": [
         {
           "name": "suptype",
@@ -97,33 +96,13 @@
         },
         {
           "name": "libelle",
-          "label": "Libellé",
+          "label": "Servitude",
           "kind": "text"
         },
         {
           "name": "reglementation",
           "label": "Règlement",
           "kind": "longtext"
-        },
-        {
-          "name": "base_legale",
-          "label": "Base légale",
-          "kind": "text"
-        },
-        {
-          "name": "url_fiche_gpu",
-          "label": "URL fiche GPU",
-          "kind": "text"
-        },
-        {
-          "name": "date_validation",
-          "label": "Date de validation",
-          "kind": "date"
-        },
-        {
-          "name": "variable",
-          "label": "Variable",
-          "kind": "bool"
         }
       ]
     }

@@ -53,7 +53,6 @@ class CommuneProfile:
     # Tools LLM exposés à Gemini pour cette commune (filtrés dans routes/chat.py).
     # Ajouter get_reglement_zone si la table {schema}.plu_reglement est alimentée.
     llm_tool_names: tuple[str, ...] = (
-        "get_parcelle",
         "get_contexte_parcelle",
         "search_articles_urbanisme",
         "get_article_urbanisme_by_num",
@@ -88,7 +87,6 @@ def build_commune_profile(
     insee: str | None = None,
     catalog: LayerCatalog | None = None,
     llm_tool_names: tuple[str, ...] = (
-        "get_parcelle",
         "get_contexte_parcelle",
         "search_articles_urbanisme",
         "get_article_urbanisme_by_num",

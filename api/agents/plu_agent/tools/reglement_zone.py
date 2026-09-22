@@ -6,66 +6,106 @@ import logging
 
 from google.genai import types
 
-from ..commune_context import q
-from .utils.db import db_query
+from ..corpus import (
+    concatener_reglements,
+    fetch_textes,
+    insee_courant,
+    resoudre_codes_zonage,
+)
 
 logger = logging.getLogger("plu_tools")
 
 
 def get_reglement_zone(db_config: dict, code_zone: str) -> dict:
     """
-    Récupère le texte complet du règlement d'une zone PLU depuis `{schema}.plu_reglement`.
+    Récupère le texte complet du règlement d'une zone PLU depuis ``corpus.textes``.
+    Les alias spatiaux (ex. UA → UAa, UAb) sont résolus avant lecture.
     """
     if not code_zone or not str(code_zone).strip():
         return {
             "code_zone": None,
             "reglementation": None,
+            "texte_id": None,
+            "texte_ids": [],
             "found": False,
             "error": "code_zone vide.",
         }
 
     zone = str(code_zone).strip()
-
-    sql = f"""
-        SELECT code_zone, reglementation
-        FROM {q("plu_reglement")}
-        WHERE upper(trim(code_zone)) = upper(trim(%s))
-        LIMIT 1
-    """
-    try:
-        rows = db_query(db_config, sql, (zone,))
-        if not rows:
-            return {
-                "code_zone": zone,
-                "reglementation": None,
-                "found": False,
-                "error": f"Aucun règlement pour la zone « {zone} ».",
-            }
-        row = rows[0]
-        return {
-            "code_zone": row["code_zone"],
-            "reglementation": row["reglementation"],
-            "found": True,
-            "error": None,
-        }
-    except Exception as e:
-        logger.error("get_reglement_zone — SQL échoué : %s", e)
+    insee = insee_courant()
+    if not insee:
         return {
             "code_zone": zone,
             "reglementation": None,
+            "texte_id": None,
+            "texte_ids": [],
+            "found": False,
+            "error": "Commune INSEE inconnue — impossible de lire corpus.textes.",
+        }
+
+    try:
+        codes = resoudre_codes_zonage(
+            db_config, [zone], document_type="PLU", insee=insee
+        )
+        textes = fetch_textes(
+            db_config,
+            document_type="PLU",
+            codes=codes,
+            include_globale=False,
+            insee=insee,
+        )
+    except Exception as e:
+        logger.error("get_reglement_zone — lecture corpus échouée : %s", e)
+        return {
+            "code_zone": zone,
+            "reglementation": None,
+            "texte_id": None,
+            "texte_ids": [],
             "found": False,
             "error": str(e),
         }
+
+    if not textes:
+        return {
+            "code_zone": zone,
+            "codes_resolus": codes,
+            "reglementation": None,
+            "texte_id": None,
+            "texte_ids": [],
+            "found": False,
+            "error": f"Aucun règlement pour la zone « {zone} ».",
+        }
+
+    ids = [t["texte_id"] for t in textes if t.get("texte_id")]
+    combined = concatener_reglements(textes)
+    return {
+        "code_zone": zone,
+        "codes_resolus": codes,
+        "reglementation": combined,
+        "texte_id": ids[0] if ids else None,
+        "texte_ids": ids,
+        "textes": [
+            {
+                "texte_id": t.get("texte_id"),
+                "zone_code": t.get("zone_code"),
+                "titre": t.get("titre"),
+                "reglementation": t.get("reglementation"),
+            }
+            for t in textes
+        ],
+        "found": bool(combined),
+        "error": None,
+    }
 
 
 DECL_REGLEMENT_ZONE = types.FunctionDeclaration(
     name="get_reglement_zone",
     description=(
         "Récupère le texte intégral du règlement écrit d'une zone du PLU communal "
-        "(table plu_reglement), identifiée par son code (ex. UA, N, AU). "
-        "À utiliser lorsque get_contexte_parcelle a fourni un code_zone mais que le "
-        "règlement n'est pas complet dans la réponse, ou pour approfondir une zone "
-        "précise. Utiliser EXACTEMENT le code_zone retourné par get_contexte_parcelle."
+        "(corpus.textes, document PLU), identifiée par son code (ex. UA, N, AU). "
+        "get_contexte_parcelle ne contient pas ce texte — l'appeler dès qu'il faut "
+        "citer ou analyser le règlement d'une zone. "
+        "Utiliser EXACTEMENT le code_zone retourné par get_contexte_parcelle."
     ),
     parameters=types.Schema(
         type=types.Type.OBJECT,

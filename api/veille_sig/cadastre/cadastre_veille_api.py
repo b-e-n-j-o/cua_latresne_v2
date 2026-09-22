@@ -38,7 +38,9 @@ EVENT_TYPES = ("division", "fusion", "recodage", "remaniement", "suppression", "
 _IDU_RE = re.compile(r"^[0-9A-Za-z]{5,20}$")
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPORTS_DIR = SCRIPT_DIR / "reports"
-LEGACY_REPORTS_DIR = SCRIPT_DIR.parents[2] / "services" / "ingestion_cadastre" / "reports"
+LEGACY_REPORTS_DIR = (
+    SCRIPT_DIR.parents[2] / "services" / "ingestion" / "ingestion_cadastre" / "reports"
+)
 
 
 def _db_conn():

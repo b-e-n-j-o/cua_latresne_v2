@@ -7,9 +7,9 @@ import logging
 
 import psycopg2
 
-from ...commune_context import q
+from ...commune_context import current_schema, q
 from .catalog_bridge import servitudes_spec
-from .db import db_query
+from .db import db_query, existing_columns, sql_select_existing
 from .parcel_geom import resolve_unite_fonciere
 from .intersection_metrics import (
     apply_surfacic_metrics_to_item,
@@ -21,19 +21,20 @@ logger = logging.getLogger("plu_tools")
 
 
 def _nom_servitude_label(row: dict) -> str:
-    """Libellé affiché (légende, carte, LLM) — nom_servitude prioritaire sur suptype."""
-    nom = (row.get("nom_servitude") or "").strip()
-    if nom:
-        return nom
-    suptype = (row.get("suptype") or "").strip()
-    if suptype:
-        return suptype
-    return (
-        (row.get("nomsuplitt") or "").strip()
-        or (row.get("typeass") or "").strip()
-        or (row.get("nomass") or "").strip()
-        or "Servitude"
-    )
+    """Libellé affiché. Latresne : ``nom`` ; Argelès : ``nomsuplitt`` / ``nom_sup``."""
+    for key in (
+        "nom_servitude",
+        "nom",
+        "nomsuplitt",
+        "suptype",
+        "typeass",
+        "nomass",
+        "nom_sup",
+    ):
+        val = (row.get(key) or "").strip()
+        if val:
+            return val
+    return "Servitude"
 
 
 def _geom_2154_sql(alias: str = "s", geom_column: str = "geometry") -> str:
@@ -49,40 +50,33 @@ def _geom_2154_sql(alias: str = "s", geom_column: str = "geometry") -> str:
     """
 
 
-def _attr_select_sql(attributes: tuple[str, ...]) -> str:
-    if not attributes:
-        return """
-            s.id,
-            s.suptype,
-            s.nomsuplitt,
-            s.typeass,
-            s.type,
-            s.tension,
-            s.nom_sup,
-            s.nom_captage,
-            s.transporteur,
-            s.cat_fluide
-        """.strip()
-    seen: set[str] = set()
-    cols: list[str] = []
-    for attr in attributes:
-        if attr in seen:
-            continue
-        seen.add(attr)
-        cols.append(f"s.{attr}")
-    return ",\n            ".join(cols)
+_DEFAULT_SERV_ATTRS = (
+    "id",
+    "suptype",
+    "nomsuplitt",
+    "typeass",
+    "type",
+    "tension",
+    "nom_sup",
+    "nom_captage",
+    "transporteur",
+    "cat_fluide",
+)
 
 
-def _order_by_sql(attributes: tuple[str, ...]) -> str:
+def _order_by_sql(attributes: tuple[str, ...], available: set[str]) -> str:
     parts: list[str] = []
-    for col in ("nomsuplitt", "nom_servitude", "suptype"):
-        if not attributes or col in attributes:
-            parts.append(f"s.{col} NULLS LAST")
-    if not attributes or "id" in attributes:
+    for col in ("nomsuplitt", "nom_servitude", "nom", "suptype"):
+        if col not in available:
+            continue
+        if attributes and col not in attributes:
+            continue
+        parts.append(f's."{col}" NULLS LAST')
+    if "id" in available:
         parts.append("s.id")
-    elif not attributes or "gid" in attributes:
+    elif "gid" in available:
         parts.append("s.gid")
-    return ", ".join(parts) if parts else "s.suptype NULLS LAST"
+    return ", ".join(parts) if parts else "1"
 
 
 def _sql_servitudes(
@@ -91,11 +85,10 @@ def _sql_servitudes(
     strict_parcel: bool = True,
     *,
     geom_column: str = "geometry",
-    attributes: tuple[str, ...] = (),
+    attr_sql: str,
+    order_sql: str,
 ) -> str:
     geom_2154 = _geom_2154_sql("s", geom_column)
-    attr_sql = _attr_select_sql(attributes)
-    order_sql = _order_by_sql(attributes)
     geom_sel = (
         f", ST_AsGeoJSON(ST_Transform(ST_Force2D({geom_2154}), 4326)) AS geojson_geom"
         if with_geojson
@@ -147,12 +140,15 @@ def fetch_servitudes_rows(
     if not spec:
         return []
     buf = float(buffer_m or 0)
+    wanted = spec.attributes or _DEFAULT_SERV_ATTRS
+    avail = existing_columns(db_config, current_schema(), spec.table)
     sql = _sql_servitudes(
         spec.table,
         with_geojson,
         strict_parcel=strict_parcel,
         geom_column=spec.geom_column,
-        attributes=spec.attributes,
+        attr_sql=sql_select_existing("s", wanted, avail),
+        order_sql=_order_by_sql(tuple(wanted), avail),
     )
     try:
         if strict_parcel:

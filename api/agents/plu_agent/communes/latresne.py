@@ -15,7 +15,7 @@ LATRESNE_PROFILE = build_commune_profile(
     slug="latresne",
     schema="latresne",
     label="Latresne",
-    insee=None,
+    insee="33234",
     api_prefix="/api/plu/latresne",
     api_tags=("plu-agent-latresne",),
     system_prompt=load_prompt(
@@ -23,7 +23,6 @@ LATRESNE_PROFILE = build_commune_profile(
         default="Expert PLU Latresne.",
     ),
     llm_tool_names=(
-        "get_parcelle",
         "get_contexte_parcelle",
         "get_reglement_zone",
         "get_reglement_pprmvt",

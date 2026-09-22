@@ -8,6 +8,19 @@
       "libelong",
       "reglementation"
     ],
+    "join": {
+      "table": "plu_ces",
+      "alias": "c",
+      "on": ["c.code_zone", "t.zonage_reglement"],
+      "select": {
+        "ces_type_regle": "c.type_regle",
+        "ces_applicabilite": "c.applicabilite",
+        "ces_max_pct": "c.ces_max_pct",
+        "emprise_max_m2": "c.emprise_max_m2",
+        "ces_statut": "c.statut",
+        "ces_citation": "c.citation"
+      }
+    },
     "origine": "plu",
     "article": "3",
     "group_by": [
@@ -77,6 +90,7 @@
     "type": "prescription",
     "keep": [
       "libelle",
+      "nom",
       "typepsc",
       "reglementation"
     ],

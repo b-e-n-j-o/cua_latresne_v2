@@ -71,8 +71,18 @@ def _filtre_surfaciques_significatifs(
     return [obj for obj in objets if _pct_sig(obj) > min_pct]
 
 
+def _is_oap(obj: dict) -> bool:
+    return str(obj.get("typepsc") or "").strip() == "18"
+
+
 def _libelle_obj(obj: dict) -> str:
-    return (obj.get("libelle") or "").strip()
+    libelle = (obj.get("libelle") or "").strip()
+    nom = (obj.get("nom") or "").strip()
+    if _is_oap(obj) and nom:
+        if libelle and nom.casefold() != libelle.casefold():
+            return f"{libelle} — {nom}"
+        return nom or libelle
+    return libelle
 
 
 def _reglementation_text(obj: dict) -> Optional[str]:
@@ -111,15 +121,18 @@ def _build_items(objets: list[dict]) -> list[dict[str, Any]]:
             if regl in seen_regl:
                 continue
             seen_regl.add(regl)
-            items.append(
-                {
-                    "kind": "reglementation",
-                    "libelle": libelle or None,
-                    "typepsc": (obj.get("typepsc") or "").strip() or None,
-                    "reglementation": regl,
-                    "pct_sig": _pct_sig(obj),
-                }
-            )
+            item: dict[str, Any] = {
+                "kind": "reglementation",
+                "libelle": libelle or None,
+                "typepsc": (obj.get("typepsc") or "").strip() or None,
+                "reglementation": regl,
+                "pct_sig": _pct_sig(obj),
+            }
+            if _is_oap(obj):
+                nom = (obj.get("nom") or "").strip()
+                if nom:
+                    item["nom"] = nom
+            items.append(item)
             continue
 
         if libelle:

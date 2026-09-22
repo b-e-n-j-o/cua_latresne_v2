@@ -12,18 +12,32 @@ import psycopg2
 import psycopg2.extras
 from fastapi import APIRouter, Depends, HTTPException
 from google.genai import types
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
-from .._env import DB_CONFIG, GEMINI_MODEL
+from .._env import DB_CONFIG, GEMINI_MODEL, MISTRAL_CHAT_MODEL
 from ..commune_context import get_current_profile
 from ..commune_profile import CommuneProfile
-from .llm_raw_context import ensure_raw_llm_context_column
+from .llm_raw_context import (
+    ensure_metriques_tour_column,
+    ensure_raw_llm_context_column,
+    metriques_depuis_raw_dict,
+)
 from .plu_auth import ensure_user_id_column, get_plu_user_id, session_belongs_to_user
-from .schemas import RawLlmContextResponse, SessionMessageItem, ToolCallLog, Usage
+from .schemas import (
+    CONTEXT_TOKEN_LIMIT,
+    RawLlmContextResponse,
+    SessionMessageItem,
+    ToolCallLog,
+    Usage,
+    context_limit_fields,
+)
 
 try:
     from ..tools.utils import get_zonage_et_reglements
     from ..tools.utils.parcel_geom import (
+        merge_parcel_ref_sources,
         normalize_parcel_refs,
         parcelles_refs_to_json,
         refs_from_tool_calls,
@@ -31,6 +45,7 @@ try:
 except ImportError:
     from tools.utils import get_zonage_et_reglements
     from tools.utils.parcel_geom import (
+        merge_parcel_ref_sources,
         normalize_parcel_refs,
         parcelles_refs_to_json,
         refs_from_tool_calls,
@@ -64,6 +79,18 @@ class SessionRequest(BaseModel):
             "Les refs parcellaires sont optionnelles (zonage préchargé si fournies)."
         ),
     )
+    provider: Literal["gemini", "mistral"] | None = Field(
+        None,
+        description="Stack LLM du premier tour. Défaut Gemini/Vertex.",
+    )
+    refs_locked: bool = Field(
+        False,
+        description="Si vrai, n'utilise que les refs du body (confirmation UF), sans re-parser la question.",
+    )
+    response_mode: Literal["concis", "approfondi"] | None = Field(
+        None,
+        description="Longueur de réponse du premier tour. Défaut concis.",
+    )
 
 
 class SessionResponse(BaseModel):
@@ -75,9 +102,13 @@ class SessionResponse(BaseModel):
     usage:         Usage | None = None
     latency_ms:    int | None = None
     model:         str
+    provider:      str = "mistral"
     model_message_id: str | None = None
     map_data:      dict | None = None  # déprécié : toujours null ; géométries via GET /session/{id}/map
     show_map:      bool = False
+    context_tokens: int | None = None
+    context_limit: int = CONTEXT_TOKEN_LIMIT
+    context_limit_reached: bool = False
 
 
 class SessionStateResponse(BaseModel):
@@ -91,6 +122,9 @@ class SessionStateResponse(BaseModel):
     total_tokens: int
     total_turns:  int
     messages:     list[SessionMessageItem]
+    context_tokens: int | None = None
+    context_limit: int = CONTEXT_TOKEN_LIMIT
+    context_limit_reached: bool = False
 
 
 class SessionListItem(BaseModel):
@@ -104,6 +138,24 @@ class SessionListItem(BaseModel):
 
 class SessionsListResponse(BaseModel):
     sessions: list[SessionListItem]
+
+
+class ParcelResolveItem(BaseModel):
+    official: str
+    found: bool
+    section: str | None = None
+    numero: str | None = None
+    idu: str | None = None
+    contenance: int | float | None = None
+
+
+class ParcelResolveResponse(BaseModel):
+    commune: str
+    insee: str | None
+    items: list[ParcelResolveItem]
+    all_found: bool
+    found_count: int
+    missing_count: int
 
 # ---------------------------------------------------------------------------
 # Persistance Supabase
@@ -282,7 +334,8 @@ def messages_get(session_id: str) -> list[dict]:
     messages = get_current_profile().messages_table()
     sql = f"""
         SELECT id, role, content, tool_calls, gemini_parts, created_at,
-               (raw_llm_context IS NOT NULL) AS has_raw_context
+               (raw_llm_context IS NOT NULL) AS has_raw_context,
+               metriques_tour
         FROM {messages}
         WHERE session_id = %s
         ORDER BY created_at ASC, id ASC;
@@ -291,6 +344,7 @@ def messages_get(session_id: str) -> list[dict]:
     conn = _db_conn()
     with conn:
         ensure_raw_llm_context_column(conn, profile.schema)
+        ensure_metriques_tour_column(conn, profile.schema)
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(sql, (session_id,))
             rows = [dict(r) for r in cur.fetchall()]
@@ -298,7 +352,35 @@ def messages_get(session_id: str) -> list[dict]:
     for row in rows:
         row["tool_calls"] = _parse_json_field(row.get("tool_calls"))
         row["gemini_parts"] = _parse_json_field(row.get("gemini_parts"))
+        row["metriques_tour"] = _parse_json_field(row.get("metriques_tour"))
     return rows
+
+
+def usage_from_metriques(metriques: dict | None) -> Usage | None:
+    if not isinstance(metriques, dict):
+        return None
+    tokens_in = metriques.get("tokens_in")
+    tokens_out = metriques.get("tokens_out")
+    total = metriques.get("total_tokens")
+    if total is None and tokens_in is not None and tokens_out is not None:
+        total = int(tokens_in) + int(tokens_out)
+    if (
+        tokens_in is None
+        and tokens_out is None
+        and total is None
+        and metriques.get("cost_usd") is None
+    ):
+        return None
+    return Usage(
+        prompt_tokens=tokens_in,
+        candidate_tokens=tokens_out,
+        total_tokens=total,
+        tokens_source=metriques.get("tokens_source"),
+        input_usd=metriques.get("input_usd"),
+        output_usd=metriques.get("output_usd"),
+        cost_usd=metriques.get("cost_usd"),
+        context_tokens=metriques.get("context_tokens"),
+    )
 
 
 def messages_insert(
@@ -326,8 +408,9 @@ def messages_insert(
     sql_model = f"""
         INSERT INTO {messages}
             (session_id, role, content, tool_calls, gemini_parts,
-             prompt_tokens, candidate_tokens, total_tokens, latency_ms, raw_llm_context)
-        VALUES (%s, 'model', %s, %s, %s, %s, %s, %s, %s, %s)
+             prompt_tokens, candidate_tokens, total_tokens, latency_ms,
+             raw_llm_context, metriques_tour)
+        VALUES (%s, 'model', %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id;
     """
     sql_session = f"""
@@ -341,6 +424,13 @@ def messages_insert(
     model_message_id: str | None = None
     with conn:
         ensure_raw_llm_context_column(conn, profile.schema)
+        ensure_metriques_tour_column(conn, profile.schema)
+        metriques = metriques_depuis_raw_dict(
+            raw_llm_context,
+            latency_ms=latency_ms,
+            prompt_tokens=prompt_tokens,
+            candidate_tokens=candidate_tokens,
+        )
         with conn.cursor() as cur:
             cur.execute(sql_user, (session_id, user_message))
             cur.execute(
@@ -355,6 +445,7 @@ def messages_insert(
                     total_tokens,
                     latency_ms,
                     json.dumps(raw_llm_context, default=str) if raw_llm_context else None,
+                    json.dumps(metriques, default=str),
                 ),
             )
             row = cur.fetchone()
@@ -376,6 +467,7 @@ def message_get_raw_context(session_id: str, message_id: str) -> dict | None:
     conn = _db_conn()
     with conn:
         ensure_raw_llm_context_column(conn, get_current_profile().schema)
+        ensure_metriques_tour_column(conn, get_current_profile().schema)
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(sql, (message_id, session_id))
             row = cur.fetchone()
@@ -469,25 +561,89 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
             for row in rows
         ])
 
+    @router.post("/parcelles/resolve", response_model=ParcelResolveResponse)
+    @bind
+    def resolve_parcelles(
+        req: SessionRequest,
+        user_id: str = Depends(get_plu_user_id),
+    ):
+        """Parse + lookup SS NNNN dans la commune courante (confirmation UF, sans LLM)."""
+        from ..tools.utils.parcel_geom import lookup_parcel_refs
+
+        profile = get_current_profile()
+        parcelles_arg = (
+            [{"section": p.section, "numero": p.numero} for p in req.parcelles]
+            if req.parcelles
+            else None
+        )
+        refs_kw = merge_parcel_ref_sources(
+            text=req.question,
+            parcelles=parcelles_arg,
+            idus=req.idus,
+            section=req.section,
+            numero=req.numero,
+            idu=req.idu,
+        )
+        refs = normalize_parcel_refs(
+            parcelles=refs_kw.get("parcelles"),
+            idus=refs_kw.get("idus"),
+            section=refs_kw.get("section"),
+            numero=refs_kw.get("numero"),
+            idu=refs_kw.get("idu"),
+        )
+        looked = lookup_parcel_refs(DB_CONFIG, refs)
+        items = [
+            ParcelResolveItem(
+                official=it["official"],
+                found=bool(it.get("found")),
+                section=it.get("section"),
+                numero=it.get("numero"),
+                idu=it.get("idu"),
+                contenance=it.get("contenance"),
+            )
+            for it in looked["items"]
+        ]
+        found_n = sum(1 for it in items if it.found)
+        return ParcelResolveResponse(
+            commune=profile.label,
+            insee=profile.insee,
+            items=items,
+            all_found=bool(items) and found_n == len(items),
+            found_count=found_n,
+            missing_count=len(items) - found_n,
+        )
+
     @router.post("/session", response_model=SessionResponse)
     @bind
     def create_session(
         req: SessionRequest,
         user_id: str = Depends(get_plu_user_id),
     ):
-        from .chat import run_turn, serialize_contents, session_show_map
+        from .chat import _resolve_parcel_identity, run_turn, serialize_turn, session_show_map
+        from ..mistral_client import resolve_provider
+
+        provider = resolve_provider(req.provider)
+        model_name = MISTRAL_CHAT_MODEL if provider == "mistral" else GEMINI_MODEL
 
         parcelles_arg = (
             [{"section": p.section, "numero": p.numero} for p in req.parcelles]
             if req.parcelles
             else None
         )
-        refs = normalize_parcel_refs(
+        refs_kw = merge_parcel_ref_sources(
+            text=None if req.refs_locked else req.question,
             parcelles=parcelles_arg,
             idus=req.idus,
             section=req.section,
             numero=req.numero,
             idu=req.idu,
+        )
+        refs = normalize_parcel_refs(
+            parcelles=refs_kw.get("parcelles"),
+            idus=refs_kw.get("idus"),
+            section=refs_kw.get("section"),
+            numero=refs_kw.get("numero"),
+            idu=refs_kw.get("idu"),
         )
 
         t0 = time.monotonic()
@@ -501,42 +657,43 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
         parcelles_refs = None
 
         if refs and not is_france_live_profile:
-            zones_result = get_zonage_et_reglements(
-                DB_CONFIG,
-                parcelles=parcelles_arg,
-                idus=req.idus,
-                section=req.section,
-                numero=req.numero,
-                idu=req.idu,
+            from ..tools.utils.parcel_geom import (
+                found_rows_to_refs_kwargs,
+                lookup_parcel_refs,
             )
-            if zones_result.get("error"):
-                raise HTTPException(status_code=400, detail=zones_result["error"])
 
-            zones = zones_result.get("zones", [])
-            first = refs[0]
-            session_section = first["section"] if first["type"] == "sn" else None
-            session_numero = first["numero"] if first["type"] == "sn" else None
-            session_idu = first["idu"] if first["type"] == "idu" else None
-            parcelles_refs = parcelles_refs_to_json(
-                parcelles=parcelles_arg,
-                idus=req.idus,
-                section=req.section,
-                numero=req.numero,
-                idu=req.idu,
-            )
+            looked = lookup_parcel_refs(DB_CONFIG, refs)
+            found_kw = found_rows_to_refs_kwargs(looked["found"])
+            if looked["missing"]:
+                logger.warning(
+                    "parcelles introuvables dans %s : %s",
+                    current_profile.slug,
+                    looked["missing"],
+                )
+            if found_kw:
+                zones_result = get_zonage_et_reglements(DB_CONFIG, **found_kw)
+                if zones_result.get("error"):
+                    logger.warning("zonage non préchargé : %s", zones_result["error"])
+                else:
+                    zones = zones_result.get("zones", [])
+                first_found = looked["found"][0]
+                session_section = first_found.get("section")
+                session_numero = str(first_found.get("numero") or "").zfill(4) or None
+                session_idu = first_found.get("idu")
+                parcelles_refs = parcelles_refs_to_json(**found_kw)
+            else:
+                first = refs[0]
+                session_section = first["section"] if first["type"] == "sn" else None
+                session_numero = first["numero"] if first["type"] == "sn" else None
+                session_idu = first["idu"] if first["type"] == "idu" else None
+                parcelles_refs = parcelles_refs_to_json(**refs_kw)
         elif refs and is_france_live_profile:
             # Profil France (GPU live) : pas de préchargement SQL local
             first = refs[0]
             session_section = first["section"] if first["type"] == "sn" else None
             session_numero = first["numero"] if first["type"] == "sn" else None
             session_idu = first["idu"] if first["type"] == "idu" else None
-            parcelles_refs = parcelles_refs_to_json(
-                parcelles=parcelles_arg,
-                idus=req.idus,
-                section=req.section,
-                numero=req.numero,
-                idu=req.idu,
-            )
+            parcelles_refs = parcelles_refs_to_json(**refs_kw)
         else:
             logger.info("session sans référence parcellaire — zonage non préchargé")
 
@@ -546,7 +703,7 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
             idu=session_idu,
             parcelles_refs=parcelles_refs,
             zones=zones,
-            model=GEMINI_MODEL,
+            model=model_name,
             user_id=user_id,
         )
         logger.info(f"session créée : {session_id} — zones : {zones_summary(zones)}")
@@ -558,13 +715,19 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
         latency_ms = int((time.monotonic() - t0) * 1000)
 
         if req.question:
-            contents = [types.Content(role="user", parts=[types.Part(text=req.question)])]
+            if provider == "mistral":
+                contents = [{"role": "user", "content": req.question}]
+            else:
+                contents = [types.Content(role="user", parts=[types.Part(text=req.question)])]
             try:
                 answer, tool_calls, usage, new_contents, raw_llm_context = run_turn(
                     zones,
                     contents,
                     user_message=req.question,
                     prior_messages=[],
+                    provider=provider,
+                    parcel_identity=_resolve_parcel_identity(refs_kw),
+                    response_mode=req.response_mode,
                 )
             except Exception as e:
                 logger.error(f"agentic_loop error : {e}", exc_info=True)
@@ -577,7 +740,7 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
                 user_message=req.question,
                 model_answer=answer,
                 tool_calls=tool_calls_payload,
-                gemini_parts=serialize_contents(new_contents),
+                gemini_parts=serialize_turn(provider, new_contents),
                 prompt_tokens=usage.prompt_tokens,
                 candidate_tokens=usage.candidate_tokens,
                 total_tokens=usage.total_tokens,
@@ -601,10 +764,12 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
             tool_calls=tool_calls,
             usage=usage,
             latency_ms=latency_ms,
-            model=GEMINI_MODEL,
+            model=model_name,
+            provider=provider,
             model_message_id=model_message_id if req.question else None,
             map_data=None,
             show_map=show_map,
+            **context_limit_fields(usage.context_tokens if usage else None),
         )
 
     @router.delete("/session/{session_id}", status_code=204)
@@ -624,6 +789,15 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
     ):
         session = require_session_for_user(session_id, user_id)
         messages = messages_get(session_id)
+        last_ctx = None
+        for m in reversed(messages):
+            usage = usage_from_metriques(m.get("metriques_tour"))
+            if usage and usage.context_tokens:
+                last_ctx = usage.context_tokens
+                break
+            if usage and usage.prompt_tokens:
+                last_ctx = usage.prompt_tokens
+                break
         return SessionStateResponse(
             session_id=str(session["id"]),
             created_at=str(session["created_at"]),
@@ -642,9 +816,11 @@ def register(router: APIRouter, profile: CommuneProfile, bind) -> None:
                     tool_calls=m.get("tool_calls"),
                     created_at=str(m["created_at"]),
                     has_raw_context=bool(m.get("has_raw_context")),
+                    usage=usage_from_metriques(m.get("metriques_tour")),
                 )
                 for m in messages
             ],
+            **context_limit_fields(last_ctx),
         )
 
     @router.get(

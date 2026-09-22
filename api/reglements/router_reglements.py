@@ -31,7 +31,15 @@ from pydantic import BaseModel, Field
 from services.auth.commune_access import assert_authorized_for_commune_slug
 from services.auth.current_user import get_current_user_id
 
-Kind = Literal["text", "longtext", "bool", "date", "int", "json"]
+Kind = Literal["text", "longtext", "bool", "date", "int", "float", "json"]
+
+CES_API_TO_DB = {
+    "ces_type_regle": "type_regle",
+    "ces_applicabilite": "applicabilite",
+    "ces_max_pct": "ces_max_pct",
+    "emprise_max_m2": "emprise_max_m2",
+    "ces_citation": "citation",
+}
 WriteRole = Literal["superadmin"]
 
 _CATALOG_DIR = Path(__file__).resolve().parent / "catalogues"
@@ -74,6 +82,7 @@ class Col(BaseModel):
     editable: bool = True
     creatable: bool = True
     pk: bool = False
+    options: Optional[list[str]] = None
 
 
 class Source(BaseModel):
@@ -303,6 +312,10 @@ def _zonage_plu_ref(schema: str) -> str:
     return f"{qi(schema)}.{qi('zonage_plu')}"
 
 
+def _plu_ces_ref(schema: str) -> str:
+    return f"{qi(schema)}.{qi('plu_ces')}"
+
+
 def _ppr_ref(schema: str) -> str:
     return f"{qi(schema)}.{qi('ppr')}"
 
@@ -314,9 +327,11 @@ def _plu_reglement_ref(schema: str) -> str:
 def _zonage_libelong_agg_subquery(schema: str, alias: str = "z") -> str:
     ref = _zonage_plu_ref(schema)
     return f"""(
-        SELECT libelle, string_agg(DISTINCT libelong, '/') AS libelong_agg
+        SELECT zonage_reglement AS code_zone,
+               string_agg(DISTINCT libelong, '/') AS libelong_agg
         FROM {ref}
-        GROUP BY libelle
+        WHERE zonage_reglement IS NOT NULL AND btrim(zonage_reglement) <> ''
+        GROUP BY zonage_reglement
     ) {qi(alias)}"""
 
 
@@ -326,6 +341,63 @@ def _reglementation_missing_sql(expr: str) -> str:
 
 def _has_reglementation_col(src: Source) -> bool:
     return any(c.name in ("reglementation", "reglementation_generale") for c in src.columns)
+
+
+def _is_oap_source(src: Source) -> bool:
+    return src.source == "oap"
+
+
+def _oap_row_filter_sql() -> str:
+    """OAP GPU : typepsc 18 (périmètre OAP) ou identifiant oap_id renseigné."""
+    return "(typepsc = '18' OR (oap_id IS NOT NULL AND btrim(oap_id) <> ''))"
+
+
+def _declared_columns_sql(src: Source) -> str:
+    return ", ".join(qi(c.name) for c in src.columns)
+
+
+async def _fetch_oap_rows(
+    pool: asyncpg.Pool,
+    schema: str,
+    src: Source,
+    *,
+    pk: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = 500,
+    offset: int = 0,
+    list_only: bool = False,
+) -> list[dict]:
+    """Liste / détail des OAP dans prescriptions_surf, sans colonnes géométriques."""
+    ref = table_ref(schema, src)
+    if list_only:
+        cols: list[str] = []
+        for c in (src.pk, src.list_primary, src.list_secondary):
+            if c and c not in cols:
+                cols.append(c)
+        select_parts = [qi(c) for c in cols]
+        if _has_reglementation_col(src):
+            select_parts.append(
+                f"{_reglementation_missing_sql(qi('reglementation'))} AS reglementation_manquante"
+            )
+        select = ", ".join(select_parts)
+    else:
+        select = _declared_columns_sql(src)
+    sql = f"SELECT {select} FROM {ref} WHERE {_oap_row_filter_sql()}"
+    args: list[Any] = []
+    if pk is not None:
+        sql += f" AND {qi(src.pk)}::text = $1"
+        args.append(str(pk))
+    else:
+        if search:
+            ors = " OR ".join(f"{qi(c)}::text ILIKE $1" for c in src.search_cols)
+            sql += f" AND ({ors})"
+            args.append(f"%{search}%")
+        sql += (
+            f" ORDER BY {qi(src.list_primary)} NULLS LAST, {qi(src.pk)}"
+            f" LIMIT {int(limit)} OFFSET {int(offset)}"
+        )
+    rows = await pool.fetch(sql, *args)
+    return [dict(r) for r in rows]
 
 
 async def _fetch_plu_list(
@@ -344,7 +416,7 @@ async def _fetch_plu_list(
             z.libelong_agg AS nom_zone,
             {_reglementation_missing_sql(f"p.{qi('reglementation')}")} AS reglementation_manquante
         FROM {plu} p
-        LEFT JOIN {zonage} ON z.{qi('libelle')} = p.{qi('code_zone')}
+        LEFT JOIN {zonage} ON z.{qi('code_zone')} = p.{qi('code_zone')}
     """
     args: list[Any] = []
     if search:
@@ -370,7 +442,7 @@ async def _fetch_plu_row(pool: asyncpg.Pool, schema: str, code_zone: str) -> Opt
             p.{qi('resume_zone')} AS resume_zone,
             p.{qi('reglementation')} AS reglementation
         FROM {plu} p
-        LEFT JOIN {zonage} ON z.{qi('libelle')} = p.{qi('code_zone')}
+        LEFT JOIN {zonage} ON z.{qi('code_zone')} = p.{qi('code_zone')}
         WHERE p.{qi('code_zone')}::text = $1
     """
     r = await pool.fetchrow(sql, str(code_zone))
@@ -381,47 +453,123 @@ async def _fetch_zonage_plu_agg(
     pool: asyncpg.Pool,
     schema: str,
     *,
-    libelle: Optional[str] = None,
+    zonage_reglement: Optional[str] = None,
     search: Optional[str] = None,
     limit: int = 500,
     offset: int = 0,
     list_only: bool = False,
 ) -> list[dict]:
     ref = _zonage_plu_ref(schema)
+    ces = _plu_ces_ref(schema)
     if list_only:
-        reg_col = (
+        outer_reg = (
             ", "
-            + _reglementation_missing_sql("max(reglementation)")
+            + _reglementation_missing_sql("z.reglementation")
             + " AS reglementation_manquante"
         )
+        ces_cols = ""
     else:
-        reg_col = ", max(reglementation) AS reglementation"
+        outer_reg = ", z.reglementation AS reglementation"
+        ces_cols = """
+            , c.type_regle AS ces_type_regle
+            , c.applicabilite AS ces_applicabilite
+            , c.ces_max_pct
+            , c.emprise_max_m2
+            , c.citation AS ces_citation
+        """
+    filtre = (
+        "WHERE zonage_reglement IS NOT NULL AND btrim(zonage_reglement) <> ''"
+        + (" AND btrim(zonage_reglement) = $1" if zonage_reglement is not None else "")
+    )
     sql = f"""
         SELECT
-            libelle,
-            string_agg(DISTINCT libelong, '/') AS libelong_agg,
-            count(*)::int AS nb_entites
-            {reg_col}
-        FROM {ref}
+            z.zonage_reglement,
+            z.libelle_agg,
+            z.libelong_agg,
+            z.nb_entites
+            {outer_reg}
+            {ces_cols}
+        FROM (
+            SELECT
+                btrim(zonage_reglement) AS zonage_reglement,
+                string_agg(DISTINCT libelle, ' / ') AS libelle_agg,
+                string_agg(DISTINCT libelong, ' / ') AS libelong_agg,
+                count(*)::int AS nb_entites,
+                max(reglementation) AS reglementation
+            FROM {ref}
+            {filtre}
+            GROUP BY btrim(zonage_reglement)
+        ) z
+        LEFT JOIN {ces} c ON c.code_zone = z.zonage_reglement
     """
     args: list[Any] = []
-    if libelle is not None:
-        sql += " WHERE libelle = $1"
-        args.append(libelle)
-        sql += " GROUP BY libelle"
+    if zonage_reglement is not None:
+        args.append(zonage_reglement)
     else:
-        sql += " GROUP BY libelle"
         if search:
-            idx = len(args) + 1
-            sql += f"""
-                HAVING libelle ILIKE ${idx}
-                    OR string_agg(DISTINCT libelong, '/') ILIKE ${idx}
-                    OR max(reglementation) ILIKE ${idx}
+            sql += """
+                WHERE z.zonage_reglement ILIKE $1
+                   OR z.libelle_agg ILIKE $1
+                   OR z.libelong_agg ILIKE $1
+                   OR z.reglementation ILIKE $1
+                   OR c.citation ILIKE $1
+                   OR c.type_regle ILIKE $1
+                   OR c.ces_max_pct::text ILIKE $1
             """
             args.append(f"%{search}%")
-        sql += f" ORDER BY libelle LIMIT {int(limit)} OFFSET {int(offset)}"
+        sql += f" ORDER BY z.zonage_reglement LIMIT {int(limit)} OFFSET {int(offset)}"
     rows = await pool.fetch(sql, *args)
     return [dict(r) for r in rows]
+
+
+async def _upsert_plu_ces(
+    pool: asyncpg.Pool,
+    schema: str,
+    code_zone: str,
+    data: dict[str, Any],
+) -> None:
+    """Crée ou met à jour la ligne CES liée au code de zone PLU."""
+    ces = _plu_ces_ref(schema)
+    existing = await pool.fetchrow(
+        f"SELECT * FROM {ces} WHERE {qi('code_zone')} = $1",
+        code_zone,
+    )
+    if existing:
+        sets, args = [], []
+        for i, (k, v) in enumerate(data.items(), start=1):
+            sets.append(f"{qi(k)} = ${i}")
+            args.append(v)
+        sets.append(f"{qi('extracted_at')} = now()")
+        idx = len(args) + 1
+        sql = f"UPDATE {ces} SET {', '.join(sets)} WHERE {qi('code_zone')} = ${idx}"
+        args.append(code_zone)
+        await pool.execute(sql, *args)
+        return
+
+    type_regle = data.get("type_regle")
+    if not type_regle:
+        if data.get("ces_max_pct") is not None:
+            type_regle = "ratio"
+        elif data.get("emprise_max_m2") is not None:
+            type_regle = "absolu"
+        else:
+            type_regle = "non_reglemente"
+    row = {
+        "code_zone": code_zone,
+        "type_regle": type_regle,
+        "applicabilite": data.get("applicabilite") or "toute_la_zone",
+        "ces_max_pct": data.get("ces_max_pct"),
+        "emprise_max_m2": data.get("emprise_max_m2"),
+        "citation": data.get("citation"),
+        "statut": "a_valider",
+    }
+    cols = list(row.keys())
+    placeholders = ", ".join(f"${i + 1}" for i in range(len(cols)))
+    sql = (
+        f"INSERT INTO {ces} ({', '.join(qi(c) for c in cols)}) "
+        f"VALUES ({placeholders})"
+    )
+    await pool.execute(sql, *[row[c] for c in cols])
 
 
 async def _fetch_ppr_agg(
@@ -492,6 +640,8 @@ def _serialize_api_row(row: dict, src: Source) -> dict:
             col.kind == "longtext" and isinstance(v, (dict, list))
         ):
             out[col.name] = json.dumps(v, ensure_ascii=False, indent=2)
+        elif col.kind in ("int", "float") and isinstance(v, Decimal):
+            out[col.name] = int(v) if col.kind == "int" and v == v.to_integral_value() else float(v)
         elif col.kind == "text" and isinstance(v, (int, float, Decimal)):
             out[col.name] = str(v)
     return out
@@ -512,7 +662,13 @@ def coerce(col: Col, v: Any, *, source: str = "") -> Any:
             return v.strip().lower() in ("true", "t", "1", "oui", "yes", "on")
         return bool(v)
     if col.kind == "int":
+        if v == "":
+            return None
         return int(v)
+    if col.kind == "float":
+        if v == "":
+            return None
+        return float(v)
     if col.kind == "date":
         if v == "":
             return None
@@ -564,14 +720,21 @@ async def _list_rows_for_catalog(
     if src.source == "plu":
         return await _fetch_plu_list(pool, catalog.schema, search=search, limit=limit, offset=offset)
     if src.aggregated and src.source == "zonage_plu":
-        return await _fetch_zonage_plu_agg(
-            pool, catalog.schema, search=search, limit=limit, offset=offset, list_only=True
-        )
+        return [
+            _serialize_api_row(r, src)
+            for r in await _fetch_zonage_plu_agg(
+                pool, catalog.schema, search=search, limit=limit, offset=offset, list_only=True
+            )
+        ]
     if src.aggregated and src.source == "ppr":
         rows = await _fetch_ppr_agg(
             pool, catalog.schema, search=search, limit=limit, offset=offset, list_only=True
         )
         return [_serialize_api_row(r, src) for r in rows]
+    if _is_oap_source(src):
+        return await _fetch_oap_rows(
+            pool, schema, src, search=search, limit=limit, offset=offset, list_only=True
+        )
     cols: list[str] = []
     for c in (src.pk, src.list_primary, src.list_secondary):
         if c and c not in cols:
@@ -611,15 +774,20 @@ async def _get_row_for_catalog(
             raise HTTPException(status_code=404, detail="Entrée introuvable")
         return row
     if src.aggregated and src.source == "zonage_plu":
-        rows = await _fetch_zonage_plu_agg(pool, catalog.schema, libelle=pk)
+        rows = await _fetch_zonage_plu_agg(pool, catalog.schema, zonage_reglement=pk)
         if not rows:
             raise HTTPException(status_code=404, detail="Entrée introuvable")
-        return rows[0]
+        return _serialize_api_row(rows[0], src)
     if src.aggregated and src.source == "ppr":
         rows = await _fetch_ppr_agg(pool, catalog.schema, label=pk)
         if not rows:
             raise HTTPException(status_code=404, detail="Entrée introuvable")
         return _serialize_api_row(rows[0], src)
+    if _is_oap_source(src):
+        rows = await _fetch_oap_rows(pool, schema, src, pk=pk)
+        if not rows:
+            raise HTTPException(status_code=404, detail="Entrée introuvable")
+        return rows[0]
     sql = f"SELECT * FROM {table_ref(schema, src)} WHERE {qi(src.pk)}::text = $1"
     r = await pool.fetchrow(sql, str(pk))
     if not r:
@@ -645,7 +813,7 @@ async def _create_row_for_catalog(
     if enforce_write_role and user_id:
         assert_can_write_source(src, user_id)
     schema = source_schema(catalog, src)
-    if not src.creatable:
+    if _is_oap_source(src) or not src.creatable:
         raise HTTPException(status_code=405, detail="Création non autorisée pour cette source")
     creatable = {c.name: c for c in src.columns if c.creatable}
     data = {k: coerce(creatable[k], v, source=src.source) for k, v in body.items() if k in creatable}
@@ -690,24 +858,43 @@ async def _update_row_for_catalog(
     if not data:
         raise HTTPException(status_code=400, detail="Aucun champ modifiable fourni")
     if src.aggregated and src.source == "zonage_plu":
-        sets, args = [], []
-        for i, (k, v) in enumerate(data.items(), start=1):
-            sets.append(f"{qi(k)} = ${i}")
-            args.append(v)
-        idx = len(args) + 1
-        sql = (
-            f"UPDATE {table_ref(schema, src)} SET {', '.join(sets)} "
-            f"WHERE {qi(src.pk)} = ${idx}"
-        )
-        args.append(str(pk))
-        try:
-            res = await pool.execute(sql, *args)
-        except asyncpg.NotNullViolationError as e:
-            raise HTTPException(status_code=400, detail=f"Champ obligatoire vidé : {e}")
-        if res.endswith(" 0"):
-            raise HTTPException(status_code=404, detail="Entrée introuvable")
-        rows = await _fetch_zonage_plu_agg(pool, catalog.schema, libelle=str(pk))
-        return rows[0]
+        zonage_data = {k: v for k, v in data.items() if k not in CES_API_TO_DB}
+        ces_data = {CES_API_TO_DB[k]: v for k, v in data.items() if k in CES_API_TO_DB}
+        if not zonage_data and not ces_data:
+            raise HTTPException(status_code=400, detail="Aucun champ modifiable fourni")
+        if zonage_data:
+            sets, args = [], []
+            for i, (k, v) in enumerate(zonage_data.items(), start=1):
+                sets.append(f"{qi(k)} = ${i}")
+                args.append(v)
+            idx = len(args) + 1
+            sql = (
+                f"UPDATE {table_ref(schema, src)} SET {', '.join(sets)} "
+                f"WHERE btrim({qi(src.pk)}) = ${idx}"
+            )
+            args.append(str(pk))
+            try:
+                res = await pool.execute(sql, *args)
+            except asyncpg.NotNullViolationError as e:
+                raise HTTPException(status_code=400, detail=f"Champ obligatoire vidé : {e}")
+            if res.endswith(" 0"):
+                raise HTTPException(status_code=404, detail="Entrée introuvable")
+        else:
+            found = await pool.fetchrow(
+                f"SELECT 1 FROM {table_ref(schema, src)} WHERE btrim({qi(src.pk)}) = $1 LIMIT 1",
+                str(pk),
+            )
+            if not found:
+                raise HTTPException(status_code=404, detail="Entrée introuvable")
+        if ces_data:
+            try:
+                await _upsert_plu_ces(pool, catalog.schema, str(pk), ces_data)
+            except asyncpg.NotNullViolationError as e:
+                raise HTTPException(status_code=400, detail=f"Champ obligatoire vidé : {e}")
+            except asyncpg.ForeignKeyViolationError as e:
+                raise HTTPException(status_code=400, detail=f"Zone CES invalide : {e}")
+        rows = await _fetch_zonage_plu_agg(pool, catalog.schema, zonage_reglement=str(pk))
+        return _serialize_api_row(rows[0], src)
     if src.aggregated and src.source == "ppr":
         sets, args = [], []
         for i, (k, v) in enumerate(data.items(), start=1):
@@ -727,6 +914,25 @@ async def _update_row_for_catalog(
             raise HTTPException(status_code=404, detail="Entrée introuvable")
         rows = await _fetch_ppr_agg(pool, catalog.schema, label=str(pk))
         return _serialize_api_row(rows[0], src)
+    if _is_oap_source(src):
+        sets, args = [], []
+        for i, (k, v) in enumerate(data.items(), start=1):
+            sets.append(f"{qi(k)} = ${i}")
+            args.append(v)
+        idx = len(args) + 1
+        sql = (
+            f"UPDATE {table_ref(schema, src)} SET {', '.join(sets)} "
+            f"WHERE {qi(src.pk)}::text = ${idx} AND {_oap_row_filter_sql()} "
+            f"RETURNING {_declared_columns_sql(src)}"
+        )
+        args.append(str(pk))
+        try:
+            r = await pool.fetchrow(sql, *args)
+        except asyncpg.NotNullViolationError as e:
+            raise HTTPException(status_code=400, detail=f"Champ obligatoire vidé : {e}")
+        if not r:
+            raise HTTPException(status_code=404, detail="Entrée introuvable")
+        return dict(r)
     sets, args = [], []
     for i, (k, v) in enumerate(data.items(), start=1):
         sets.append(f"{qi(k)} = ${i}")
@@ -769,7 +975,7 @@ async def _delete_row_for_catalog(
     if enforce_write_role and user_id:
         assert_can_write_source(src, user_id)
     schema = source_schema(catalog, src)
-    if not src.deletable:
+    if not src.deletable or _is_oap_source(src):
         raise HTTPException(status_code=405, detail="Suppression non autorisée pour cette source")
     sql = f"DELETE FROM {table_ref(schema, src)} WHERE {qi(src.pk)}::text = $1"
     res = await pool.execute(sql, str(pk))

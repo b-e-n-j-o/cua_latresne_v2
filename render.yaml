@@ -87,7 +87,7 @@ services:
     buildCommand: |
       apt-get update && apt-get install -y gdal-bin libgdal-dev
       pip install -r requirements.txt
-    startCommand: bash services/ingestion_cadastre/scripts/render_cron_etl_latresne.sh
+    startCommand: bash services/ingestion/ingestion_cadastre/scripts/render_cron_etl_latresne.sh
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.8

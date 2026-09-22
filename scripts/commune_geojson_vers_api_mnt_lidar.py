@@ -51,7 +51,7 @@ if str(_ROOT) not in sys.path:
 
 from shapely.geometry import mapping  # noqa: E402
 
-from services.ingestion_mnt_lidar.telecharger_mnt_ou_lidar import (  # noqa: E402
+from services.ingestion.ingestion_mnt_lidar.telecharger_mnt_ou_lidar import (  # noqa: E402
     fetch_commune_geometry,
 )
 

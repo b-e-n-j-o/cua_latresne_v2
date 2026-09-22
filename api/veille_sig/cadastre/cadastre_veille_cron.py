@@ -33,7 +33,7 @@ logger = logging.getLogger("cadastre_veille_cron")
 router = APIRouter(tags=["cadastre-veille-cron"])
 
 ETL_COMMUNES_JSON = (
-    BACKEND_ROOT / "services" / "ingestion_cadastre" / "config" / "etl_communes.json"
+    BACKEND_ROOT / "services" / "ingestion" / "ingestion_cadastre" / "config" / "etl_communes.json"
 )
 LOG_DIR = BACKEND_ROOT / "api" / "veille_sig" / "cadastre" / "reports"
 # Téléchargement Etalab + diff 15 k parcelles : plusieurs minutes par commune.

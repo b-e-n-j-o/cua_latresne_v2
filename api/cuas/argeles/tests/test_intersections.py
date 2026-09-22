@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 
 # ── À modifier ────────────────────────────────────────────────
 PARCELLES: list[tuple[str, str]] = [
-    ("BC", "1374"),
+    ("AV", "19"),
     # ("BR", "274"),  # plusieurs parcelles → UF si contiguës
 ]
 

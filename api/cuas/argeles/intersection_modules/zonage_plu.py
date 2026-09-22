@@ -69,35 +69,23 @@ def _texte_objet_fallback(obj: dict) -> Optional[str]:
     return str(fallback).strip() if fallback else None
 
 
-def _items_avec_pct(
-    objets: list,
-    min_zonage_pct: float,
-    *label_keys: str,
-) -> list[tuple[str, float]]:
-    """Libellés distincts avec part UF maximale (> seuil)."""
-    seen: dict[str, float] = {}
-    for obj in objets:
-        pct = _pct_sig(obj)
-        if pct <= min_zonage_pct:
-            continue
-        label = _label_obj(obj, *label_keys)
-        if not label:
-            continue
-        seen[label] = max(seen.get(label, 0.0), pct)
-    return sorted(seen.items(), key=lambda item: -item[1])
+def _fmt_pct(p: float) -> str:
+    p = min(max(p, 0.0), 100.0)
+    txt = f"{p:.0f}" if p >= 10 else f"{p:.1f}".replace(".", ",")
+    return f"{txt}\u00a0%"
 
 
 def _zones_agregees(
     objets: list,
     min_zonage_pct: float,
 ) -> list[tuple[str, float]]:
-    """Zones distinctes avec % cumulé (plusieurs entités SIG même zone)."""
+    """Zones distinctes avec % cumulé (plusieurs polygones d'une même zone)."""
     by_zone: dict[str, float] = {}
     for obj in objets:
         zone = _label_obj(obj, "libelle", "zonage_reglement")
         if not zone:
             continue
-        by_zone[zone] = by_zone.get(zone, 0.0) + _pct_sig(obj)
+        by_zone[zone] = min(by_zone.get(zone, 0.0) + _pct_sig(obj), 100.0)
 
     items = [
         (zone, pct)
@@ -109,27 +97,23 @@ def _zones_agregees(
     return sorted(by_zone.items(), key=lambda item: -item[1])
 
 
-def _zones_plu_avec_pct(objets: list, min_zonage_pct: float) -> list[tuple[str, float]]:
-    return _items_avec_pct(objets, min_zonage_pct, "libelle", "zonage_reglement")
-
-
 def _format_zones_parts(zones_pct: list[tuple[str, float]]) -> str:
-    return ", ".join(f"zone {zone} ({pct:.2f} %)" for zone, pct in zones_pct)
+    return ", ".join(f"zone {zone} ({_fmt_pct(pct)})" for zone, pct in zones_pct)
 
 
 def _format_intro(objets: list, min_zonage_pct: float) -> tuple[list[str], Optional[str]]:
     """Résumé zonage + parts de surface significatives (niveau UF)."""
-    items = _zones_plu_avec_pct(objets, min_zonage_pct)
+    items = _zones_agregees(objets, min_zonage_pct)
     if items:
         zones = [zone for zone, _ in items]
         if len(items) == 1:
             zone, pct = items[0]
             texte = (
                 f"L'unité foncière est située dans la zone {zone} du PLU "
-                f"({pct:.2f} % de la surface)."
+                f"({_fmt_pct(pct)} de la surface)."
             )
         else:
-            parts = [f"{zone} ({pct:.2f} %)" for zone, pct in items]
+            parts = [f"{zone} ({_fmt_pct(pct)})" for zone, pct in items]
             texte = f"L'unité foncière est située dans les zones {', '.join(parts)} du PLU."
         return zones, texte
 
@@ -145,7 +129,11 @@ def _format_intro(objets: list, min_zonage_pct: float) -> tuple[list[str], Optio
 
 
 def _objets_significatifs(objets: list, min_zonage_pct: float) -> list:
-    return [obj for obj in objets if _pct_sig(obj) > min_zonage_pct]
+    """Conserve les objets dont la zone, une fois agrégée, dépasse le seuil."""
+    zones = {zone for zone, _ in _zones_agregees(objets, min_zonage_pct)}
+    if not zones:
+        return objets
+    return [obj for obj in objets if _label_obj(obj, "libelle", "zonage_reglement") in zones]
 
 
 def _build_items(
@@ -157,12 +145,13 @@ def _build_items(
     items: list[dict[str, Any]] = []
     seen_regl: set[str] = set()
     multi_zones = len(zones) > 1
+    pcts = dict(_zones_agregees(objets, min_zonage_pct))
 
     for obj in _objets_significatifs(objets, min_zonage_pct):
         zone_code = _label_obj(obj, "libelle", "zonage_reglement")
         libelong = (obj.get("libelong") or "").strip()
         regl = _reglementation_text(obj)
-        pct = _pct_sig(obj)
+        pct = pcts.get(zone_code, _pct_sig(obj))
 
         if regl:
             if regl in seen_regl:
@@ -174,7 +163,7 @@ def _build_items(
                 "reglementation": regl,
             }
             if multi_zones and zone_code:
-                suffix = f" ({pct:.2f} %)" if pct > min_zonage_pct else ""
+                suffix = f" ({_fmt_pct(pct)})" if pct > min_zonage_pct else ""
                 item["titre"] = f"Zone {zone_code}{suffix}"
             items.append(item)
             continue
@@ -227,7 +216,7 @@ def _build_detail_parcelles(
         ref = format_parcelle_ref(section, numero)
         if len(zones_pct) == 1:
             zone, pct = zones_pct[0]
-            texte = f"{ref} : concernée par la zone {zone} ({pct:.2f} % de la surface parcelle)."
+            texte = f"{ref} : concernée par la zone {zone} ({_fmt_pct(pct)} de la surface parcelle)."
         else:
             texte = f"{ref} : concernée par {_format_zones_parts(zones_pct)} de la surface parcelle."
 

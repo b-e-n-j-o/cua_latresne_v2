@@ -48,7 +48,9 @@ TOOL_DECLARATIONS_BY_NAME: dict[str, types.FunctionDeclaration] = {
     "get_pprif_reglement": DECL_REGLEMENT_PPRIF,
 }
 
-DEFAULT_LLM_TOOL_NAMES = tuple(TOOL_DECLARATIONS_BY_NAME.keys())
+DEFAULT_LLM_TOOL_NAMES = tuple(
+    n for n in TOOL_DECLARATIONS_BY_NAME if n != "get_parcelle"
+)
 
 TOOL_DECLARATIONS = types.Tool(
     function_declarations=[
@@ -80,7 +82,7 @@ TOOL_RESPONSE_SHAPES = {
     "get_contexte_parcelle": {
         "zones": (
             "array — code_zone, libelle, superficie_intersection_m2, "
-            "pct_parcelle_couverte, reglementation, …"
+            "pct_parcelle_couverte (sans texte de règlement — get_reglement_zone)"
         ),
         "zones_count": "integer",
         "surfaciques": (
@@ -102,6 +104,10 @@ TOOL_RESPONSE_SHAPES = {
         "parcelles": "array — feuilles cadastrales de l'unité foncière",
         "nb_parcelles": "integer",
         "superficie_unite_m2": "number",
+        "repartition_parcelles": (
+            "array | null — si UF ≥ 2 feuilles : pour chaque couche qui intersecte l'UF, "
+            "liste official / intersecte / elements (codes, %, sans règlement)"
+        ),
         "error": "string | null",
     },
     "get_geoportail_contexte_live": {
@@ -144,8 +150,11 @@ TOOL_RESPONSE_SHAPES = {
         "error": "string | null",
     },
     "get_reglement_zone": {
-        "code_zone": "string — code tel qu'en base",
+        "code_zone": "string — code tel qu'en base / demandé",
+        "codes_resolus": "array — codes corpus après alias (ex. UA → UAa, UAb)",
         "reglementation": "string | null — texte intégral du règlement",
+        "texte_id": "uuid | null — identifiant corpus.textes (premier si plusieurs)",
+        "texte_ids": "array — tous les identifiants corpus",
         "found": "boolean",
         "error": "string | null",
     },

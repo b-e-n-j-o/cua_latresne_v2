@@ -2,29 +2,56 @@
   "commune_slug": "argeles",
   "schema": "argeles",
   "label": "Argelès-sur-Mer",
-  "source_order": ["zonage_plu", "ppr", "pprif", "servitudes"],
+  "source_order": ["zonage_plu", "oap", "ppr", "pprif", "servitudes"],
   "sources": [
     {
       "source": "zonage_plu",
-      "label": "Paragraphes PLU",
+      "label": "PLU",
       "table": "zonage_plu",
-      "pk": "libelle",
-      "list_primary": "libelle",
+      "pk": "zonage_reglement",
+      "list_primary": "zonage_reglement",
       "list_secondary": "libelong_agg",
-      "search_cols": ["libelle", "libelong", "reglementation"],
+      "search_cols": ["zonage_reglement", "libelle", "libelong", "reglementation"],
       "aggregated": true,
       "creatable": false,
       "deletable": false,
       "columns": [
-        { "name": "libelle", "label": "Libellé zone", "kind": "text", "editable": false, "creatable": false, "pk": true },
+        { "name": "zonage_reglement", "label": "Zone PLU", "kind": "text", "editable": false, "creatable": false, "pk": true },
+        { "name": "libelle_agg", "label": "Libellés GPU", "kind": "text", "editable": false, "creatable": false },
         { "name": "libelong_agg", "label": "Libellés longs", "kind": "text", "editable": false, "creatable": false },
         { "name": "nb_entites", "label": "Nombre d'entités", "kind": "int", "editable": false, "creatable": false },
+        { "name": "ces_max_pct", "label": "CES max (%)", "kind": "float", "creatable": false },
+        { "name": "emprise_max_m2", "label": "Emprise max (m²)", "kind": "float", "creatable": false },
+        { "name": "ces_type_regle", "label": "Type de règle CES", "kind": "text", "creatable": false,
+          "options": ["ratio", "absolu", "non_reglemente", "renvoi_graphique", "voir_reglementation"] },
+        { "name": "ces_applicabilite", "label": "Applicabilité CES", "kind": "text", "creatable": false,
+          "options": ["toute_la_zone", "partielle", "non_precise"] },
+        { "name": "ces_citation", "label": "Citation CES", "kind": "longtext", "creatable": false },
         { "name": "reglementation", "label": "Règlement", "kind": "longtext", "creatable": false }
       ]
     },
     {
+      "source": "oap",
+      "label": "OAP",
+      "table": "prescriptions_surf",
+      "pk": "gml_id",
+      "list_primary": "nom",
+      "list_secondary": "oap_id",
+      "search_cols": ["nom", "oap_id", "libelle", "gml_id", "reglementation"],
+      "creatable": false,
+      "deletable": false,
+      "columns": [
+        { "name": "gml_id", "label": "Identifiant GPU", "kind": "text", "editable": false, "creatable": false, "pk": true },
+        { "name": "oap_id", "label": "Identifiant OAP", "kind": "text", "editable": false, "creatable": false },
+        { "name": "nom", "label": "Nom", "kind": "text", "editable": true, "creatable": false },
+        { "name": "libelle", "label": "Libellé GPU", "kind": "text", "editable": false, "creatable": false },
+        { "name": "typepsc", "label": "Type PSC", "kind": "text", "editable": false, "creatable": false },
+        { "name": "reglementation", "label": "Règlement", "kind": "longtext", "editable": true, "creatable": false }
+      ]
+    },
+    {
       "source": "ppr",
-      "label": "Zones PPR",
+      "label": "PPR",
       "table": "ppr",
       "pk": "label",
       "list_primary": "label",
@@ -40,13 +67,13 @@
         { "name": "degre", "label": "Degré", "kind": "text", "editable": true, "creatable": false },
         { "name": "ces", "label": "CES", "kind": "text", "editable": true, "creatable": false },
         { "name": "mise_hors_d_eau", "label": "Mise hors d'eau", "kind": "text", "editable": true, "creatable": false },
-        { "name": "reglementation_generale", "label": "Règlementation générale", "kind": "longtext", "editable": true, "creatable": false },
+        { "name": "reglementation_generale", "label": "Règlement", "kind": "longtext", "editable": true, "creatable": false },
         { "name": "nb_entites", "label": "Entités SIG", "kind": "int", "editable": false, "creatable": false }
       ]
     },
     {
       "source": "pprif",
-      "label": "Paragraphes PPRIF",
+      "label": "PPRIF",
       "table": "laius_pprif",
       "pk": "label",
       "list_primary": "label",
@@ -59,8 +86,7 @@
     },
     {
       "source": "servitudes",
-      "label": "Paragraphes Servitudes",
-      "write_role": "superadmin",
+      "label": "Servitudes",
       "schema": "public",
       "table": "servitudes_reglements",
       "pk": "suptype",
@@ -69,9 +95,8 @@
       "search_cols": ["suptype", "libelle", "reglementation", "base_legale"],
       "columns": [
         { "name": "suptype", "label": "Type SUP", "kind": "text", "editable": false, "pk": true },
-        { "name": "libelle", "label": "Libellé", "kind": "text" },
-        { "name": "reglementation", "label": "Règlement", "kind": "longtext" },
-        { "name": "url_fiche_gpu", "label": "URL fiche GPU", "kind": "text" }
+        { "name": "libelle", "label": "Servitude", "kind": "text" },
+        { "name": "reglementation", "label": "Règlement", "kind": "longtext" }
       ]
     }
   ]

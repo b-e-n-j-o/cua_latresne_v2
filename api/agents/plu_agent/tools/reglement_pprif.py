@@ -8,8 +8,8 @@ from typing import Any
 
 from google.genai import types
 
-from ..commune_context import get_current_profile_optional, q
-from .utils.db import db_query
+from ..corpus import fetch_textes, insee_courant, resoudre_codes_zonage
+from ..commune_context import get_current_profile_optional
 
 logger = logging.getLogger("plu_tools")
 
@@ -128,14 +128,27 @@ def _expand_with_dg(codes: list[str], *, include_dg: bool) -> list[str]:
 def _fetch_rows(db_config: dict, zone_codes: list[str]) -> list[dict[str, Any]]:
     if not zone_codes:
         return []
-    placeholders = ", ".join(["%s"] * len(zone_codes))
-    sql = f"""
-        SELECT zone_code, type_piece, chapitre, titre_zone, reglementation
-        FROM {q(TABLE_NAME)}
-        WHERE upper(trim(zone_code)) IN ({placeholders})
-    """
-    keys = [z.upper() for z in zone_codes]
-    rows = db_query(db_config, sql, tuple(keys))
+    insee = insee_courant() or "66008"
+    codes = resoudre_codes_zonage(
+        db_config, zone_codes, document_type="PPRIF", insee=insee
+    )
+    textes = fetch_textes(
+        db_config,
+        document_type="PPRIF",
+        codes=codes,
+        include_globale=False,
+        insee=insee,
+    )
+    rows = []
+    for t in textes:
+        rows.append({
+            "zone_code": t.get("zone_code"),
+            "type_piece": t.get("type_piece"),
+            "chapitre": t.get("chapitre"),
+            "titre_zone": t.get("titre"),
+            "reglementation": t.get("reglementation"),
+            "texte_id": t.get("texte_id"),
+        })
     return sorted(
         rows,
         key=lambda r: ORDER_ZONE.get(_norm_zone_code(r.get("zone_code") or "") or "", 99),
@@ -150,13 +163,20 @@ def get_pprif_reglement(
     include_dispositions_generales: bool = True,
 ) -> dict:
     """
-    Récupère le règlement PPRIF depuis ``{schema}.reglements_pprif``.
+    Récupère le règlement PPRIF depuis ``corpus.textes``.
 
     zone_code : DG, R, B1, B2, B3, B4 — ou ALL pour l'ensemble des zones couleur.
     Les dispositions générales (DG) sont incluses automatiquement avec les zones demandées.
     """
     profile = get_current_profile_optional()
     schema = profile.schema if profile else "argeles"
+
+    if zone_codes:
+        raw_list = [zone_codes] if isinstance(zone_codes, str) else list(zone_codes)
+        insee = insee_courant() or "66008"
+        zone_codes = resoudre_codes_zonage(
+            db_config, [str(z) for z in raw_list], document_type="PPRIF", insee=insee
+        )
 
     resolved = infer_pprif_reglement_zone_codes(
         zone_codes=zone_codes,
@@ -209,6 +229,7 @@ def get_pprif_reglement(
             "zone_code": DG_ZONE_CODE,
             "chapitre": (dg_row or {}).get("chapitre"),
             "reglementation": text.strip() or None,
+            "texte_id": (dg_row or {}).get("texte_id"),
             "found": bool(text.strip()),
         }
 
@@ -224,6 +245,7 @@ def get_pprif_reglement(
                 "couleur": PPRIF_ZONES_REFERENCE.get(code),
                 "chapitre": (row or {}).get("chapitre") if row else None,
                 "reglementation": text.strip() or None,
+                "texte_id": (row or {}).get("texte_id") if row else None,
                 "found": bool(text.strip()),
                 "error": None if text.strip() else f"Aucun règlement PPRIF pour zone_code={code!r}.",
             }
@@ -261,7 +283,7 @@ DECL_REGLEMENT_PPRIF = types.FunctionDeclaration(
     name="get_pprif_reglement",
     description=(
         "Récupère le règlement écrit du PPRIF d'Argelès-sur-Mer (Plan de Prévention des "
-        "Risques Incendie de Forêt) depuis reglements_pprif. "
+        "Risques Incendie de Forêt). "
         f"Zones couleur en base : {_PPRIF_ZONES_HELP}. "
         "Les dispositions générales (DG) sont toujours incluses automatiquement avec les zones "
         "demandées — ne pas passer DG dans zone_codes. "
