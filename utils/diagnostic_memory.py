@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 
-from api.communes.latresne.cuas.INTERSECTIONS.pipeline_from_parcelles import run_pipeline_from_parcelles
+from api.cuas.latresne.INTERSECTIONS.pipeline_from_parcelles import run_pipeline_from_parcelles
 
 class MemoryMonitor:
     def __init__(self):

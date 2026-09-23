@@ -10,7 +10,9 @@ import os
 import re
 
 import requests
-from fastapi import APIRouter, HTTPException
+from html import unescape
+
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
@@ -37,6 +39,14 @@ COMMUNE_CUA_CATALOGUE: dict[str, Path] = {
 COMMUNE_CARTO_CATALOGUE: dict[str, Path] = {
     "argeles": _CUAS_DIR / "catalogue_carto_argeles.json",
 }
+
+CARTO_PUBLIC_COMMUNES = frozenset({"argeles", "latresne"})
+_LATRESNE_2D_FILES = (
+    "carte_2d.html",
+    "carte_2d_unite_fonciere.html",
+    CARTE_CONTEXT_FILENAME,
+)
+_LATRESNE_3D_FILES = ("carte_3d.html",)
 
 
 class ParcelleRefIn(BaseModel):
@@ -128,8 +138,45 @@ def get_parcelles_carto_context(commune_slug: str, body: CartoContextRequest):
 _PIPELINE_SLUG_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 
 
-def _resolve_carto_context_filename(pipeline_slug: str) -> str:
-    """Nom du HTML gelé : metadata pipeline, listing storage ou fallback historique."""
+def _storage_names(pipeline_slug: str) -> list[str]:
+    try:
+        sb = get_supabase()
+        entries = sb.storage.from_(SUPABASE_BUCKET).list(pipeline_slug) or []
+        return [
+            (entry.get("name") or "").strip()
+            for entry in entries
+            if (entry.get("name") or "").strip()
+        ]
+    except Exception:
+        return []
+
+
+def _resolve_carto_context_filename(pipeline_slug: str, commune_slug: str, vue: str) -> str:
+    """Nom du HTML gelé : listing storage, metadata pipeline ou fallback."""
+    names = _storage_names(pipeline_slug)
+    name_set = set(names)
+    vue_norm = (vue or "2d").strip().lower()
+
+    if vue_norm in {"3d", "3"}:
+        for cand in ("carte_3d.html", "carte_3d_unite_fonciere.html"):
+            if cand in name_set:
+                return cand
+        for name in names:
+            if name.startswith("carte_3d") and name.endswith(".html"):
+                return name
+        return "carte_3d.html"
+
+    if commune_slug == "latresne":
+        candidates = _LATRESNE_3D_FILES if vue_norm in {"3d", "3"} else _LATRESNE_2D_FILES
+        for cand in candidates:
+            if cand in name_set:
+                return cand
+        prefix = "carte_3d" if vue_norm in {"3d", "3"} else "carte_2d"
+        for name in names:
+            if name.startswith(prefix) and name.endswith(".html"):
+                return name
+        return candidates[0]
+
     try:
         sb = get_supabase()
         row = (
@@ -147,27 +194,38 @@ def _resolve_carto_context_filename(pipeline_slug: str) -> str:
     except Exception:
         pass
 
-    try:
-        sb = get_supabase()
-        entries = sb.storage.from_(SUPABASE_BUCKET).list(pipeline_slug) or []
-        for entry in entries:
-            name = (entry.get("name") or "").strip()
-            if name.startswith("carte_context") and name.endswith(".html"):
-                return name
-    except Exception:
-        pass
-
+    for name in names:
+        if name.startswith("carte_context") and name.endswith(".html"):
+            return name
     return CARTE_CONTEXT_FILENAME
 
 
+def _unwrap_folium_notebook_html(content: bytes) -> bytes:
+    """Anciennes cartes Latresne : fragment Jupyter Folium, pas une page HTML."""
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        return content
+    if "Make this Notebook Trusted" not in text:
+        return content
+    match = re.search(r'srcdoc="([^"]*)"', text)
+    if not match:
+        return content
+    return unescape(match.group(1)).encode("utf-8")
+
+
 @router.get("/{commune_slug}/carto/{pipeline_slug}")
-def serve_carto_context_html(commune_slug: str, pipeline_slug: str):
+def serve_carto_context_html(
+    commune_slug: str,
+    pipeline_slug: str,
+    vue: str = Query(default="2d"),
+):
     """
-    Proxy public : sert la carte HTML gelée depuis Supabase Storage
-    sous une URL propre (sans domaine supabase.co dans le CUA).
+    Proxy public : carte HTML gelée depuis Supabase Storage.
+    Latresne / Argelès : GET .../carto/{slug} (2D) et .../carto/{slug}?vue=3d
     """
     slug = (commune_slug or "").strip().lower()
-    if slug not in COMMUNE_CUA_CATALOGUE:
+    if slug not in CARTO_PUBLIC_COMMUNES:
         raise HTTPException(status_code=404, detail="Commune introuvable")
 
     pid = (pipeline_slug or "").strip()
@@ -178,7 +236,7 @@ def serve_carto_context_html(commune_slug: str, pipeline_slug: str):
     if not supabase_url:
         raise HTTPException(status_code=502, detail="Stockage indisponible")
 
-    remote = storage_object_path(pid, _resolve_carto_context_filename(pid))
+    remote = storage_object_path(pid, _resolve_carto_context_filename(pid, slug, vue))
     src = f"{supabase_url}/storage/v1/object/public/{SUPABASE_BUCKET}/{remote}"
 
     try:
@@ -191,8 +249,12 @@ def serve_carto_context_html(commune_slug: str, pipeline_slug: str):
     if r.status_code != 200:
         raise HTTPException(status_code=502, detail=f"Erreur stockage ({r.status_code})")
 
+    body = r.content
+    if slug == "latresne" and (vue or "2d").strip().lower() not in {"3d", "3"}:
+        body = _unwrap_folium_notebook_html(body)
+
     return Response(
-        content=r.content,
+        content=body,
         media_type="text/html; charset=utf-8",
         headers={
             "Cache-Control": "public, max-age=300",

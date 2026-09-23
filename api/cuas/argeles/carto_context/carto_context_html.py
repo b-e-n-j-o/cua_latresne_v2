@@ -85,6 +85,15 @@ def render_carto_context_html(
     }}
     .legend__head {{ padding: 10px 12px 6px; border-bottom: 1px solid #e5e7eb; }}
     .legend__head h2 {{ margin: 0; font-size: 13px; color: #111; }}
+    .seg {{
+      display: flex; margin-top: 8px; border: 1px solid #cbd5e1;
+      border-radius: 6px; overflow: hidden;
+    }}
+    .seg button {{
+      flex: 1; border: none; background: #f8fafc; color: #475569;
+      font-size: 11px; padding: 6px 4px; cursor: pointer;
+    }}
+    .seg button.on {{ background: #1e3a5f; color: #fff; font-weight: 600; }}
     .legend__scroll {{ overflow-y: auto; padding: 6px 8px 10px; flex: 1; }}
     .fam {{ margin-top: 6px; }}
     .fam__row {{ display: flex; align-items: center; gap: 6px; padding: 4px 2px; }}
@@ -121,7 +130,13 @@ def render_carto_context_html(
       {f" · {surface:.0f} m²" if surface else ""}</p>
   </div>
   <aside class="legend" id="legend">
-    <div class="legend__head"><h2>Couches &amp; entités</h2></div>
+    <div class="legend__head">
+      <h2>Couches &amp; entités</h2>
+      <div class="seg" id="clip-seg">
+        <button type="button" data-clip="uf" class="on">Unité foncière</button>
+        <button type="button" data-clip="alentours">Alentours</button>
+      </div>
+    </div>
     <div class="legend__scroll" id="legend-scroll"></div>
   </aside>
   <script src="https://unpkg.com/@turf/turf@7.2.0/dist/turf.min.js"></script>
@@ -129,21 +144,114 @@ def render_carto_context_html(
   <script>
     const DATA = {data_json};
 
+    const DEFAULT_LAYER_IDS = new Set(
+      DATA.layers
+        .filter(l => l.layer_id === "zonage_plu" || l.legend === "zonage")
+        .map(l => l.layer_id)
+    );
+
     const state = {{
-      visibleLayers: new Set(DATA.layers.map(l => l.layer_id)),
+      clipMode: "uf",
+      visibleLayers: new Set(DEFAULT_LAYER_IDS),
       visibleGroups: {{}},
-      expandedLayers: new Set(),
-      expandedFamilies: new Set(),
+      expandedLayers: new Set(DEFAULT_LAYER_IDS),
+      expandedFamilies: new Set(
+        DATA.layers.filter(l => DEFAULT_LAYER_IDS.has(l.layer_id)).map(l => l.family_title)
+      ),
     }};
     for (const layer of DATA.layers) {{
       const keys = layer.legend_items.map(i => i.key);
-      state.visibleGroups[layer.layer_id] = new Set(keys);
-      state.expandedLayers.add(layer.layer_id);
+      state.visibleGroups[layer.layer_id] = DEFAULT_LAYER_IDS.has(layer.layer_id)
+        ? new Set(keys)
+        : new Set();
     }}
-    for (const layer of DATA.layers) state.expandedFamilies.add(layer.family_title);
 
     const mapLayerIds = {{}};
     const mapSourceIds = {{}};
+
+    const clipCache = {{}};
+
+    function clipFeatureToUf(feat) {{
+      const uf = DATA.parcelle;
+      if (!feat || !feat.geometry || !uf) return null;
+      const t = feat.geometry.type;
+      try {{
+        if (t === "Point") {{
+          return turf.booleanPointInPolygon(feat, uf) ? feat : null;
+        }}
+        if (t === "MultiPoint") {{
+          const coords = feat.geometry.coordinates.filter(c =>
+            turf.booleanPointInPolygon(turf.point(c), uf)
+          );
+          if (!coords.length) return null;
+          return Object.assign({{}}, feat, {{ geometry: {{ type: "MultiPoint", coordinates: coords }} }});
+        }}
+        if (t === "LineString" || t === "MultiLineString") {{
+          const parts = [];
+          const flat = turf.flatten(feat);
+          for (const line of flat.features) {{
+            let pieces;
+            try {{ pieces = turf.lineSplit(line, uf); }}
+            catch (e) {{ pieces = {{ features: [line] }}; }}
+            const cands = (pieces.features && pieces.features.length) ? pieces.features : [line];
+            for (const seg of cands) {{
+              const len = turf.length(seg);
+              const mid = turf.along(seg, (len || 0) / 2);
+              if (turf.booleanPointInPolygon(mid, uf) && seg.geometry && seg.geometry.type === "LineString") {{
+                parts.push(seg.geometry.coordinates);
+              }}
+            }}
+          }}
+          if (!parts.length) return null;
+          const geometry = parts.length === 1
+            ? {{ type: "LineString", coordinates: parts[0] }}
+            : {{ type: "MultiLineString", coordinates: parts }};
+          return Object.assign({{}}, feat, {{ geometry }});
+        }}
+        const inter = turf.intersect(feat, uf);
+        if (!inter || !inter.geometry) return null;
+        return Object.assign({{}}, feat, {{ geometry: inter.geometry }});
+      }} catch (e) {{
+        return (feat.properties && feat.properties.intersects_parcel) ? feat : null;
+      }}
+    }}
+
+    function featuresInMode(layer) {{
+      if (state.clipMode !== "uf") return layer.features || [];
+      if (!clipCache[layer.layer_id]) {{
+        clipCache[layer.layer_id] = (layer.features || [])
+          .filter(f => f.properties && f.properties.intersects_parcel)
+          .map(clipFeatureToUf)
+          .filter(Boolean);
+      }}
+      return clipCache[layer.layer_id];
+    }}
+
+    function itemCountInMode(layer, key) {{
+      return featuresInMode(layer).filter(f => f.properties && f.properties._studyKey === key).length;
+    }}
+
+    function applySources() {{
+      if (!map) return;
+      for (const layer of DATA.layers) {{
+        const src = map.getSource(sid(layer.layer_id));
+        if (src) src.setData({{ type: "FeatureCollection", features: featuresInMode(layer) }});
+      }}
+      if (map.getLayer("ctx-buffer-line")) {{
+        map.setLayoutProperty("ctx-buffer-line", "visibility",
+          state.clipMode === "uf" ? "none" : "visible");
+      }}
+    }}
+
+    function setClipMode(mode) {{
+      state.clipMode = mode === "uf" ? "uf" : "alentours";
+      document.querySelectorAll("#clip-seg [data-clip]").forEach(btn => {{
+        btn.classList.toggle("on", btn.getAttribute("data-clip") === state.clipMode);
+      }});
+      applySources();
+      refreshMap();
+      renderLegend();
+    }}
 
     function sid(layerId) {{ return "ctx-src-" + layerId.replace(/[^a-zA-Z0-9_-]/g, "_"); }}
     function lid(layerId, suffix) {{ return "ctx-" + layerId.replace(/[^a-zA-Z0-9_-]/g, "_") + "-" + suffix; }}
@@ -177,7 +285,9 @@ def render_carto_context_html(
       if (!layer) return;
       if (on) {{
         state.visibleLayers.add(layerId);
-        state.visibleGroups[layerId] = new Set(layer.legend_items.map(i => i.key));
+        state.visibleGroups[layerId] = new Set(
+          layer.legend_items.filter(i => itemCountInMode(layer, i.key) > 0).map(i => i.key)
+        );
       }} else {{
         state.visibleLayers.delete(layerId);
         state.visibleGroups[layerId] = new Set();
@@ -321,6 +431,7 @@ def render_carto_context_html(
       }}
 
       addStudyZoneOverlays();
+      applySources();
 
       map.on("click", (e) => {{
         const features = map.queryRenderedFeatures(e.point, {{ layers: clickable }});
@@ -345,11 +456,13 @@ def render_carto_context_html(
         else if (g.type === "MultiPolygon") g.coordinates.forEach(poly => poly.forEach(ring));
       }};
       if (DATA.parcelle) extend(DATA.parcelle);
-      for (const layer of DATA.layers) layer.features.forEach(extend);
-      if (!bounds.isEmpty()) map.fitBounds(bounds, {{ padding: 60, maxZoom: 17 }});
+      if (!bounds.isEmpty()) map.fitBounds(bounds, {{ padding: 80, maxZoom: 17 }});
 
       buildLegend();
       refreshMap();
+      document.querySelectorAll("#clip-seg [data-clip]").forEach(btn => {{
+        btn.onclick = () => setClipMode(btn.getAttribute("data-clip"));
+      }});
     }});
 
     function toggleGroup(layerId, key) {{
@@ -368,6 +481,7 @@ def render_carto_context_html(
       root.innerHTML = "";
       const byFam = {{}};
       for (const layer of DATA.layers) {{
+        if (featuresInMode(layer).length === 0) continue;
         if (!byFam[layer.family_title]) byFam[layer.family_title] = [];
         byFam[layer.family_title].push(layer);
       }}
@@ -393,7 +507,9 @@ def render_carto_context_html(
           for (const l of layers) {{
             if (checked) {{
               state.visibleLayers.add(l.layer_id);
-              state.visibleGroups[l.layer_id] = new Set(l.legend_items.map(i => i.key));
+              state.visibleGroups[l.layer_id] = new Set(
+                l.legend_items.filter(i => itemCountInMode(l, i.key) > 0).map(i => i.key)
+              );
             }} else {{
               state.visibleLayers.delete(l.layer_id);
               state.visibleGroups[l.layer_id] = new Set();
@@ -410,12 +526,16 @@ def render_carto_context_html(
           const exp = state.expandedLayers.has(layer.layer_id);
           const layerDiv = document.createElement("div");
           layerDiv.className = "layer";
-          const hits = layer.features.filter(f => f.properties && f.properties.intersects_parcel).length;
+          const n = featuresInMode(layer).length;
+          const visibleItems = (layer.filterable ? layer.legend_items : [])
+            .filter(i => itemCountInMode(layer, i.key) > 0);
+          const sole = visibleItems.length === 1 ? visibleItems[0].label : null;
+          const meta = sole ? (esc(sole) + " · " + n) : String(n);
           layerDiv.innerHTML = `<div class="layer__row">
             <button class="btn" data-layer-exp="${{layer.layer_id}}">${{exp ? "▾" : "▸"}}</button>
             <input type="checkbox" ${{on ? "checked" : ""}} data-layer="${{layer.layer_id}}"/>
             <span class="layer__title ${{on ? "" : "off"}}">${{esc(layer.title)}}
-              <span class="layer__meta">(${{layer.count}}${{hits ? ", " + hits + " sur UF" : ""}})</span></span>
+              <span class="layer__meta">(${{meta}})</span></span>
           </div>`;
           famDiv.appendChild(layerDiv);
 
@@ -426,20 +546,20 @@ def render_carto_context_html(
           }};
           layerDiv.querySelector("[data-layer]").onchange = (e) => setLayerVisible(layer.layer_id, e.target.checked);
 
-          if (!exp || !layer.filterable || layer.legend_items.length <= 1) continue;
+          if (!exp || !layer.filterable || visibleItems.length === 0) continue;
 
           const groups = document.createElement("div");
           groups.className = "groups";
 
-          for (const item of layer.legend_items) {{
-            if (item.count === 0) continue;
+          for (const item of visibleItems) {{
             const gOn = on && state.visibleGroups[layer.layer_id].has(item.key);
+            const cnt = itemCountInMode(layer, item.key);
             const row = document.createElement("div");
             row.className = "grp";
             row.innerHTML = `<input type="checkbox" ${{gOn ? "checked" : ""}} ${{on ? "" : "disabled"}}/>
               <span class="swatch" style="background:${{item.color}};${{on ? "" : "opacity:0.35"}}"></span>
               <span class="grp__label ${{on ? "" : "disabled"}}" title="${{esc(item.label)}}">${{esc(item.label)}}</span>
-              <span class="grp__count">${{item.count}}</span>`;
+              <span class="grp__count">${{cnt}}</span>`;
             if (on) row.querySelector("input").onchange = () => toggleGroup(layer.layer_id, item.key);
             groups.appendChild(row);
           }}

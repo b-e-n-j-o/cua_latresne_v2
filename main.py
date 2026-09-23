@@ -60,7 +60,7 @@ from api.cuas.argeles.cua_router import router as cua_generate_router
 from api.cuas.argeles.parcelles_intersections_routes import router as parcelles_intersections_router
 from app.routers.pipelines_supabase import router as pipelines_supabase_router
 from app.routers.site_account import router as site_account_router
-from api.communes.latresne.cuas.CUA.docx import cua_docx_viewer_routes
+from api.cuas.latresne.CUA.docx import cua_docx_viewer_routes
 from services.history.centroid_history import router as centroid_history_router
 import services.history.centroid_history as centroid_history_module
 from services.history.suivi import router as suivi_router

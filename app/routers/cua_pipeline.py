@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from api.communes.latresne.cuas.CERFA_ANALYSE.auth_utils import get_user_insee_list
+from api.cuas.latresne.CERFA_ANALYSE.auth_utils import get_user_insee_list
 from app.pipeline_jobs import run_pipeline_from_parcelles_async
 from app.state import JOBS
 
@@ -68,6 +68,9 @@ async def analyze_parcelles(req: ParcelleRequest):
         "filename": f"{len(req.parcelles)} parcelle(s)",
         "user_id": req.user_id,
         "user_email": req.user_email,
+        "parcelles": req.parcelles,
+        "code_insee": req.code_insee,
+        "commune_nom": req.commune_nom or "latresne",
     }
 
     user_insee_list = get_user_insee_list(req.user_id) if req.user_id else []
@@ -133,6 +136,9 @@ async def analyze_parcelles_with_json_data(req: ParcelleWithCerfaDataRequest):
         "filename": f"{len(req.parcelles)} parcelle(s)",
         "user_id": req.user_id,
         "user_email": req.user_email,
+        "parcelles": req.parcelles,
+        "code_insee": req.code_insee,
+        "commune_nom": req.commune_nom or "latresne",
     }
 
     user_insee_list = get_user_insee_list(req.user_id) if req.user_id else []

@@ -228,7 +228,7 @@ def build_layer_legends(
         "tip": carto_meta.get("tip"),
         "group": carto_meta.get("group"),
         "legend": carto_meta.get("legend"),
-        "filterable": filterable and len(legend_items) > 1,
+        "filterable": bool(filterable),
         "field_label": _field_label(layer_id, carto_meta, field),
         "legend_items": legend_items,
         "features": features,

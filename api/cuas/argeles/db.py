@@ -122,6 +122,7 @@ def persist_cua(
     pipelines_schema: str | None = None,
     wkt: str | None = None,
     carte_context_url: str | None = None,
+    carte_3d_url: str | None = None,
     docx_remote_path: str | None = None,
 ) -> dict:
     """Upload le CUA DOCX puis upsert la ligne dans <pipelines_schema>.pipelines."""
@@ -164,6 +165,7 @@ def persist_cua(
         "bucket_path": slug,
         "output_cua": cua_url,
         "carte_2d_url": carte_context_url,
+        "carte_3d_url": carte_3d_url,
         "parcelles": refs,
         "user_id": user_id,
         "user_email": user_email,

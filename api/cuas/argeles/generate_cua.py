@@ -35,6 +35,10 @@ from api.cuas.argeles.cua_slack import notify_cua_generated
 from api.cuas.argeles.db import SUPABASE_BUCKET, get_supabase, logger, persist_cua, upload_file
 from api.cuas.argeles.intersections import load_catalogue, run_intersections
 from api.cuas.argeles.uf import build_uf
+from api.cuas.latresne.CUA.map3d.terrain_frozen import (
+    build_frozen_terrain_payload_from_wkt,
+    write_frozen_terrain_files,
+)
 from services.history.project_directory import ensure_project_directory, register_project_file
 
 _CUAS_DIR = Path(__file__).resolve().parent
@@ -199,6 +203,11 @@ def generate_cua_for_parcelles(
 
     carte_context_url: str | None = None
     carte_storage_url: str | None = None
+    carte_3d_url: str | None = None
+    carte_3d_storage_url: str | None = None
+    html_3d_path: Path | None = None
+    dxf_path: Path | None = None
+    topo_dxf_url: str | None = None
 
     with tempfile.TemporaryDirectory(prefix="cua_") as tmp:
         tmp_path = Path(tmp)
@@ -215,6 +224,19 @@ def generate_cua_for_parcelles(
         html_path.write_text(html_carto, encoding="utf-8")
         logger.info(f"Carte contexte HTML ({html_path.stat().st_size} octets)")
 
+        try:
+            payload_3d = build_frozen_terrain_payload_from_wkt(uf.wkt, exaggeration=1.5)
+            res3d = write_frozen_terrain_files(
+                payload_3d, tmp_path, html_name="carte_3d.html"
+            )
+            html_3d_path = Path(res3d["path"])
+            if res3d.get("dxf_path"):
+                dxf_path = Path(res3d["dxf_path"])
+            logger.info(f"Carte 3D figée ({html_3d_path.stat().st_size} octets)")
+        except Exception as exc:
+            logger.warning("Carte 3D CUA non générée (%s) : %s", slug, exc)
+            html_3d_path = None
+
         if persist:
             remote_html = storage_object_path(pipeline_slug, carte_filename)
             carte_storage_url = upload_file(
@@ -224,9 +246,28 @@ def generate_cua_for_parcelles(
             )
             carte_context_url = friendly_carto_url(slug, pipeline_slug)
             logger.info(f"Carte contexte : {carte_context_url}")
+            if html_3d_path and html_3d_path.exists():
+                remote_3d = storage_object_path(pipeline_slug, "carte_3d.html")
+                carte_3d_storage_url = upload_file(
+                    str(html_3d_path),
+                    remote_3d,
+                    content_type="text/html; charset=utf-8",
+                )
+                carte_3d_url = f"{carte_context_url}?vue=3d"
+                logger.info(f"Carte 3D : {carte_3d_url}")
+            if dxf_path and dxf_path.exists():
+                remote_dxf = storage_object_path(pipeline_slug, "topo_mnt.dxf")
+                topo_dxf_url = upload_file(
+                    str(dxf_path),
+                    remote_dxf,
+                    content_type="application/dxf",
+                )
+                logger.info(f"DXF topo : {topo_dxf_url}")
 
         dossier_merged["carte_context_url"] = carte_context_url
         rapport["carte_context_url"] = carte_context_url
+        dossier_merged["carte_3d_url"] = carte_3d_url
+        rapport["carte_3d_url"] = carte_3d_url
 
         docx_path = tmp_path / docx_filename
         build_cua(dossier_merged, rapport, str(docx_path), config=builder_config)
@@ -247,6 +288,8 @@ def generate_cua_for_parcelles(
             "dossier": dossier_merged,
             "rapport": rapport,
             "carte_context_url": carte_context_url,
+            "carte_3d_url": carte_3d_url,
+            "topo_dxf_url": topo_dxf_url,
             "carto_context": carto_payload,
         }
 
@@ -264,12 +307,18 @@ def generate_cua_for_parcelles(
                 user_email=user_email,
                 wkt=uf.wkt,
                 carte_context_url=carte_context_url,
+                carte_3d_url=carte_3d_url,
                 extra={
                     "n_couches_concernees": rapport["n_couches_concernees"],
                     "dossier": dossier_merged,
                     "carte_context_storage_url": carte_storage_url,
                     "carte_context_filename": carte_filename,
                     "cua_docx_filename": docx_filename,
+                    "carte_3d_url": carte_3d_url,
+                    "carte_3d_storage_url": carte_3d_storage_url,
+                    "carte_3d_filename": "carte_3d.html" if carte_3d_url else None,
+                    "topo_dxf_url": topo_dxf_url,
+                    "topo_dxf_filename": "topo_mnt.dxf" if topo_dxf_url else None,
                 },
             )
             result["output_cua"] = persisted["cua_url"]
@@ -308,6 +357,34 @@ def generate_cua_for_parcelles(
                         storage_bucket=SUPABASE_BUCKET,
                         mime_type="text/html; charset=utf-8",
                         size_bytes=html_path.stat().st_size,
+                        uploaded_by=user_id,
+                        source="cua_generate_v2",
+                    )
+                if carte_3d_url and carte_3d_storage_url and html_3d_path:
+                    register_project_file(
+                        sb,
+                        slug=pipeline_slug,
+                        file_kind="carte_3d_html",
+                        filename="carte_3d.html",
+                        storage_path=storage_object_path(pipeline_slug, "carte_3d.html"),
+                        public_url=carte_3d_url,
+                        storage_bucket=SUPABASE_BUCKET,
+                        mime_type="text/html; charset=utf-8",
+                        size_bytes=html_3d_path.stat().st_size,
+                        uploaded_by=user_id,
+                        source="cua_generate_v2",
+                    )
+                if topo_dxf_url and dxf_path and dxf_path.exists():
+                    register_project_file(
+                        sb,
+                        slug=pipeline_slug,
+                        file_kind="topo_dxf",
+                        filename="topo_mnt.dxf",
+                        storage_path=storage_object_path(pipeline_slug, "topo_mnt.dxf"),
+                        public_url=topo_dxf_url,
+                        storage_bucket=SUPABASE_BUCKET,
+                        mime_type="application/dxf",
+                        size_bytes=dxf_path.stat().st_size,
                         uploaded_by=user_id,
                         source="cua_generate_v2",
                     )

@@ -8,6 +8,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+from api.cuas.latresne.cua_slack import notify_cua_failed, notify_cua_generated
 from app.state import JOBS
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -32,9 +33,8 @@ async def run_pipeline_from_parcelles_async(
         pipeline_script = (
             PROJECT_ROOT
             / "api"
-            / "communes"
-            / "latresne"
             / "cuas"
+            / "latresne"
             / "INTERSECTIONS"
             / "pipeline_from_parcelles.py"
         )
@@ -167,6 +167,7 @@ async def run_pipeline_from_parcelles_async(
             JOBS[job_id]["current_step"] = "error"
 
         print(f"🏁 [JOB {job_id}] Terminé avec statut : {JOBS[job_id]['status']}")
+        _notify_latresne_job(job_id)
 
     except Exception as e:
         print(f"❌ Exception non bloquante: {e}")
@@ -174,3 +175,28 @@ async def run_pipeline_from_parcelles_async(
         JOBS[job_id]["error"] = str(e)
         JOBS[job_id]["current_step"] = "error"
         JOBS[job_id]["end_time"] = datetime.now().isoformat()
+        _notify_latresne_job(job_id)
+
+
+def _notify_latresne_job(job_id: str) -> None:
+    job = JOBS.get(job_id) or {}
+    refs = job.get("parcelles") or []
+    user_email = job.get("user_email")
+    user_id = job.get("user_id")
+    commune = (job.get("commune_nom") or "latresne").strip().lower() or "latresne"
+    if job.get("status") == "success":
+        result = dict(job.get("result_enhanced") or {})
+        result.setdefault("commune_slug", commune)
+        result.setdefault("commune", commune)
+        result.setdefault("slug", job.get("slug"))
+        result["parcelles"] = refs
+        result["n_parcelles"] = len(refs)
+        notify_cua_generated(result, user_email=user_email, user_id=user_id)
+        return
+    notify_cua_failed(
+        commune_slug=commune,
+        refs=refs,
+        user_email=user_email,
+        error=str(job.get("error") or f"returncode={job.get('returncode')}"),
+        error_type="pipeline_job",
+    )

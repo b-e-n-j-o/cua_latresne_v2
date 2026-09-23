@@ -69,6 +69,7 @@ class GenerateCuaResponse(BaseModel):
     output_cua: Optional[str] = None
     cua_viewer_url: Optional[str] = None
     carte_context_url: Optional[str] = None
+    carte_3d_url: Optional[str] = None
     bucket_path: Optional[str] = None
     computed_at: str
 
@@ -147,6 +148,7 @@ async def generate_cua(
         output_cua=result.get("output_cua"),
         cua_viewer_url=result.get("cua_viewer_url"),
         carte_context_url=result.get("carte_context_url"),
+        carte_3d_url=result.get("carte_3d_url"),
         bucket_path=result.get("bucket_path"),
         computed_at=result["computed_at"],
     )
