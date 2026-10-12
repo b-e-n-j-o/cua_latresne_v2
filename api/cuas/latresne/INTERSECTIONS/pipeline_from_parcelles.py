@@ -165,6 +165,7 @@ def run_pipeline_from_parcelles(
     out_dir: str = None,
     demandeur: dict = None,
     skip_3d: bool = False,
+    include_dxf: bool = False,
 ):
     """
     Pipeline complet depuis une liste de parcelles.
@@ -399,10 +400,11 @@ def run_pipeline_from_parcelles(
     if user_email:
         os.environ["USER_EMAIL"] = user_email
 
-    # Skip 3D désactivé temporairement : on force la génération 3D.
+    # Skip 3D désactivé temporairement : on force la génération 3D HTML.
     # Ancien comportement (à réactiver si besoin) :
     # skip_3d = skip_3d or (os.getenv("SKIP_3D") == "1")
     skip_3d = False
+    include_dxf = include_dxf or (os.getenv("INCLUDE_DXF") == "1")
 
     # Déterminer le nom de la commune pour le sous-orchestrateur
     commune_name = commune_nom or "latresne"  # Par défaut latresne
@@ -413,6 +415,7 @@ def run_pipeline_from_parcelles(
         commune=commune_name.lower(),
         code_insee=code_insee,
         skip_3d=skip_3d,
+        include_dxf=include_dxf,
     )
     log_memory("APRES_CUA")
 
@@ -441,6 +444,7 @@ if __name__ == "__main__":
     parser.add_argument("--user-email", default=None, help="Email utilisateur")
     parser.add_argument("--demandeur", default=None, help="Données du demandeur au format JSON")
     parser.add_argument("--skip-3d", action="store_true", help="Ne pas générer la carte 3D (~150 MB économisés)")
+    parser.add_argument("--include-dxf", action="store_true", help="Générer le pack DXF CAO (architectes)")
 
     args = parser.parse_args()
 
@@ -468,6 +472,7 @@ if __name__ == "__main__":
             out_dir=args.out_dir,
             demandeur=demandeur,
             skip_3d=args.skip_3d,
+            include_dxf=args.include_dxf,
         )
 
         print("\n📦 RÉSULTAT FINAL :")

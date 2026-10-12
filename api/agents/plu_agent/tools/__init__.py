@@ -21,6 +21,7 @@ from .geoportail_contexte_live import (
     get_geoportail_contexte_live,
 )
 from .parcelle import DECL_PARCELLE, get_parcelle
+from .autorisations_parcelle import DECL_AUTORISATIONS_PARCELLE, autorisations_parcelle
 from .resolve_commune_insee import DECL_RESOLVE_COMMUNE_INSEE, resolve_commune_insee
 from .reglement_ppr import DECL_REGLEMENT_PPR, get_ppr_reglement
 from .reglement_pprif import DECL_REGLEMENT_PPRIF, get_pprif_reglement
@@ -36,6 +37,7 @@ from .recherche_articles import (
 
 TOOL_DECLARATIONS_BY_NAME: dict[str, types.FunctionDeclaration] = {
     "get_parcelle": DECL_PARCELLE,
+    "autorisations_parcelle": DECL_AUTORISATIONS_PARCELLE,
     "get_contexte_parcelle": DECL_CONTEXTE_PARCELLE,
     "get_geoportail_contexte_live": DECL_GEOPORTAIL_CONTEXTE_LIVE,
     "resolve_commune_insee": DECL_RESOLVE_COMMUNE_INSEE,
@@ -60,6 +62,7 @@ TOOL_DECLARATIONS = types.Tool(
 
 TOOL_FUNCTIONS = {
     "get_parcelle": get_parcelle,
+    "autorisations_parcelle": autorisations_parcelle,
     "get_contexte_parcelle": get_contexte_parcelle,
     "get_geoportail_contexte_live": get_geoportail_contexte_live,
     "resolve_commune_insee": resolve_commune_insee,
@@ -73,6 +76,11 @@ TOOL_FUNCTIONS = {
 }
 
 TOOL_RESPONSE_SHAPES = {
+    "autorisations_parcelle": {
+        "autorisations": "array — id, type, date, etat, nature, nb_logements, methode",
+        "count": "integer",
+        "error": "string | null",
+    },
     "get_parcelle": {
         "parcelle": "object | null — une parcelle si seule",
         "parcelles": "array — détail par feuille cadastrale",
@@ -305,6 +313,7 @@ __all__ = [
     "build_tool_declarations",
     "build_dispatch",
     "get_parcelle",
+    "autorisations_parcelle",
     "get_contexte_parcelle",
     "get_geoportail_contexte_live",
     "resolve_commune_insee",

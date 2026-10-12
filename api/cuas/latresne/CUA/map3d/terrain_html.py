@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 
 
-def render_terrain_html(payload: dict) -> str:
+def render_terrain_html(payload: dict, extra_css: str = "", extra_js: str = "") -> str:
     data = json.dumps(payload, ensure_ascii=False)
     return f"""<!DOCTYPE html>
 <html lang="fr">
@@ -21,9 +21,15 @@ def render_terrain_html(payload: dict) -> str:
     position:absolute; left:12px; top:12px; z-index:2;
     color:#e8e8ea; font-size:12px; line-height:1.45;
     background:rgba(13,13,16,.72); padding:10px 12px; border-radius:8px;
-    pointer-events:none;
+    pointer-events:none; max-width:320px;
   }}
   #hud strong {{ color:#ffea00; font-weight:600; }}
+  #hud .layer-toggle {{
+    pointer-events:auto; display:flex; align-items:flex-start; gap:8px;
+    margin-top:8px; cursor:pointer; color:#bfdbfe;
+  }}
+  #hud .layer-toggle input {{ margin-top:2px; }}
+{extra_css}
 </style>
 <script type="importmap">
 {{
@@ -128,6 +134,28 @@ function contourPoints(geojson, elevations, data) {{
   return points;
 }}
 
+function makeLabelSprite(text) {{
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 512;
+  canvas.height = 128;
+  ctx.fillStyle = 'rgba(13,13,16,0.75)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = '#4fc3f7';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
+  ctx.fillStyle = '#e8f7ff';
+  ctx.font = 'bold 48px system-ui,sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+  const tex = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({{ map: tex, depthTest: false }});
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(18, 4.5, 1);
+  return sprite;
+}}
+
 const elevations = decodeElevations(T.elevations_b64);
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({{ canvas, antialias: true }});
@@ -168,12 +196,85 @@ for (const g of (T.contours || [])) {{
   scene.add(line);
 }}
 
-document.getElementById('hud').innerHTML =
+for (const parcel of (T.parcels || [])) {{
+  const pts = contourPoints(parcel.geometry, elevations, T);
+  if (pts.length >= 2) {{
+    scene.add(new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({{ color: 0x4fc3f7, linewidth: 1 }})
+    ));
+  }}
+  const c = parcel.centroid;
+  if (c && c.length >= 2) {{
+    const elev = sampleElevAt(c[0], c[1], elevations, T.width, T.height, T.resolution_m);
+    const z = (elev - T.elev_min) * T.exaggeration + CONTOUR_Z_OFFSET + 1.5;
+    const sprite = makeLabelSprite(parcel.label || '');
+    sprite.position.set(c[0], c[1], z);
+    scene.add(sprite);
+  }}
+}}
+
+function ringToShape(ring) {{
+  const s = new THREE.Shape();
+  ring.forEach((p, i) => {{ i === 0 ? s.moveTo(p[0], p[1]) : s.lineTo(p[0], p[1]); }});
+  return s;
+}}
+
+const coteGroup = new THREE.Group();
+coteGroup.name = 'cote_seuil';
+for (const zone of (T.cote_seuil || [])) {{
+  const z = (zone.cote - T.elev_min) * T.exaggeration;
+  for (const poly of (zone.polygons || [])) {{
+    const exterior = poly.exterior;
+    if (!exterior || exterior.length < 3) continue;
+    const shape = ringToShape(exterior);
+    for (const hole of (poly.holes || [])) {{
+      if (hole.length < 3) continue;
+      const path = new THREE.Path();
+      hole.forEach((p, i) => {{ i === 0 ? path.moveTo(p[0], p[1]) : path.lineTo(p[0], p[1]); }});
+      shape.holes.push(path);
+    }}
+    const plane = new THREE.Mesh(
+      new THREE.ShapeGeometry(shape),
+      new THREE.MeshLambertMaterial({{
+        color: 0x2563eb, transparent: true, opacity: 0.42,
+        side: THREE.DoubleSide, depthWrite: false
+      }})
+    );
+    plane.position.z = z;
+    coteGroup.add(plane);
+    const outline = exterior.concat([exterior[0]]).map((p) => new THREE.Vector3(p[0], p[1], z));
+    coteGroup.add(new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(outline),
+      new THREE.LineBasicMaterial({{ color: 0x1d4ed8 }})
+    ));
+  }}
+  if (zone.centroid && zone.centroid.length >= 2) {{
+    const sprite = makeLabelSprite(zone.label || ('Cote ' + zone.cote + ' m NGF'));
+    sprite.position.set(zone.centroid[0], zone.centroid[1], z + 2);
+    coteGroup.add(sprite);
+  }}
+}}
+if (coteGroup.children.length) scene.add(coteGroup);
+
+const hud = document.getElementById('hud');
+hud.innerHTML =
   '<strong>Carte 3D figée</strong><br/>' +
   (T.frozen_at ? ('Générée le ' + T.frozen_at.replace('T', ' ').slice(0, 19) + ' UTC<br/>') : '') +
   'MNT ' + T.width + '×' + T.height + ' · ' + T.resolution_m + ' m<br/>' +
   'Z ' + T.elev_min.toFixed(1) + ' – ' + T.elev_max.toFixed(1) + ' m NGF<br/>' +
-  'Buffer ' + (T.buffer_m || 0) + ' m · UF ' + (T.surface_m2 || 0).toLocaleString('fr-FR') + ' m²';
+  'Buffer ' + (T.buffer_m || 0) + ' m · UF ' + (T.surface_m2 || 0).toLocaleString('fr-FR') + ' m²' +
+  ((T.parcels && T.parcels.length) ? (' · ' + T.parcels.length + ' parcelle(s)') : '') +
+  (coteGroup.children.length
+    ? '<label class="layer-toggle"><input type="checkbox" id="toggle-cote" checked/>' +
+      '<span>Cote de seuil PPRi (plan bleu à l’altitude NGF)</span></label>'
+    : '');
+const toggleCote = document.getElementById('toggle-cote');
+if (toggleCote) {{
+  toggleCote.addEventListener('change', () => {{ coteGroup.visible = toggleCote.checked; }});
+}}
+
+{extra_js}
 
 function onResize() {{
   camera.aspect = window.innerWidth / window.innerHeight;

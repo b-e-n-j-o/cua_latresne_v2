@@ -77,6 +77,9 @@ from api.reglements.router_reglements import router as reglements_admin_router
 from api.reglements.router_documents import router as documents_router
 from api.raa.raa_api import router as raa_router
 from api.veille_sig.cadastre.cadastre_veille_api import router as cadastre_veille_router
+from api.historique.filiation_router import router as filiation_router
+from api.cuas.common.subdivisions_tiles import router as subdivisions_tiles_router
+from api.autorisations.router import router as autorisations_router
 from api.veille_sig.cadastre.cadastre_veille_cron import router as cadastre_veille_cron_router
 
 
@@ -329,6 +332,9 @@ app.include_router(communes_parcelles_geojson_router)
 app.include_router(parcelles_via_adresse_router)
 app.include_router(patrimoine_router)
 app.include_router(parcelle_geometrie_router)
+app.include_router(filiation_router)
+app.include_router(subdivisions_tiles_router)
+app.include_router(autorisations_router)
 app.include_router(tiles_parcelles)
 
 # Analyse CERFA (PDF)

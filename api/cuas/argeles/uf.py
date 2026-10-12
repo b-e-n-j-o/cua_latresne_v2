@@ -27,6 +27,7 @@ class UniteFonciere:
     surface_cadastrale: float   # somme des contenances (surface indicative juridique)
     n_parcelles: int
     parcelles: list = field(default_factory=list)  # [(section, numero), ...]
+    parcelles_geom: list = field(default_factory=list)  # [{section, numero, label, wkt}, ...]
 
 
 def _normalize_section(value: str) -> str:
@@ -78,8 +79,11 @@ def build_uf(refs, engine=None, schema: str = SCHEMA) -> UniteFonciere:
                ST_Area(ST_Union(g))                            AS surface_sig,
                SUM(contenance)                                 AS surface_cad,
                ST_NumGeometries(ST_Multi(ST_Union(g)))         AS n_parts,
-               jsonb_agg(jsonb_build_object('section', section,
-                                            'numero',  numero)) AS found
+               jsonb_agg(jsonb_build_object(
+                   'section', section,
+                   'numero',  numero,
+                   'wkt', ST_AsText(g)
+               )) AS found
         FROM sel
     """)
 
@@ -105,6 +109,16 @@ def build_uf(refs, engine=None, schema: str = SCHEMA) -> UniteFonciere:
     n_parts = int(row["n_parts"] or 1)
 
     db_parcelles = [(f["section"], f["numero"]) for f in found_rows]
+    parcelles_geom = [
+        {
+            "section": str(f.get("section") or "").strip().upper(),
+            "numero": str(f.get("numero") or "").strip(),
+            "label": f"{str(f.get('section') or '').strip().upper()} {str(f.get('numero') or '').strip()}".strip(),
+            "wkt": f.get("wkt") or "",
+        }
+        for f in found_rows
+        if f.get("wkt")
+    ]
 
     surface_sig = float(row["surface_sig"])
     surface_cad = float(row["surface_cad"]) if row["surface_cad"] is not None else surface_sig
@@ -115,6 +129,7 @@ def build_uf(refs, engine=None, schema: str = SCHEMA) -> UniteFonciere:
         surface_cadastrale=round(surface_cad, 2),
         n_parcelles=int(row["n"]),
         parcelles=db_parcelles,
+        parcelles_geom=parcelles_geom,
     )
     sites = f" | {n_parts} site(s)" if n_parts > 1 else ""
     logger.info(

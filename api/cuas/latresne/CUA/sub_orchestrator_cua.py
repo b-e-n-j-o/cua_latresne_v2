@@ -106,6 +106,10 @@ def _storage_content_type(remote_path: str) -> str:
         return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     if lower.endswith(".gpkg"):
         return "application/geopackage+sqlite3"
+    if lower.endswith(".zip"):
+        return "application/zip"
+    if lower.endswith(".dxf"):
+        return "application/dxf"
     return "application/octet-stream"
 
 
@@ -175,6 +179,7 @@ def generer_visualisations_et_cua_depuis_wkt(
     code_insee="33234",
     skip_3d: bool = False,
     skip_gpkg: bool = False,
+    include_dxf: bool = False,
 ):
     OUT_DIR = out_dir
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -223,7 +228,8 @@ def generer_visualisations_et_cua_depuis_wkt(
         wkt_path=str(wkt_path),
         code_insee=code_insee,
         inclure_ppri=True,
-        ppri_table=f"{commune}.pm1_detaillee_gironde"
+        ppri_table=f"{commune}.pm1_detaillee_gironde",
+        parcelles_geom=Path(OUT_DIR) / "parcelles_geom.json",
     )
     log_memory_detailed("CARTE_2D_GENERATED")
 
@@ -247,10 +253,30 @@ def generer_visualisations_et_cua_depuis_wkt(
     url_3d = None
     url_dxf = None
     if not skip_3d:
+        cote_features = None
+        if (commune or "").strip().lower() == "latresne":
+            try:
+                from api.cuas.argeles.db import get_engine
+                from api.cuas.latresne.CUA.map3d.dxf.cote_de_seuil import load_cote_seuil_features
+
+                uf_wkt = Path(wkt_path).read_text(encoding="utf-8")
+                engine = get_engine()
+                with engine.connect() as conn:
+                    dbapi = getattr(conn.connection, "dbapi_connection", None) or conn.connection
+                    cur = dbapi.cursor()
+                    try:
+                        cote_features = load_cote_seuil_features(cur, uf_wkt, 200.0)
+                    finally:
+                        cur.close()
+            except Exception as exc:
+                logger.warning("Cotes de seuil PPRI non chargées pour le DXF : %s", exc)
         res3d = exporter_visualisation_3d_from_wkt(
             wkt_path=wkt_path,
             output_dir=OUT_DIR,
-            exaggeration=1.5
+            exaggeration=1.5,
+            parcels_geom=Path(OUT_DIR) / "parcelles_geom.json",
+            include_dxf=include_dxf,
+            cote_seuil_features=cote_features,
         )
         log_memory_detailed("CARTE_3D_GENERATED")
         path_3d = res3d["path"]
@@ -280,7 +306,7 @@ def generer_visualisations_et_cua_depuis_wkt(
     if path_3d and not skip_3d:
         url_3d_storage = upload_to_supabase(path_3d, remote_3d)
     if path_dxf and Path(path_dxf).exists() and not skip_3d:
-        remote_dxf = f"{remote_dir}/topo_mnt.dxf"
+        remote_dxf = f"{remote_dir}/{Path(path_dxf).name}"
         url_dxf = upload_to_supabase(path_dxf, remote_dxf)
 
     commune_slug = (commune or "latresne").strip().lower() or "latresne"
@@ -488,7 +514,6 @@ def generer_visualisations_et_cua_depuis_wkt(
             "output_cua": cua_url,
             "carte_2d_url": url_2d,
             "carte_3d_url": url_3d,
-            "topo_dxf_url": url_dxf,
             "qr_url": qr_url,
             "pipeline_result_url": result_url,
             "user_id": user_id,
@@ -535,11 +560,11 @@ def generer_visualisations_et_cua_depuis_wkt(
                 supabase_client=supabase,
                 slug=slug,
                 file_kind="topo_dxf",
-                filename="topo_mnt.dxf",
-                storage_path=f"{remote_dir}/topo_mnt.dxf",
+                filename=Path(path_dxf).name,
+                storage_path=f"{remote_dir}/{Path(path_dxf).name}",
                 public_url=url_dxf,
                 storage_bucket=SUPABASE_BUCKET,
-                mime_type="application/dxf",
+                mime_type="application/zip" if str(path_dxf).lower().endswith(".zip") else "application/dxf",
                 size_bytes=Path(path_dxf).stat().st_size,
                 uploaded_by=user_id,
                 source="pipeline_output",

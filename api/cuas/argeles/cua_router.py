@@ -53,6 +53,7 @@ class GenerateCuaRequest(BaseModel):
     refs: list[ParcelleRefIn] = Field(..., min_length=1, max_length=20)
     dossier: DossierIn
     persist: bool = True
+    include_dxf: bool = False
 
 
 class GenerateCuaResponse(BaseModel):
@@ -107,6 +108,7 @@ async def generate_cua(
             persist=body.persist,
             user_id=current_user.id,
             user_email=current_user.email,
+            include_dxf=body.include_dxf,
         )
     except ValueError as exc:
         logger.warning("Génération CUA 400 %s : %s", slug, exc)

@@ -668,14 +668,237 @@ def _empty_users() -> dict[str, Any]:
     }
 
 
+def _empty_raa() -> dict[str, Any]:
+    return {
+        "analyses": 0,
+        "ok": 0,
+        "erreur": 0,
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "last_7d": 0,
+        "last_30d": 0,
+        "cost_7d": 0.0,
+        "cost_30d": 0.0,
+        "by_commune": [],
+        "by_day": _fill_days({}),
+        "recent": [],
+    }
+
+
+def _f(value: Any) -> float:
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _load_raa(conn) -> dict[str, Any]:
+    """Coûts Vertex/Gemini des analyses RAA (`{schema}.raa_analyse`)."""
+    from api.raa.raa_config import RAA_COMMUNES
+
+    now = datetime.now(timezone.utc)
+    week_ago = now - timedelta(days=7)
+    month_ago = now - timedelta(days=_DAY_WINDOW)
+    params = {"week": week_ago, "month": month_ago, "since": month_ago, "lim": _RECENT_LIMIT}
+
+    by_commune: list[dict[str, Any]] = []
+    recent: list[dict[str, Any]] = []
+    day_counts: dict[str, int] = defaultdict(int)
+
+    analyses = ok = err = last_7d = last_30d = 0
+    tokens_in = tokens_out = 0
+    cost_usd = cost_7d = cost_30d = 0.0
+
+    for cfg in RAA_COMMUNES.values():
+        schema = _safe_ident(cfg.schema)
+        if not _table_exists(conn, schema, "raa_analyse"):
+            by_commune.append(
+                {
+                    "slug": cfg.slug,
+                    "label": cfg.commune_label,
+                    "analyses": 0,
+                    "ok": 0,
+                    "erreur": 0,
+                    "tokens_in": 0,
+                    "tokens_out": 0,
+                    "cost_usd": 0.0,
+                    "last_7d": 0,
+                    "last_30d": 0,
+                    "cost_7d": 0.0,
+                    "cost_30d": 0.0,
+                    "table_missing": True,
+                }
+            )
+            continue
+
+        agg = _fetch_one(
+            conn,
+            f"""
+            SELECT
+                COUNT(*)::int AS analyses,
+                COUNT(*) FILTER (
+                    WHERE COALESCE(NULLIF(trim(erreur), ''), '') = ''
+                )::int AS ok,
+                COUNT(*) FILTER (
+                    WHERE COALESCE(NULLIF(trim(erreur), ''), '') <> ''
+                )::int AS erreur,
+                COALESCE(SUM(tokens_in), 0)::bigint AS tokens_in,
+                COALESCE(SUM(tokens_out), 0)::bigint AS tokens_out,
+                COALESCE(SUM(cout_estime), 0)::float AS cost_usd,
+                COUNT(*) FILTER (WHERE created_at >= :week)::int AS last_7d,
+                COUNT(*) FILTER (WHERE created_at >= :month)::int AS last_30d,
+                COALESCE(SUM(cout_estime) FILTER (WHERE created_at >= :week), 0)::float AS cost_7d,
+                COALESCE(SUM(cout_estime) FILTER (WHERE created_at >= :month), 0)::float AS cost_30d
+            FROM {schema}.raa_analyse
+            """,
+            params,
+        )
+        if agg is None:
+            by_commune.append(
+                {
+                    "slug": cfg.slug,
+                    "label": cfg.commune_label,
+                    "analyses": 0,
+                    "ok": 0,
+                    "erreur": 0,
+                    "tokens_in": 0,
+                    "tokens_out": 0,
+                    "cost_usd": 0.0,
+                    "last_7d": 0,
+                    "last_30d": 0,
+                    "cost_7d": 0.0,
+                    "cost_30d": 0.0,
+                    "table_missing": False,
+                }
+            )
+            continue
+
+        n = int(agg.get("analyses") or 0)
+        n_ok = int(agg.get("ok") or 0)
+        n_err = int(agg.get("erreur") or 0)
+        tin = int(agg.get("tokens_in") or 0)
+        tout = int(agg.get("tokens_out") or 0)
+        cost = _f(agg.get("cost_usd"))
+        n7 = int(agg.get("last_7d") or 0)
+        n30 = int(agg.get("last_30d") or 0)
+        c7 = _f(agg.get("cost_7d"))
+        c30 = _f(agg.get("cost_30d"))
+
+        analyses += n
+        ok += n_ok
+        err += n_err
+        tokens_in += tin
+        tokens_out += tout
+        cost_usd += cost
+        last_7d += n7
+        last_30d += n30
+        cost_7d += c7
+        cost_30d += c30
+
+        by_commune.append(
+            {
+                "slug": cfg.slug,
+                "label": cfg.commune_label,
+                "analyses": n,
+                "ok": n_ok,
+                "erreur": n_err,
+                "tokens_in": tin,
+                "tokens_out": tout,
+                "cost_usd": round(cost, 6),
+                "last_7d": n7,
+                "last_30d": n30,
+                "cost_7d": round(c7, 6),
+                "cost_30d": round(c30, 6),
+                "table_missing": False,
+            }
+        )
+
+        daily = _fetch_rows(
+            conn,
+            f"""
+            SELECT (created_at AT TIME ZONE 'Europe/Paris')::date AS day,
+                   COUNT(*)::int AS n
+            FROM {schema}.raa_analyse
+            WHERE created_at >= :since
+            GROUP BY 1
+            """,
+            params,
+        ) or []
+        for d in daily:
+            day_counts[str(d.get("day"))] += int(d.get("n") or 0)
+
+        join_raa = _table_exists(conn, schema, "raa")
+        recent_sql = (
+            f"""
+            SELECT a.id, a.raa_id, a.modele, a.tokens_in, a.tokens_out, a.cout_estime,
+                   a.niveau_alerte, a.erreur, a.created_at,
+                   r.titre, r.date_publication, r.taille_mo
+            FROM {schema}.raa_analyse a
+            LEFT JOIN {schema}.raa r ON r.id = a.raa_id
+            ORDER BY a.created_at DESC NULLS LAST
+            LIMIT :lim
+            """
+            if join_raa
+            else f"""
+            SELECT a.id, a.raa_id, a.modele, a.tokens_in, a.tokens_out, a.cout_estime,
+                   a.niveau_alerte, a.erreur, a.created_at,
+                   NULL AS titre, NULL AS date_publication, NULL AS taille_mo
+            FROM {schema}.raa_analyse a
+            ORDER BY a.created_at DESC NULLS LAST
+            LIMIT :lim
+            """
+        )
+        for row in _fetch_rows(conn, recent_sql, params) or []:
+            titre = str(row.get("titre") or "").strip()
+            recent.append(
+                {
+                    "analyse_id": int(row["id"]),
+                    "raa_id": int(row["raa_id"]) if row.get("raa_id") is not None else None,
+                    "commune_slug": cfg.slug,
+                    "commune_label": cfg.commune_label,
+                    "modele": row.get("modele"),
+                    "titre": titre or f"RAA #{row.get('raa_id')}",
+                    "date_publication": str(row["date_publication"]) if row.get("date_publication") else None,
+                    "taille_mo": _f(row.get("taille_mo")) if row.get("taille_mo") is not None else None,
+                    "tokens_in": int(row.get("tokens_in") or 0),
+                    "tokens_out": int(row.get("tokens_out") or 0),
+                    "cost_usd": round(_f(row.get("cout_estime")), 6),
+                    "niveau_alerte": row.get("niveau_alerte"),
+                    "erreur": (str(row.get("erreur") or "").strip() or None),
+                    "created_at": _iso(row.get("created_at")),
+                    "raa_url": f"{_PROJECT_URL_BASE}/{cfg.slug}/raa",
+                }
+            )
+
+    recent.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+
+    return {
+        "analyses": analyses,
+        "ok": ok,
+        "erreur": err,
+        "tokens_in": tokens_in,
+        "tokens_out": tokens_out,
+        "cost_usd": round(cost_usd, 6),
+        "last_7d": last_7d,
+        "last_30d": last_30d,
+        "cost_7d": round(cost_7d, 6),
+        "cost_30d": round(cost_30d, 6),
+        "by_commune": by_commune,
+        "by_day": _fill_days(day_counts),
+        "recent": recent[:_RECENT_LIMIT],
+    }
+
+
 @router.get("")
 @router.get("/")
 def get_monitoring(_user_id: str = Depends(_require_superadmin)) -> dict[str, Any]:
-    """Agrégats CUA, chat, et accès utilisateurs (`user_commune_access` + `auth.users`)."""
+    """Agrégats CUA, chat, RAA (coûts LLM) et accès utilisateurs."""
     engine = get_engine()
     cua = _empty_cua()
     chat = _empty_chat()
     users = _empty_users()
+    raa = _empty_raa()
     try:
         with engine.connect() as conn:
             cua = _load_cua(conn)
@@ -691,9 +914,24 @@ def get_monitoring(_user_id: str = Depends(_require_superadmin)) -> dict[str, An
             users = _load_users(conn)
     except Exception:
         logger.exception("Monitoring : échec liste utilisateurs")
+    try:
+        with engine.connect() as conn:
+            raa = _load_raa(conn)
+    except Exception:
+        logger.exception("Monitoring : échec agrégats RAA")
+
+    chat_tokens = int(chat.get("total_tokens") or 0)
+    raa_tokens = int(raa.get("tokens_in") or 0) + int(raa.get("tokens_out") or 0)
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "cua": cua,
         "chat": chat,
         "users": users,
+        "raa": raa,
+        "llm": {
+            "raa_cost_usd": raa.get("cost_usd") or 0.0,
+            "raa_tokens": raa_tokens,
+            "chat_tokens": chat_tokens,
+            "total_tokens": raa_tokens + chat_tokens,
+        },
     }

@@ -25,6 +25,7 @@ from api.cuas.argeles.intersections import (
     load_catalogue,
 )
 from api.cuas.argeles.uf import UniteFonciere, build_uf
+from api.cuas.latresne.CUA.map3d.parcels_overlay import parcels_geojson_4326
 
 DEFAULT_CONTEXT_BUFFER_M = 200.0
 MAX_CONTEXT_BUFFER_M = 200.0
@@ -276,6 +277,7 @@ def run_carto_context(
 
     return {
         "parcelle": parcelle,
+        "parcels": parcels_geojson_4326(getattr(uf, "parcelles_geom", None) or []).get("features") or [],
         "parcelles": [{"section": s, "numero": n} for s, n in uf.parcelles],
         "surface_m2": round(uf.surface_sig, 2),
         "context_buffer_m": buffer_m,

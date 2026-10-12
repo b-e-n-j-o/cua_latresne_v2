@@ -24,6 +24,7 @@ LATRESNE_PROFILE = build_commune_profile(
     ),
     llm_tool_names=(
         "get_contexte_parcelle",
+        "autorisations_parcelle",
         "get_reglement_zone",
         "get_reglement_pprmvt",
         "get_reglement_ppri",

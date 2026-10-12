@@ -28,6 +28,7 @@ from api.cuas.latresne.CUA.map2d.carte2d.carte2d_extraction import (
 )
 from api.cuas.latresne.CUA.map2d.carte2d.carte2d_metier import construire_couche_metier
 from api.cuas.latresne.CUA.map2d.map_utils import random_color
+from api.cuas.latresne.CUA.map3d.parcels_overlay import load_parcelles_geom, parcels_geojson_4326, sibling_parcelles_path
 from api.cuas.latresne.CUA.ppri.ppri_map_module import ajouter_ppri_a_carte
 
 logger = logging.getLogger("carte2d.rendu")
@@ -57,6 +58,7 @@ def generer_carte_2d_depuis_wkt(
     inclure_ppri: bool = True,
     ppri_table: str = "pm1_detaillee_gironde",
     catalogue_path: str | None = None,
+    parcelles_geom=None,
 ):
     """
     Génère une carte 2D Folium à partir d'un WKT, en utilisant :
@@ -261,6 +263,41 @@ window.addEventListener('load', function() {{
         show=True,
     ).add_to(m)
     logger.info("   ✅ Parcelle ajoutée")
+
+    if parcelles_geom is None:
+        parcelles_geom = sibling_parcelles_path(wkt_file)
+    parcel_records = load_parcelles_geom(parcelles_geom)
+    if parcel_records:
+        fc = parcels_geojson_4326(parcel_records)
+        folium.GeoJson(
+            fc,
+            name="Parcelles cadastrales",
+            style_function=lambda x: {
+                "color": "#0284c7",
+                "weight": 2,
+                "fillOpacity": 0.08,
+                "fillColor": "#38bdf8",
+            },
+            tooltip=folium.GeoJsonTooltip(fields=["label"], aliases=["Parcelle"]),
+            show=True,
+        ).add_to(m)
+        for feat in fc.get("features") or []:
+            props = feat.get("properties") or {}
+            lon, lat = props.get("lon"), props.get("lat")
+            label = props.get("label")
+            if lon is None or lat is None or not label:
+                continue
+            folium.Marker(
+                location=[lat, lon],
+                icon=folium.DivIcon(
+                    html=(
+                        f'<div style="background:rgba(255,255,255,.9);border:1px solid #0284c7;'
+                        f'border-radius:4px;padding:1px 5px;font:11px/1.2 system-ui,sans-serif;'
+                        f'color:#0c4a6e;white-space:nowrap;">{label}</div>'
+                    )
+                ),
+            ).add_to(m)
+        logger.info("   ✅ %s parcelle(s) étiquetée(s)", len(parcel_records))
 
     parcelle_wkt = wkt_geom
     label_parcelle = "Unité foncière"

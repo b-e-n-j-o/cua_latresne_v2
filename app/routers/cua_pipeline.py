@@ -40,6 +40,7 @@ class ParcelleWithCerfaDataRequest(BaseModel):
     user_id: Optional[str] = None
     user_email: Optional[str] = None
     cerfa_data: Dict[str, Any]
+    include_dxf: bool = False
 
 
 @router.post("/analyze-parcelles")
@@ -159,6 +160,7 @@ async def analyze_parcelles_with_json_data(req: ParcelleWithCerfaDataRequest):
     if req.user_email:
         env["USER_EMAIL"] = req.user_email
     env["SKIP_3D"] = "1"
+    env["INCLUDE_DXF"] = "1" if req.include_dxf else "0"
 
     out_dir = f"/tmp/out_pipeline_{job_id}"
     JOBS[job_id]["out_dir"] = out_dir

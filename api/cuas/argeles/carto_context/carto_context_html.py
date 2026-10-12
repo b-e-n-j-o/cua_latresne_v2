@@ -2,8 +2,7 @@
 """
 carto_context_html.py — Carte HTML autonome MapLibre (GeoJSON gelé + légende interactive).
 
-Aligné sur l'interface studyZone Argelès : fond IGN, toggles couches / groupes
-discriminants, couleurs par attribut.
+Fond : raster Plan IGN V2 (même WMTS que Latresne), pour coller au cadastre PCI.
 """
 
 from __future__ import annotations
@@ -14,7 +13,35 @@ from html import escape
 
 from api.cuas.argeles.carto_context.carto_context_enrich import prepare_layers_payload
 
-IGN_STYLE = "https://data.geopf.fr/annexes/ressources/vectorTiles/styles/PLAN.IGN/standard.json"
+# Même fond que Latresne (carte2d_rendu.BASEMAP_CONF). Raster Géoplateforme, sans clé.
+# Remplace l'ancien style vectoriel PLAN.IGN (traits cadastraux IGN décalés vs PCI).
+IGN_RASTER_TILES = (
+    "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0"
+    "&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal"
+    "&TILEMATRIXSET=PM&FORMAT=image/png"
+    "&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}"
+)
+IGN_MAP_STYLE = {
+    "version": 8,
+    "name": "Plan IGN raster (Géoplateforme)",
+    "sources": {
+        "plan-ign-raster": {
+            "type": "raster",
+            "tiles": [IGN_RASTER_TILES],
+            "tileSize": 256,
+            "maxzoom": 19,
+            "attribution": "© IGN — Géoplateforme (Plan IGN)",
+        }
+    },
+    "layers": [
+        {
+            "id": "plan-ign-raster",
+            "type": "raster",
+            "source": "plan-ign-raster",
+            "minzoom": 0,
+        }
+    ],
+}
 
 
 def _parcel_label(context: dict) -> str:
@@ -49,13 +76,14 @@ def render_carto_context_html(
 
     payload = {
         "parcelle": parcelle,
+        "parcels": context.get("parcels") or [],
         "buffer_m": buffer_m,
         "layers": layers,
         "label": label,
         "commune": commune_nom,
         "computed_at": computed,
         "surface_m2": surface,
-        "ignStyle": IGN_STYLE,
+        "ignStyle": IGN_MAP_STYLE,
     }
     data_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
 
@@ -120,6 +148,11 @@ def render_carto_context_html(
     .popup th {{ text-align: left; color: #64748b; padding: 1px 6px 1px 0; vertical-align: top; font-weight: 500; }}
     .popup td {{ color: #111; padding: 1px 0; }}
     .maplibregl-popup-content {{ padding: 10px 12px; border-radius: 6px; }}
+    .parcel-label {{
+      background: rgba(255,255,255,.92); border: 1px solid #0284c7; border-radius: 4px;
+      padding: 2px 6px; font: 11px/1.2 system-ui,sans-serif; color: #0c4a6e;
+      white-space: nowrap; pointer-events: none;
+    }}
   </style>
 </head>
 <body>
@@ -297,7 +330,7 @@ def render_carto_context_html(
     }}
 
     function bringUfAndBufferToFront() {{
-      for (const id of ["ctx-buffer-line", "ctx-parcelle-fill", "ctx-parcelle-outline"]) {{
+      for (const id of ["ctx-buffer-line", "ctx-parcelle-fill", "ctx-parcelle-outline", "ctx-parcels-line"]) {{
         if (map.getLayer(id)) map.moveLayer(id);
       }}
     }}
@@ -333,6 +366,30 @@ def render_carto_context_html(
         id: "ctx-parcelle-outline", type: "line", source: "ctx-parcelle",
         paint: {{ "line-color": UF_OUTLINE, "line-width": 3.5, "line-opacity": 1 }},
       }});
+
+      const parcelFeats = DATA.parcels || [];
+      if (parcelFeats.length) {{
+        map.addSource("ctx-parcels", {{
+          type: "geojson",
+          data: {{ type: "FeatureCollection", features: parcelFeats }},
+        }});
+        map.addLayer({{
+          id: "ctx-parcels-line", type: "line", source: "ctx-parcels",
+          paint: {{ "line-color": "#0284c7", "line-width": 2, "line-opacity": 0.95 }},
+        }});
+        for (const feat of parcelFeats) {{
+          const label = feat.properties && feat.properties.label;
+          const lon = feat.properties && feat.properties.lon;
+          const lat = feat.properties && feat.properties.lat;
+          if (!label || lon == null || lat == null) continue;
+          const el = document.createElement("div");
+          el.className = "parcel-label";
+          el.textContent = label;
+          new maplibregl.Marker({{ element: el, anchor: "center" }})
+            .setLngLat([lon, lat])
+            .addTo(map);
+        }}
+      }}
       bringUfAndBufferToFront();
     }}
 

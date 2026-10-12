@@ -13,6 +13,8 @@ from shapely.geometry import Polygon, MultiPolygon
 from shapely.prepared import prep
 from pathlib import Path
 
+from api.cuas.latresne.CUA.map3d.parcels_overlay import write_parcelles_geom
+
 # ============================================================
 # CONFIGURATION DB
 # ============================================================
@@ -139,6 +141,17 @@ def verifier_unite_fonciere(cerfa_json_path: str, code_insee: str, out_dir: str 
         return {"success": False, "message": "Aucune géométrie de parcelle trouvée.", "groupes": []}
 
     gdf = gdf.rename(columns={"geometry": "geom_2154"}).set_geometry("geom_2154")
+
+    parcel_records = [
+        {
+            "section": str(row["section"]),
+            "numero": str(row["numero"]),
+            "wkt": row["geom_2154"].wkt,
+            "contenance": row.get("contenance"),
+        }
+        for _, row in gdf.iterrows()
+    ]
+    parcelles_geom_path = write_parcelles_geom(out_dir, parcel_records)
     
     # === Récupération superficie indicative (contenance) ===
     superficie_indicative = None
@@ -183,6 +196,7 @@ def verifier_unite_fonciere(cerfa_json_path: str, code_insee: str, out_dir: str 
                 "message": msg,
                 "groupes": [[f"{p['section']} {p['numero']}" for p in parcelles]],
                 "geom_wkt_path": str(wkt_path),
+                "parcelles_geom_path": str(parcelles_geom_path),
                 "superficie_indicative": superficie_indicative
             }
         else:
@@ -198,6 +212,7 @@ def verifier_unite_fonciere(cerfa_json_path: str, code_insee: str, out_dir: str 
                 "message": msg,
                 "groupes": groupes,
                 "geom_wkt_path": str(wkt_path),
+                "parcelles_geom_path": str(parcelles_geom_path),
                 "superficie_indicative": superficie_indicative
             }
 
@@ -217,7 +232,12 @@ def verifier_unite_fonciere(cerfa_json_path: str, code_insee: str, out_dir: str 
 
         msg = f"❌ {len(groupes_uf)} unités foncières distinctes détectées pour la commune {commune}. " \
               "Veuillez déposer une demande de CERFA par unité foncière."
-        return {"success": False, "message": msg, "groupes": groupes_uf}
+        return {
+            "success": False,
+            "message": msg,
+            "groupes": groupes_uf,
+            "parcelles_geom_path": str(parcelles_geom_path),
+        }
 
     # ============================================================
     # CAS 3 : Erreur géométrique
