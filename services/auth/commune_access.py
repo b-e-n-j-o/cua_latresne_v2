@@ -32,6 +32,7 @@ SUPABASE_KEY = os.getenv("SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY"
 COMMUNE_REGISTRY: dict[str, dict[str, str]] = {
     "latresne": {"code_insee": "33234", "nom": "Latresne"},
     "argeles": {"code_insee": "66008", "nom": "Argelès-sur-Mer"},
+    "larochelle": {"code_insee": "17300", "nom": "La Rochelle"},
     "mios": {"code_insee": "33531", "nom": "Mios"},
 }
 

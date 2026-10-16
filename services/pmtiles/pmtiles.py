@@ -14,6 +14,7 @@ Exemples :
   python pmtiles.py ma_commune zonage_plu ma_commune_zonage.pmtiles
   python pmtiles.py ma_commune parcelles parcelles.pmtiles -l parcelles
   python pmtiles.py ma_commune zonage_plu zonage.pmtiles --prefix ma_commune
+  python pmtiles.py argeles ppr ppr.pmtiles
 
 Batch (catalogue) :
   python pmtiles_batch.py --schema argeles
@@ -48,6 +49,11 @@ def parse_args() -> argparse.Namespace:
         default="surfacique",
         help="Type de géométrie pour le SQL de transformation",
     )
+    parser.add_argument(
+        "--no-audit",
+        action="store_true",
+        help="Ne pas comparer avec le PMTiles déjà publié (pas de download Storage)",
+    )
     return parser.parse_args()
 
 
@@ -62,6 +68,7 @@ def main() -> None:
         layer_name=args.layer_name,
         prefix=args.prefix,
         geom_type=args.geom_type,
+        audit=not args.no_audit,
     )
 
     if result.status == "ok":
